@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 date: 2026-07-10
 depends_on: [spec-003, adr-006]
 ---
@@ -39,6 +39,26 @@ filter onto a base query and passes it to Cinder's `query` attr:
 Deliverable: a playground page ([Spec 005](./spec-005-dev-playground.md))
 and a hexdocs guide, tested, so the recipe can't rot.
 
+> **Shipped.** `Dev.Live.CinderInterop` (`/cinder-interop`) pairs
+> `Flicker.search` with `Cinder.collection` over `Dev.Music.Artist`,
+> actor-scoped via the same actor-toggle pattern as the other playground
+> pages; `test/flicker/cinder_interop_test.exs` drives that exact
+> LiveView end to end (narrows live, clears back to unfiltered, stays
+> actor-scoped); [`guides/cinder-integration.md`](../../guides/cinder-integration.md)
+> documents the recipe, quoting the playground LiveView verbatim. `cinder`
+> landed as an optional dev/test dependency (`~> 0.15`, current Hex
+> release as of this spec) — placed in `ash_deps/0`, not the general
+> tooling deps, because `cinder` itself hard-depends on `ash`; putting it
+> anywhere else would drag `ash` back into the no-`ash` CI leg's
+> dependency tree, breaking the boundary ADR-006 exists to protect. One
+> real-world wrinkle surfaced along the way: Cinder's own data load runs
+> in a `start_async` task (a different process from whichever one seeded
+> the data), which an `Ash.DataLayer.Ets` `private?: true` table (like
+> `Dev.Music`'s) can't see into — worked around with
+> `config :ash, disable_async?: true` in `:dev`/`:test` (Cinder-only,
+> nothing under `lib/` checks that key); a Postgres-backed or
+> non-private-ETS host never hits it. Levels 2 and 3 are unbuilt.
+
 **Level 2 — blessed adapter (`Flicker.Integrations.Cinder`).** Removes the
 boilerplate and resolves the two real conflicts:
 
@@ -71,11 +91,31 @@ unilateral control; tracked here, not promised.
 - Level 1: typing `status:active worker:"Casey"` above a Cinder collection
   narrows it live; clearing the search restores the unfiltered collection;
   works actor-scoped end to end. Covered by a playground page and a test.
+  **Shipped** — see the note above.
 - Level 2: with the adapter, a shared URL reproduces both the Flicker query
   and Cinder's own state (page, sort); neither library clobbers the other's
-  params; core suite still passes without `cinder` installed.
+  params; core suite still passes without `cinder` installed. **Not
+  built.**
 - The `on_change` payload designed in Spec 003 is sufficient for the
   adapter without Cinder-specific leakage into `Flicker.Query`.
+
+  **Verdict: yes, as designed.** `{on_change, %Flicker.Query{}, filter}` —
+  where `filter` is already the plain map `Ash.Query.filter_input/2`
+  expects (`Flicker.Query.to_filter/2`'s output) — is exactly what Level
+  1's recipe needed and nothing more: the host composes it onto a base
+  `Ash.Query` with one `filter_input/2` call and hands the result to
+  `Cinder.collection`'s `query` attr. Nothing about that payload
+  mentions Cinder, references its types, or shapes itself around its API
+  (`Cinder.collection`'s `query` attr just happens to accept the same
+  `Ash.Query` any other consumer — a stream, a plain `Ash.read!/2` call —
+  would). A Level 2 adapter would consume the same two values unchanged
+  (`%Flicker.Query{}` for URL serialisation, `filter` — or
+  `to_filter/2` re-run — for the composed query); no new field, no
+  Cinder-shaped wrapper, is needed on `Flicker.Query` itself to support
+  it. The one thing Level 1 leaves outside `on_change` entirely is
+  Cinder's own state (page, sort, its column filters) — by design,
+  that's Cinder's state, not Flicker's, and Level 2's job is coordinating
+  the two in the URL, not merging them into one payload.
 
 ## Open questions
 
