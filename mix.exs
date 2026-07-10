@@ -54,7 +54,9 @@ defmodule Flicker.MixProject do
     if System.get_env("FLICKER_NO_ASH"), do: ["lib", "test/support"], else: ["lib", "test/support", "dev"]
   end
 
-  defp elixirc_paths(:dev), do: ["lib", "dev"]
+  defp elixirc_paths(:dev) do
+    if System.get_env("FLICKER_NO_ASH"), do: ["lib"], else: ["lib", "dev"]
+  end
 
   defp elixirc_paths(_), do: ["lib"]
 

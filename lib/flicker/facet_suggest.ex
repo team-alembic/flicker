@@ -19,7 +19,7 @@ defmodule Flicker.FacetSuggest do
   by checking `result.meta[:flicker_facet]`.
   """
 
-  alias Flicker.{CursorContext, Facet, Provider, Query, Result}
+  alias Flicker.{CursorContext, Facet, Result}
 
   @typedoc "A facet suggestion — a `Flicker.Result` tagged for token insertion."
   @type suggestion :: Result.t()
@@ -104,6 +104,8 @@ defmodule Flicker.FacetSuggest do
   end
 
   if Code.ensure_loaded?(Ash) do
+    alias Flicker.{Provider, Query}
+
     @doc """
     Runs the nested, actor-scoped search for a relationship facet's values
     (Spec 003) — a plain `Flicker.Providers.AshResource` search over
@@ -187,8 +189,15 @@ defmodule Flicker.FacetSuggest do
     * anything else — `[]` (no facets configured).
   """
   @spec resolve_facets(map()) :: [Facet.t()]
-  def resolve_facets(%{resource: resource, facets: facets}) when not is_nil(resource) do
-    Flicker.Providers.AshResource.facets(resource: resource, facets: facets || [])
+
+  # `resource:` (Tier 1) is itself an Ash-only concept — `AshResource.facets/1`
+  # only compiles when `ash` is present (ADR-006). Without `ash`, this clause
+  # doesn't exist at all, so a `resource:` assign falls through to the plain
+  # `[]` clause below instead of referencing an undefined function.
+  if Code.ensure_loaded?(Ash) do
+    def resolve_facets(%{resource: resource, facets: facets}) when not is_nil(resource) do
+      Flicker.Providers.AshResource.facets(resource: resource, facets: facets || [])
+    end
   end
 
   def resolve_facets(%{facets: [%Facet{} | _] = facets}), do: facets

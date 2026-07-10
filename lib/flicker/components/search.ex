@@ -85,6 +85,15 @@ defmodule Flicker.Components.Search do
     {:noreply, assign(socket, suggestions: [], suggestions_loading: false)}
   end
 
+  # `cancel_async/2`'s default exit reason — the synchronous branches of
+  # `load_suggestions/2` cancel a stale in-flight related search this way
+  # before assigning their own suggestions. `Process.exit/2` kills the task
+  # but doesn't un-track its ref, so this callback still runs once the kill
+  # signal lands; without this clause it would clobber the just-rendered
+  # suggestions with an empty list a moment later. Any other exit reason is
+  # a genuine crash, still logged and cleared.
+  def handle_async(:related_search, {:exit, {:shutdown, :cancel}}, socket), do: {:noreply, socket}
+
   def handle_async(:related_search, {:exit, reason}, socket) do
     Logger.warning("Flicker facet related search task exited: #{inspect(reason)}")
     {:noreply, assign(socket, suggestions: [], suggestions_loading: false)}
@@ -107,16 +116,24 @@ defmodule Flicker.Components.Search do
     |> assign(suggestions: suggestions, suggestions_loading: false)
   end
 
-  defp load_suggestions(socket, {:value, %{related: related} = facet, prefix}) when not is_nil(related) do
-    actor = socket.assigns[:actor]
-    tenant = socket.assigns[:tenant]
-    limit = socket.assigns[:limit]
+  # A relationship facet's `:related` is itself an Ash-only concept
+  # (ADR-006) — `FacetSuggest.related_search/3` only compiles when `ash` is
+  # present, so this clause only exists then too. Without `ash`, a
+  # relationship facet can't be configured in the first place, so the plain
+  # `{:value, facet, prefix}` clause below (empty picklist) is the correct
+  # fallback rather than referencing an undefined function.
+  if Code.ensure_loaded?(Ash) do
+    defp load_suggestions(socket, {:value, %{related: related} = facet, prefix}) when not is_nil(related) do
+      actor = socket.assigns[:actor]
+      tenant = socket.assigns[:tenant]
+      limit = socket.assigns[:limit]
 
-    socket
-    |> assign(suggestions_loading: true)
-    |> start_async(:related_search, fn ->
-      FacetSuggest.related_search(facet, prefix, actor: actor, tenant: tenant, limit: limit)
-    end)
+      socket
+      |> assign(suggestions_loading: true)
+      |> start_async(:related_search, fn ->
+        FacetSuggest.related_search(facet, prefix, actor: actor, tenant: tenant, limit: limit)
+      end)
+    end
   end
 
   defp load_suggestions(socket, {:value, facet, prefix}) do
@@ -134,10 +151,21 @@ defmodule Flicker.Components.Search do
   defp notify_change(socket) do
     facets = socket.assigns.facets
     query = Query.parse(socket.assigns.text, facets)
-    filter = if Code.ensure_loaded?(Ash), do: Query.to_filter(query, facets)
+    filter = to_filter(query, facets)
 
     send(self(), {socket.assigns.on_change, query, filter})
     socket
+  end
+
+  # `Query.to_filter/2` only compiles when `ash` is present (ADR-006) — this
+  # wrapper keeps that reference out of a no-ash build entirely, rather than
+  # a runtime `if Code.ensure_loaded?(Ash)` that still leaves the reference
+  # in the compiled module (and triggers "undefined function" as a warning
+  # regardless of which branch runs).
+  if Code.ensure_loaded?(Ash) do
+    defp to_filter(query, facets), do: Query.to_filter(query, facets)
+  else
+    defp to_filter(_query, _facets), do: nil
   end
 
   defp input_id(%Phoenix.LiveView.Socket{} = socket), do: input_id_for(socket.assigns.id)

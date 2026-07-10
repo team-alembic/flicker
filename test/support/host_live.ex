@@ -16,7 +16,9 @@ defmodule Flicker.Test.HostLive do
   tests run with no Ash data layer at all. The `"activate_with_keyboard"`
   session key (controlled mode only) passes a chord straight through to
   `Flicker.select/1`, for exercising Spec 006's server-side validation and
-  rendering.
+  rendering. The `"facets"` session key (controlled mode only) passes a
+  hand-built `Flicker.Facet` list straight through, for exercising Spec
+  003's faceted-search behaviour with no Ash resource involved.
   """
 
   use Phoenix.LiveView
@@ -38,6 +40,7 @@ defmodule Flicker.Test.HostLive do
     provider = Map.get(session, "provider", {Flicker.Providers.Static, results: @results})
     min_chars = Map.get(session, "min_chars", 0)
     activate_with_keyboard = Map.get(session, "activate_with_keyboard")
+    facets = Map.get(session, "facets", [])
 
     # A fresh (non-submitted) form has no `client_id` key in its params at
     # all — only seed one when the test is simulating an edit form with an
@@ -51,6 +54,7 @@ defmodule Flicker.Test.HostLive do
       |> assign(:provider, provider)
       |> assign(:min_chars, min_chars)
       |> assign(:activate_with_keyboard, activate_with_keyboard)
+      |> assign(:facets, facets)
       |> assign(:selected_result, :none)
       |> assign(:submitted_params, nil)
       |> assign(:form, to_form(initial_params, as: "form"))
@@ -113,6 +117,7 @@ defmodule Flicker.Test.HostLive do
       min_chars={@min_chars}
       on_select={:client_selected}
       activate_with_keyboard={@activate_with_keyboard}
+      facets={@facets}
     />
     <p :if={@selected_result != :none} id="selection">
       {if @selected_result, do: @selected_result.label, else: "cleared"}

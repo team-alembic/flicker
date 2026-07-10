@@ -197,6 +197,15 @@ defmodule Flicker.Components.Select do
     {:noreply, assign(socket, results: [], has_more: false, loading: false, error: true)}
   end
 
+  # `cancel_async/2`'s default exit reason — the synchronous facet branches
+  # of `run_faceted_search/2` cancel a stale in-flight record search this
+  # way before assigning their own results. `Process.exit/2` kills the task
+  # but doesn't un-track its ref, so this callback still runs once the
+  # kill signal lands; without this clause it would clobber the
+  # just-rendered facet results with an error state a moment later. Any
+  # other exit reason is a genuine crash, still surfaced as an error.
+  def handle_async(:search, {:exit, {:shutdown, :cancel}}, socket), do: {:noreply, socket}
+
   def handle_async(:search, {:exit, reason}, socket) do
     Logger.warning("Flicker search task exited: #{inspect(reason)}")
     {:noreply, assign(socket, results: [], has_more: false, loading: false, error: true)}
@@ -316,35 +325,53 @@ defmodule Flicker.Components.Select do
         run_faceted_search(socket, :text)
 
       suggestions ->
-        assign(socket, results: suggestions, has_more: false, loading: false, error: false)
+        socket
+        |> cancel_async(:search)
+        |> assign(results: suggestions, has_more: false, loading: false, error: false)
     end
   end
 
   # Facet-value position for an enum facet — synchronous, closed picklist.
   defp run_faceted_search(socket, {:value, %{type: :enum} = facet, prefix}) do
     suggestions = FacetSuggest.enum_value_suggestions(facet, prefix)
-    assign(socket, results: suggestions, has_more: false, loading: false, error: false)
+
+    socket
+    |> cancel_async(:search)
+    |> assign(results: suggestions, has_more: false, loading: false, error: false)
   end
 
   # Facet-value position for a relationship facet — nested, actor-scoped
-  # search over the related resource (Spec 003).
-  defp run_faceted_search(socket, {:value, %{related: related} = facet, prefix}) when not is_nil(related) do
-    actor = socket.assigns[:actor]
-    tenant = socket.assigns[:tenant]
-    fetch_limit = socket.assigns.limit + 1
+  # search over the related resource (Spec 003). A relationship facet's
+  # `:related` is itself an Ash-only concept (ADR-006) —
+  # `FacetSuggest.related_search/3` only compiles when `ash` is present, so
+  # this clause only exists then too. Without `ash`, a relationship facet
+  # can't be configured in the first place, so the no-picklist clause below
+  # is the correct fallback rather than referencing an undefined function.
+  if Code.ensure_loaded?(Ash) do
+    defp run_faceted_search(socket, {:value, %{related: related} = facet, prefix}) when not is_nil(related) do
+      actor = socket.assigns[:actor]
+      tenant = socket.assigns[:tenant]
+      fetch_limit = socket.assigns.limit + 1
 
-    socket
-    |> assign(loading: true, error: false)
-    |> start_async(:search, fn ->
-      FacetSuggest.related_search(facet, prefix, actor: actor, tenant: tenant, limit: fetch_limit)
-    end)
+      socket
+      |> assign(loading: true, error: false)
+      |> start_async(:search, fn ->
+        FacetSuggest.related_search(facet, prefix,
+          actor: actor,
+          tenant: tenant,
+          limit: fetch_limit
+        )
+      end)
+    end
   end
 
   # A facet-value position with no picklist (plain string/numeric/date
   # facet) — no autocomplete source, keyboard behaviour reverts to "no
   # suggestions" until the value is complete and the cursor moves on.
   defp run_faceted_search(socket, {:value, _facet, _prefix}) do
-    assign(socket, results: [], has_more: false, loading: false, error: false)
+    socket
+    |> cancel_async(:search)
+    |> assign(results: [], has_more: false, loading: false, error: false)
   end
 
   # Free-text position: an ordinary record search, but against the
