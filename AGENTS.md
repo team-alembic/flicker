@@ -109,6 +109,11 @@ mix usage_rules.sync           # regenerate .claude/skills/ from deps
 - `snake_case` for variables, `CamelCase` for modules.
 - Comments only when the *why* is non-obvious.
 
+### Git workflow
+- Trunk-based: commit directly to `main`, no branches or PRs for now.
+  Git is for history — commit in small logical units and **push after
+  every work session** (`git push`).
+
 ### Before committing
 - `mix format` and `mix credo --strict` must pass.
 - Add or update tests for any behavior change.

@@ -8,7 +8,8 @@ date: 2026-07-10
 ## Context
 
 Integrating a custom select with `<.form>` has two hard-won subtleties from
-ARCC PR #462:
+the origin implementation (mechanics preserved in the
+[extraction notes](../reference/extraction-notes.md)):
 
 1. The component must emit the hidden input(s) carrying the selected
    value(s), plus the `_unused_<field>` marker, so the required-field error
@@ -17,7 +18,7 @@ ARCC PR #462:
 2. Not every picker lives in a form — some emit a selection event and no
    params at all.
 
-A dead-render lesson rides along (ARCC PR #493): interacting with markup
+A dead-render lesson rides along from the origin app: interacting with markup
 before the LiveView joins drops the event, and the first connected render
 wipes the value.
 
@@ -27,7 +28,7 @@ Two explicit modes:
 
 - **Form-field mode** (`field={f[:client_id]}`): Flicker owns the hidden
   input(s) — `name[]` array inputs for multi-select — and the
-  `_unused_<field>` marker logic, ported as-is from the proven ARCC
+  `_unused_<field>` marker logic, ported as-is from the proven origin
   implementation. The AshPhoenix.Form `attach/2` merge hook ships as an
   **optional adapter**, so `ash_phoenix` is not a hard dependency.
 - **Controlled mode** (no `field`): the component emits `on_select` (or a

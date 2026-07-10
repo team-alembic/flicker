@@ -9,9 +9,12 @@ The north-star document: what Flicker is, why it exists, and how the work is
 sequenced. Decisions live in [ADRs](./adrs/README.md); implementable detail
 lives in [specs](./specs/README.md) — this file links rather than restates.
 
-**Origin:** extracted from `ArccWeb.Components.SearchableSelect` +
-`ArccWeb.Search.*` built for ARCC's client/worker pickers (ARCC PR #462).
-ARCC becomes Flicker's first consumer and proving ground.
+**Origin:** extracted from a searchable-select component and search
+behaviour proven in a production Ash/LiveView application ("the origin
+app"); the implementation knowledge is carried in
+[extraction notes](./reference/extraction-notes.md) so this repo is
+self-contained. The origin app becomes Flicker's first consumer and
+proving ground.
 
 ## What it is
 
@@ -73,12 +76,12 @@ in-repo `dev/` Phoenix app (à la `ash_authentication_phoenix`) with seeded
 ETS-backed resources; every spec adds its page as part of its definition of
 done.
 
-## What changes from the ARCC code
+## What changes from the origin code
 
-| Today (ARCC) | Flicker |
+| Origin | Flicker |
 |---|---|
 | `Search.Source` required | resource+fields default; `Flicker.Provider` optional ([ADR-001](./adrs/adr-001-two-tier-provider-architecture.md)) |
-| `use ArccWeb, :live_component` | `use Phoenix.LiveComponent` + `Flicker.Theme` |
+| `use HostWeb, :live_component` | `use Phoenix.LiveComponent` + `Flicker.Theme` |
 | daisyUI classes hardcoded | swappable theme presets ([ADR-002](./adrs/adr-002-rendering-via-slots-and-theme-map.md)) |
 | `Result` with `type`/`icon`/`bg_class` | generic `%Flicker.Result{}` + `:option` slot |
 | single value | single **and** list + chips + list `fetch/2` ([ADR-003](./adrs/adr-003-fetch-takes-a-list.md)) |
@@ -91,11 +94,12 @@ done.
 
 1. ~~Stand up the new repo with standard Ash-lib scaffolding~~ (done — this
    repo).
-2. Move `SearchableSelect` + `Search.{Source,Result,Sources.*}` + the JS
-   hook + the PhoenixTest helper from ARCC, renaming to `Flicker.*` and
-   severing `ArccWeb`/`ArccUI`/daisyUI couplings (= Spec 001).
-3. Add Flicker as a dep back into ARCC and reimplement the client/worker/
-   authorization pickers on top of it.
+2. Rebuild the origin component + search behaviour + JS hook + PhoenixTest
+   helper as `Flicker.*`, severing all host-app/CSS-framework couplings
+   (= Specs 004 + 001, guided by the
+   [extraction notes](./reference/extraction-notes.md)).
+3. Add Flicker as a dep back into the origin app and reimplement its
+   pickers on top of it.
 
 ## Component surface
 

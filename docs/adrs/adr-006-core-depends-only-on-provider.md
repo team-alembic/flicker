@@ -38,7 +38,7 @@ provider that Tier 1 config compiles to. Consequently:
 - The pure-Elixir contract is documented and supported — but it is an escape
   hatch, not a marketed pillar. Flicker's pitch stays Ash-*first* (see the
   differentiation test in [DESIGN.md](../DESIGN.md)); polish beyond "works
-  and is documented" waits until the Ash story is proven in ARCC.
+  and is documented" waits until the Ash story is proven in the origin app.
 
 Rejected: core calling Ash directly for Tier 1 (two execution paths to keep
 in lockstep; hard `ash` dep for hosts that don't need it), and a separate

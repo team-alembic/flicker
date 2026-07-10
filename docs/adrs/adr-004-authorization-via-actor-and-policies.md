@@ -7,7 +7,7 @@ date: 2026-07-10
 
 ## Context
 
-The ARCC implementation guarded search with a bespoke `read_permission/0`
+The origin implementation guarded search with a bespoke `read_permission/0`
 callback — a boolean pre-check before querying. Ash already has a complete
 authorisation story: reads run with an `actor:`, and policies filter what
 that actor can see. A parallel permission mechanism would fight the

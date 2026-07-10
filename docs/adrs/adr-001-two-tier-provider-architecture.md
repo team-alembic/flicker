@@ -7,7 +7,7 @@ date: 2026-07-10
 
 ## Context
 
-The ARCC implementation Flicker is extracted from required a `Search.Source`
+The origin implementation Flicker is extracted from required a `Search.Source`
 module per record type. That is the right shape for federated/global search,
 but it is too heavy for the common case: "search this one resource on these
 fields". Requiring a module per picker adds boilerplate and a naming decision

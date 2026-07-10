@@ -8,7 +8,7 @@ date: 2026-07-10
 ## Context
 
 The extracted component hardcodes daisyUI classes and assumes heroicons and
-the host's `ArccUI` helpers. A published library cannot assume any CSS
+the origin app's UI helpers. A published library cannot assume any CSS
 framework, and hosts need to restyle every visual part without forking the
 component. Cinder solved the same problem with a theme system; Flicker should
 feel familiar to Cinder users.
