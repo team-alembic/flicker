@@ -1,5 +1,5 @@
 ---
-status: ready
+status: in-progress
 date: 2026-07-10
 depends_on: [spec-004, adr-001, adr-002, adr-004, adr-005, adr-007, adr-009]
 ---
