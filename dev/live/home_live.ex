@@ -1,0 +1,49 @@
+defmodule Dev.Live.Home do
+  @moduledoc """
+  The dev playground's landing page (Spec 005) — links to every capability
+  page, each backed by the seeded `Dev.Music` domain or a pure-Elixir
+  provider.
+  """
+
+  use Phoenix.LiveView
+
+  @pages [
+    {"/single-select", "Single select",
+     "Form mode + controlled mode side by side, actor toggle on the policy-bearing resource"},
+    {"/static-provider", "Static provider", "Pure-Elixir, no-Ash `Flicker.Providers.Static` path"},
+    {"/themes", "Theme showcase", "The same select in every shipped theme preset"},
+    {"/edge-states", "Edge states", "Slow, erroring, and empty-result providers, on demand"}
+  ]
+
+  @impl true
+  @doc "Assigns the page list; no other state."
+  @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
+  def mount(_params, _session, socket), do: {:ok, assign(socket, :pages, @pages)}
+
+  @impl true
+  @doc "Renders the page-index nav list."
+  @spec render(map()) :: Phoenix.LiveView.Rendered.t()
+  def render(assigns) do
+    ~H"""
+    <div class="space-y-4">
+      <h1 class="text-2xl font-semibold">Flicker dev playground</h1>
+      <p class="text-sm text-gray-600">
+        Every page reads off the seeded `Dev.Music` domain (ETS, no database)
+        or a pure-Elixir provider — see
+        <a
+          class="text-indigo-600 hover:underline"
+          href="https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-005-dev-playground.md"
+        >
+          Spec 005
+        </a>.
+      </p>
+      <ul class="space-y-2">
+        <li :for={{path, title, description} <- @pages}>
+          <.link navigate={path} class="font-medium text-indigo-600 hover:underline">{title}</.link>
+          <span class="text-sm text-gray-600"> — {description}</span>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+end
