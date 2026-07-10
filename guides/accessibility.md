@@ -45,8 +45,9 @@ rather than moving real focus into the listbox. This holds across
 not one per concern — so a screen reader never gets more than one
 in-flight announcement from a single Flicker component competing with
 itself. Its content is a pure function of the same assigns that drive the
-visible render (`Flicker.Components.Select.announcement/1`,
-`Flicker.Components.Search.announcement/1`) — there is no second,
+visible render (the private `announcement/1` helper in
+`Flicker.Components.Select` and `Flicker.Components.Search`) — there is no
+second,
 independently-updated "what did we last announce" assign that visible
 state and announced state could drift apart on. Covered:
 

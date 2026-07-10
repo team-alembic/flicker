@@ -199,7 +199,19 @@ defmodule Flicker.MixProject do
       source_url_pattern: "#{@source_url}/blob/main/%{path}#L%{line}",
       extra_section: "GUIDES",
       extras: extras(),
-      groups_for_extras: [Guides: ~r"guides/"],
+      groups_for_extras: [
+        "Getting started": ["guides/getting-started.md"],
+        Concepts: [
+          "guides/providers.md",
+          "guides/theming.md"
+        ],
+        Features: [
+          "guides/faceted-search.md",
+          "guides/command-palette.md"
+        ],
+        Accessibility: ["guides/accessibility.md"],
+        Integrations: ["guides/cinder-integration.md"]
+      ],
       before_closing_head_tag: fn
         :html -> ~s|<link rel="icon" href="data:,">|
         _ -> ""
