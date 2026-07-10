@@ -13,6 +13,13 @@ defmodule Flicker.Components.Select do
   verbatim per the extraction notes). Every render is gated on
   `connected?/1` — interactive controls are disabled until the socket has
   joined, so typing before the LiveSocket connects can never be lost.
+
+  `multiple` (Spec 002) switches the value model: `selected` becomes a list
+  of `Flicker.Result` structs (kept as Results, not bare values, so chips
+  render without refetching) instead of a single Result or `nil`. Options
+  already in `selected` are excluded from search results; `fetch/2` still
+  runs exactly once, resolving every preselected value in one call
+  (ADR-003) regardless of how many are set.
   """
 
   use Phoenix.LiveComponent
@@ -35,7 +42,12 @@ defmodule Flicker.Components.Select do
       |> assign_new(:open, fn -> false end)
       |> assign_new(:loading, fn -> false end)
       |> assign_new(:error, fn -> false end)
-      |> assign_new(:selected, fn -> nil end)
+      |> assign_new(:multiple, fn -> false end)
+      |> assign_new(:max_selections, fn -> nil end)
+
+    socket =
+      socket
+      |> assign_new(:selected, fn -> if socket.assigns.multiple, do: [] end)
       |> assign_new(:limit, fn -> @default_limit end)
       |> assign_new(:min_chars, fn -> @default_min_chars end)
       |> assign(:connected?, Phoenix.LiveView.connected?(socket))
@@ -68,6 +80,24 @@ defmodule Flicker.Components.Select do
     end
   end
 
+  def handle_event("select", %{"value" => raw_value}, %{assigns: %{multiple: true}} = socket) do
+    result = Enum.find(socket.assigns.results, &(to_string(&1.value) == raw_value))
+
+    socket =
+      if result && addable?(socket) do
+        new_selected = socket.assigns.selected ++ [result]
+
+        socket
+        |> assign(selected: new_selected)
+        |> update_results(&filter_selected(&1, new_selected))
+        |> notify_multi_selection(new_selected)
+      else
+        socket
+      end
+
+    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
+  end
+
   def handle_event("select", %{"value" => raw_value}, socket) do
     result = Enum.find(socket.assigns.results, &(to_string(&1.value) == raw_value))
 
@@ -77,6 +107,39 @@ defmodule Flicker.Components.Select do
       |> notify_selection(result)
 
     {:noreply, socket}
+  end
+
+  def handle_event("remove_chip", %{"value" => raw_value}, %{assigns: %{multiple: true}} = socket) do
+    new_selected = Enum.reject(socket.assigns.selected, &(to_string(&1.value) == raw_value))
+
+    socket =
+      socket
+      |> assign(selected: new_selected)
+      |> notify_multi_selection(new_selected)
+
+    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
+  end
+
+  def handle_event("remove_last_chip", _params, %{assigns: %{multiple: true, selected: [_ | _] = selected}} = socket) do
+    new_selected = List.delete_at(selected, -1)
+
+    socket =
+      socket
+      |> assign(selected: new_selected)
+      |> notify_multi_selection(new_selected)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("remove_last_chip", _params, socket), do: {:noreply, socket}
+
+  def handle_event("clear", _params, %{assigns: %{multiple: true}} = socket) do
+    socket =
+      socket
+      |> assign(selected: [], query: "", open: false)
+      |> notify_multi_selection([])
+
+    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
   end
 
   def handle_event("clear", _params, socket) do
@@ -108,11 +171,12 @@ defmodule Flicker.Components.Select do
   @impl true
   def handle_async(:search, {:ok, {:ok, results}}, socket) do
     limit = socket.assigns.limit
+    available = filter_available(results, socket)
 
     {:noreply,
      assign(socket,
-       results: Enum.take(results, limit),
-       has_more: length(results) > limit,
+       results: Enum.take(available, limit),
+       has_more: length(available) > limit,
        loading: false,
        error: false
      )}
@@ -172,6 +236,21 @@ defmodule Flicker.Components.Select do
 
   defp resolve_selected(%{assigns: %{field: nil}} = socket), do: socket
 
+  defp resolve_selected(%{assigns: %{multiple: true, field: field, selected: selected}} = socket) do
+    values = field.value |> List.wrap() |> Enum.reject(&blank?/1)
+
+    cond do
+      values == [] ->
+        assign(socket, selected: [])
+
+      matches_values?(selected, values) ->
+        socket
+
+      true ->
+        fetch_selected_multi(socket, values)
+    end
+  end
+
   defp resolve_selected(%{assigns: %{field: field, selected: selected}} = socket) do
     value = field.value
 
@@ -185,6 +264,11 @@ defmodule Flicker.Components.Select do
       true ->
         fetch_selected(socket, value)
     end
+  end
+
+  defp matches_values?(selected, values) do
+    Enum.sort(Enum.map(selected, &to_string(&1.value))) ==
+      Enum.sort(Enum.map(values, &to_string/1))
   end
 
   defp fetch_selected(socket, value) do
@@ -202,6 +286,68 @@ defmodule Flicker.Components.Select do
       {:error, reason} ->
         Logger.warning("Flicker fetch failed: #{inspect(reason)}")
         assign(socket, selected: nil)
+    end
+  end
+
+  # Resolves every preselected value in one `fetch/2` call (ADR-003) — an
+  # edit form opening with N ids set never issues N queries. Values that
+  # don't resolve (deleted records, or records a policy now hides) are
+  # simply dropped rather than crashing the mount.
+  defp fetch_selected_multi(socket, values) do
+    provider = socket.assigns.provider
+    actor = socket.assigns[:actor]
+    tenant = socket.assigns[:tenant]
+
+    case Provider.run_fetch(provider, values, actor: actor, tenant: tenant) do
+      {:ok, results} ->
+        assign(socket, selected: reorder_like(values, results))
+
+      {:error, reason} ->
+        Logger.warning("Flicker fetch failed: #{inspect(reason)}")
+        assign(socket, selected: [])
+    end
+  end
+
+  # Restores selection order (form/param order), and silently drops any
+  # value `fetch/2` didn't resolve — a partial result is normal (ADR-003),
+  # not something to render as an error or crash on.
+  defp reorder_like(values, results) do
+    by_value = Map.new(results, &{to_string(&1.value), &1})
+
+    values
+    |> Enum.map(&Map.get(by_value, to_string(&1)))
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp update_results(socket, fun), do: assign(socket, results: fun.(socket.assigns.results))
+
+  defp filter_available(results, %{assigns: %{multiple: true, selected: selected}}),
+    do: filter_selected(results, selected)
+
+  defp filter_available(results, _socket), do: results
+
+  defp filter_selected(results, selected) do
+    taken = MapSet.new(selected, &to_string(&1.value))
+    Enum.reject(results, &MapSet.member?(taken, to_string(&1.value)))
+  end
+
+  defp addable?(%{assigns: %{max_selections: nil}}), do: true
+
+  defp addable?(%{assigns: %{max_selections: max, selected: selected}}), do: length(selected) < max
+
+  defp notify_multi_selection(socket, selected) do
+    case {socket.assigns[:field], socket.assigns[:on_select]} do
+      {nil, tag} when not is_nil(tag) ->
+        send(self(), {tag, selected})
+        socket
+
+      {field, _} when not is_nil(field) ->
+        values = Enum.map(selected, &to_string(&1.value))
+        send(self(), {__MODULE__, :selected, field.name, values})
+        socket
+
+      _ ->
+        socket
     end
   end
 
@@ -251,6 +397,14 @@ defmodule Flicker.Components.Select do
     min_chars > 0 && String.length(String.trim(query)) < min_chars
   end
 
+  # Whether multi-select has hit `max_selections` — further picking is
+  # hidden from the listbox and communicated via a hint row rather than
+  # rendering options that would just be rejected on click.
+  defp at_max?(%{multiple: true, max_selections: max, selected: selected}) when not is_nil(max),
+    do: length(selected) >= max
+
+  defp at_max?(_assigns), do: false
+
   # Bulletproof visually-hidden CSS inlined directly on the element: Flicker
   # ships no stylesheet (ADR-002 keeps it framework-free), so a bare
   # `flicker-sr-only` class name would render visibly in every host app that
@@ -265,6 +419,7 @@ defmodule Flicker.Components.Select do
       |> assign(:input_id, input_id_for(assigns.id))
       |> assign(:listbox_id, listbox_id_for(assigns.id))
       |> assign(:below_min_chars, below_min_chars?(assigns))
+      |> assign(:at_max, at_max?(assigns))
       |> assign(:sr_only_style, @sr_only_style)
 
     ~H"""
@@ -275,7 +430,24 @@ defmodule Flicker.Components.Select do
       phx-target={@myself}
       phx-click-away="close"
       data-active-class={@theme.option_active}
+      data-multiple={to_string(@multiple)}
     >
+      <div :if={@multiple} class={@theme.chip_list} role="list" aria-label={message(assigns, :selected_items)}>
+        <span :for={result <- @selected} class={@theme.chip} role="listitem">
+          <span>{result.label}</span>
+          <button
+            type="button"
+            class={@theme.chip_remove}
+            disabled={!@connected?}
+            phx-click="remove_chip"
+            phx-value-value={to_string(result.value)}
+            phx-target={@myself}
+            aria-label={message(assigns, :remove_chip, %{label: result.label})}
+          >
+            {message(assigns, :remove_icon)}
+          </button>
+        </span>
+      </div>
       <label for={@input_id} class="flicker-sr-only" style={@sr_only_style}>{message(assigns, :search_placeholder)}</label>
       <input
         type="text"
@@ -297,7 +469,7 @@ defmodule Flicker.Components.Select do
         phx-target={@myself}
       />
       <button
-        :if={@selected}
+        :if={!@multiple && @selected}
         type="button"
         class={@theme.clear_button}
         disabled={!@connected?}
@@ -307,43 +479,71 @@ defmodule Flicker.Components.Select do
       >
         {message(assigns, :clear_selection)}
       </button>
+      <button
+        :if={@multiple && @selected != []}
+        type="button"
+        class={@theme.clear_button}
+        disabled={!@connected?}
+        phx-click="clear"
+        phx-target={@myself}
+        aria-label={message(assigns, :clear_all)}
+      >
+        {message(assigns, :clear_all)}
+      </button>
       <div aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
         {message(assigns, :results_count, %{count: length(@results)})}
+      </div>
+      <div :if={@multiple} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
+        {message(assigns, :selected_count, %{count: length(@selected)})}
       </div>
       <ul :if={@open} id={@listbox_id} role="listbox" class={@theme.listbox}>
         <li :if={@loading} class={@theme.loading_state}>{message(assigns, :loading)}</li>
         <li :if={@error} class={@theme.error_state}>{message(assigns, :error)}</li>
-        <li :if={!@loading && !@error && @below_min_chars} class={@theme.hint}>
+        <li :if={!@loading && !@error && @at_max} class={@theme.hint}>
+          {message(assigns, :max_selections_reached, %{max: @max_selections})}
+        </li>
+        <li :if={!@loading && !@error && !@at_max && @below_min_chars} class={@theme.hint}>
           {message(assigns, :min_chars_hint, %{min_chars: @min_chars})}
         </li>
-        <li :if={!@loading && !@error && !@below_min_chars && @results == []} class={@theme.empty_state}>
+        <li :if={!@loading && !@error && !@at_max && !@below_min_chars && @results == []} class={@theme.empty_state}>
           {message(assigns, :no_results)}
         </li>
-        <li
-          :for={{result, index} <- Enum.with_index(@results)}
-          id={option_id(assigns, index)}
-          role="option"
-          aria-selected="false"
-          class={@theme.option}
-        >
-          <button
-            type="button"
-            tabindex="-1"
-            phx-click="select"
-            phx-value-value={to_string(result.value)}
-            phx-target={@myself}
-            disabled={!@connected?}
+        <%= if !@at_max do %>
+          <li
+            :for={{result, index} <- Enum.with_index(@results)}
+            id={option_id(assigns, index)}
+            role="option"
+            aria-selected="false"
+            class={@theme.option}
           >
-            <%= if @option != [] do %>
-              {render_slot(@option, result)}
-            <% else %>
-              <span>{result.label}</span> <span :if={result.sublabel}>{result.sublabel}</span>
-            <% end %>
-          </button>
-        </li>
-        <li :if={@has_more} class={@theme.hint}>{message(assigns, :keep_typing)}</li>
+            <button
+              type="button"
+              tabindex="-1"
+              phx-click="select"
+              phx-value-value={to_string(result.value)}
+              phx-target={@myself}
+              disabled={!@connected?}
+            >
+              <%= if @option != [] do %>
+                {render_slot(@option, result)}
+              <% else %>
+                <span>{result.label}</span> <span :if={result.sublabel}>{result.sublabel}</span>
+              <% end %>
+            </button>
+          </li>
+          <li :if={@has_more} class={@theme.hint}>{message(assigns, :keep_typing)}</li>
+        <% end %>
       </ul>
-      <%= if @field do %>
+      <%= if @field && @multiple do %>
+        <input
+          :for={result <- @selected}
+          type="hidden"
+          name={"#{@field.name}[]"}
+          value={to_string(result.value)}
+        />
+        <input :if={@selected == []} type="hidden" name={unused_marker_name(@field)} value="" />
+      <% end %>
+      <%= if @field && !@multiple do %>
         <input type="hidden" name={@field.name} id={@field.id} value={selected_value(@selected)} required={@required} />
         <input :if={blank?(selected_value(@selected))} type="hidden" name={unused_marker_name(@field)} value="" />
       <% end %>
@@ -451,6 +651,15 @@ defmodule Flicker.Components.Select do
                 break
               case "Tab":
                 if (isOpen) this.pushEventTo(this.el, "close", {})
+                break
+              case "Backspace":
+                // Multi-select only, and only when the input is empty —
+                // otherwise Backspace edits the typed text as normal (spec
+                // 002: "Backspace in an empty search input removes the last
+                // chip").
+                if (this.el.dataset.multiple === "true" && this.input()?.value === "") {
+                  this.pushEventTo(this.el, "remove_last_chip", {})
+                }
                 break
               default:
                 break

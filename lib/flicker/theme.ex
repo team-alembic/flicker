@@ -30,6 +30,9 @@ defmodule Flicker.Theme do
     * `:empty_state` — the listbox's no-results row.
     * `:error_state` — the listbox's error row.
     * `:hint` — the "keep typing to narrow results" / min-chars hint row.
+    * `:chip_list` — multi-select: the wrapper around the selected chips.
+    * `:chip` — multi-select: a single selected-value chip.
+    * `:chip_remove` — multi-select: the per-chip remove button.
 
   ## Resolution
 
@@ -56,7 +59,10 @@ defmodule Flicker.Theme do
           loading_state: String.t(),
           empty_state: String.t(),
           error_state: String.t(),
-          hint: String.t()
+          hint: String.t(),
+          chip_list: String.t(),
+          chip: String.t(),
+          chip_remove: String.t()
         }
 
   @typedoc "An override: a full theme, or a partial map/keyword list of parts."
@@ -71,7 +77,10 @@ defmodule Flicker.Theme do
             loading_state: "flicker-loading",
             empty_state: "flicker-empty",
             error_state: "flicker-error",
-            hint: "flicker-hint"
+            hint: "flicker-hint",
+            chip_list: "flicker-chip-list",
+            chip: "flicker-chip",
+            chip_remove: "flicker-chip-remove"
 
   @doc "The default preset: plain, framework-free `flicker-*` class names."
   @spec vanilla() :: t()
@@ -98,7 +107,10 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-gray-500",
       empty_state: "px-3 py-2 text-gray-500",
       error_state: "px-3 py-2 text-red-600",
-      hint: "px-3 py-2 text-xs text-gray-400"
+      hint: "px-3 py-2 text-xs text-gray-400",
+      chip_list: "flex flex-wrap gap-1",
+      chip: "inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-xs text-indigo-700",
+      chip_remove: "text-indigo-400 hover:text-indigo-700"
     }
   end
 
@@ -122,7 +134,10 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-base-content/60",
       empty_state: "px-3 py-2 text-base-content/60",
       error_state: "px-3 py-2 text-error",
-      hint: "px-3 py-2 text-xs text-base-content/50"
+      hint: "px-3 py-2 text-xs text-base-content/50",
+      chip_list: "flex flex-wrap gap-1",
+      chip: "badge badge-primary gap-1",
+      chip_remove: "cursor-pointer"
     }
   end
 

@@ -28,6 +28,16 @@ defmodule Flicker.Messages.English do
       results update.
     * `:clear_selection` — visible text and `aria-label` for the button that
       clears the current selection.
+    * `:selected_items` — `aria-label` for the multi-select chip list.
+    * `:remove_chip` — %{label: name} — `aria-label` for a chip's remove
+      button, naming the chip it removes.
+    * `:remove_icon` — the visible glyph on a chip's remove button.
+    * `:clear_all` — visible text and `aria-label` for the multi-select
+      "clear all" button.
+    * `:selected_count` — %{count: n} — the live-region announcement after
+      the multi-select selection changes.
+    * `:max_selections_reached` — %{max: n} — shown in the listbox once
+      `max_selections` is reached.
   """
   @spec message(atom(), map()) :: String.t()
   def message(:search_placeholder, _bindings), do: "Search..."
@@ -42,4 +52,12 @@ defmodule Flicker.Messages.English do
   def message(:results_count, %{count: 1}), do: "1 result available"
   def message(:results_count, %{count: count}), do: "#{count} results available"
   def message(:clear_selection, _bindings), do: "Clear selection"
+  def message(:selected_items, _bindings), do: "Selected items"
+  def message(:remove_chip, %{label: label}), do: "Remove #{label}"
+  def message(:remove_icon, _bindings), do: "✕"
+  def message(:clear_all, _bindings), do: "Clear all"
+  def message(:selected_count, %{count: 0}), do: "No items selected"
+  def message(:selected_count, %{count: 1}), do: "1 item selected"
+  def message(:selected_count, %{count: count}), do: "#{count} items selected"
+  def message(:max_selections_reached, %{max: max}), do: "Maximum of #{max} selections reached"
 end
