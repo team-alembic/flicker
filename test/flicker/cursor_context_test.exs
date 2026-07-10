@@ -218,4 +218,23 @@ defmodule Flicker.CursorContextTest do
       assert CursorContext.classify("status:active", 999, @facets) == {:value, @status, "active"}
     end
   end
+
+  describe "token_start/2" do
+    test "the start of the trailing token of a plain input" do
+      assert CursorContext.token_start("foo bar stat", 12) == 8
+    end
+
+    test "an open-quoted token spanning whitespace counts as one token" do
+      assert CursorContext.token_start(~s(worker:"Casey N), 16) == 0
+    end
+
+    test "a closed-quoted token spanning whitespace counts as one token" do
+      assert CursorContext.token_start(~s(foo worker:"Casey Nguyen"), 24) == 4
+    end
+
+    test "clamps an out-of-range cursor" do
+      assert CursorContext.token_start("stat", 999) == 0
+      assert CursorContext.token_start("stat", -5) == 0
+    end
+  end
 end

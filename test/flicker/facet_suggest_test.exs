@@ -69,6 +69,14 @@ defmodule Flicker.FacetSuggestTest do
       assert FacetSuggest.replace_current_token("foo bar stat", "status:") == "foo bar status:"
       assert FacetSuggest.replace_current_token("", "status:") == "status:"
     end
+
+    test "replaces a whole open-quoted token, not just its trailing word" do
+      assert FacetSuggest.replace_current_token(~s(worker:"Casey N), "worker:123 ") == "worker:123 "
+    end
+
+    test "replaces a whole closed-quoted token containing whitespace" do
+      assert FacetSuggest.replace_current_token(~s(worker:"Casey Nguyen"), "worker:456 ") == "worker:456 "
+    end
   end
 
   describe "resolve_facets/1" do

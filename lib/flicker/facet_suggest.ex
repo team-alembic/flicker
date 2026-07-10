@@ -147,8 +147,11 @@ defmodule Flicker.FacetSuggest do
 
   @doc """
   Splices `replacement` in for the current token, assuming the cursor sits
-  at the end of `text` (see `classify/2`) — the current token is the
-  trailing run of non-whitespace characters.
+  at the end of `text` (see `classify/2`) — the current token boundary is
+  found the same quote-aware way `CursorContext.classify/3` finds it
+  (`CursorContext.token_start/2`), so a token that is a double-quoted span
+  containing whitespace (`worker:"Casey N`) is replaced whole rather than
+  just its trailing word.
 
   ## Examples
 
@@ -157,11 +160,14 @@ defmodule Flicker.FacetSuggest do
 
       iex> Flicker.FacetSuggest.replace_current_token("foo bar stat", "status:")
       "foo bar status:"
+
+      iex> Flicker.FacetSuggest.replace_current_token(~s(worker:"Casey N), "worker:123 ")
+      "worker:123 "
   """
   @spec replace_current_token(String.t(), String.t()) :: String.t()
   def replace_current_token(text, replacement) do
-    [_, prefix, _last] = Regex.run(~r/\A(.*?)([^\s]*)\z/su, text)
-    prefix <> replacement
+    start = CursorContext.token_start(text, String.length(text))
+    String.slice(text, 0, start) <> replacement
   end
 
   @doc """

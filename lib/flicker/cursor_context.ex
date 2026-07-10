@@ -99,6 +99,33 @@ defmodule Flicker.CursorContext do
     classify_token(token_chars, clamped_cursor - token_start, facet_index)
   end
 
+  @doc """
+  The start offset (codepoint index) of the token containing `cursor`,
+  using the same quote-aware tokenizer `classify/3` does — a double-quoted
+  span counts as one token even when it contains whitespace (`worker:"Casey
+  N|` is a single token starting at `0`, not split at the space before
+  `N`).
+
+  Used by `Flicker.FacetSuggest.replace_current_token/2` to find the
+  boundary to splice a chosen suggestion in at, so replacing a token never
+  clips mid-quote.
+
+  ## Examples
+
+      iex> Flicker.CursorContext.token_start("foo bar stat", 12)
+      8
+
+      iex> Flicker.CursorContext.token_start(~s(worker:"Casey N), 16)
+      0
+  """
+  @spec token_start(String.t(), integer()) :: non_neg_integer()
+  def token_start(input, cursor) when is_binary(input) and is_integer(cursor) do
+    codepoints = String.to_charlist(input)
+    clamped_cursor = cursor |> max(0) |> min(length(codepoints))
+    {_chars, start} = current_token(codepoints, clamped_cursor)
+    start
+  end
+
   # -- Locating the token under the cursor --------------------------------
   #
   # Tokens are whitespace-separated, except whitespace inside a
