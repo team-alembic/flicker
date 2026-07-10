@@ -21,7 +21,9 @@ defmodule Dev.Live.Home do
     {"/palette", "Command palette",
      "Flicker.palette federated over the whole Dev.Music domain — grouped Artists/Albums/Genres, mod+k, navigate-on-select"},
     {"/palette-themed", "Command palette — themed",
-     "The same palette + federated provider, restyled fullscreen and on-brand via a theme override only"}
+     "The same palette + federated provider, restyled fullscreen and on-brand via a theme override only"},
+    {"/cinder-interop", "Cinder interop",
+     "Flicker.search above a Cinder collection of Dev.Music artists — the Level 1 recipe, no adapter code"}
   ]
 
   @impl true

@@ -26,6 +26,16 @@ config :git_ops,
 # in-process by `Phoenix.ConnTest`/PhoenixTest — never actually listening on
 # a port — so this is the full config it needs.
 if config_env() == :test do
+  # Cinder's own data load runs in a `start_async` task — a different
+  # process from the one that seeded `Dev.Music`'s `private?: true` ETS
+  # tables (each calling process gets its own table, see `Dev.Music`'s
+  # moduledoc). Without this, a `Cinder.collection` over a `Dev.Music`
+  # resource always reads an empty table it can't see into (Spec 009
+  # Level 1's `Dev.Live.CinderInterop` recipe). Cinder-only: nothing under
+  # `lib/` checks this key, so it doesn't touch Flicker's own async search
+  # tasks.
+  config :ash, disable_async?: true
+
   config :flicker, Flicker.Test.Endpoint,
     url: [host: "localhost"],
     secret_key_base: String.duplicate("a", 64),
@@ -47,6 +57,10 @@ end
 # (Spec 005), only ever started by `Dev.Application` (mix.exs wires it as
 # the `:dev`-only `mod` callback).
 if config_env() == :dev do
+  # See the matching `:test` config above — the same private-ETS/async-task
+  # mismatch shows up live in the browser too.
+  config :ash, disable_async?: true
+
   config :flicker, Dev.Endpoint,
     url: [host: "localhost"],
     http: [ip: {127, 0, 0, 1}, port: 4000],
