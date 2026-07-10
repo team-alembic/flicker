@@ -132,9 +132,10 @@ defmodule Flicker.MixProject do
       # Syncs usage-rules.md from deps into AGENTS.md or agent skills.
       {:usage_rules, "~> 1.1", only: [:dev], runtime: false},
 
-      # Needed by `mix igniter.install` (the installer, downstream) and by
-      # our own `mix usage_rules.sync` — optional, not a hard runtime dep.
-      {:igniter, "~> 0.6", optional: true, only: [:dev], runtime: false}
+      # Needed by `mix igniter.install` (the installer, downstream), our own
+      # `mix usage_rules.sync`, and the installer's tests (`:test`) —
+      # optional, not a hard runtime dep.
+      {:igniter, "~> 0.6", optional: true, only: [:dev, :test], runtime: false}
     ]
   end
 
