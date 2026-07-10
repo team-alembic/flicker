@@ -51,6 +51,11 @@ close to this space), Ash-ecosystem names. Free alternates in reserve:
 
 Build in this order — each phase is a spec:
 
+0. **[Spec 004 — Provider contract](./specs/spec-004-provider-contract.md)**:
+   the `Flicker.Provider` behaviour, `Result`/`Query` structs, built-in
+   `AshResource` provider, and the `ash`-optional boundary
+   ([ADR-006](./adrs/adr-006-core-depends-only-on-provider.md)). Pure
+   Elixir, testable without LiveView — built first.
 1. **[Spec 001 — Portable single-select](./specs/spec-001-portable-single-select.md)**:
    decouple from the host app, theme system, resource-first config, form +
    controlled modes, shipped hook + Igniter installer. Mostly "make the
@@ -61,6 +66,12 @@ Build in this order — each phase is a spec:
    parser, facet registry, type-derived value autocomplete, cursor-context
    state machine. Highest risk and highest differentiation, so it's built
    last on a proven base — and its state machine gets prototyped first.
+
+Alongside from Spec 001 onward:
+**[Spec 005 — dev playground](./specs/spec-005-dev-playground.md)** — an
+in-repo `dev/` Phoenix app (à la `ash_authentication_phoenix`) with seeded
+ETS-backed resources; every spec adds its page as part of its definition of
+done.
 
 ## What changes from the ARCC code
 
