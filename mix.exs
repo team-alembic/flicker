@@ -21,7 +21,8 @@ defmodule Flicker.MixProject do
       homepage_url: @source_url,
       docs: &docs/0,
       dialyzer: [
-        plt_add_apps: [:mix, :ex_unit],
+        # `:phoenix_test` — `Flicker.Test.search_select/3` calls it directly.
+        plt_add_apps: [:mix, :ex_unit, :phoenix_test],
         plt_core_path: "priv/plts",
         plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
       ],
