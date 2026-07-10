@@ -40,6 +40,11 @@ backing `Phoenix.LiveComponent` is a private implementation detail.
   controlled mode's `on_select` carries the full selection list on every
   change. `max_selections` caps how many can be picked. Same component,
   no separate multi-select module.
+- **`activate_with_keyboard`** — a chord string (e.g. `"mod+k"`) that
+  focuses and opens this search from anywhere on the page — `mod`
+  resolves to Cmd on macOS, Ctrl elsewhere. Bare-key chords (no modifier)
+  raise `ArgumentError` at render time rather than silently hijacking
+  ordinary typing.
 
 ## Basic usage
 
@@ -119,6 +124,22 @@ config :flicker, messages: MyAppWeb.FlickerMessages
 A partial map/keyword override merges onto the base theme with
 `struct!/2`; pass a full `%Flicker.Theme{}` (e.g. `Flicker.Theme.tailwind()`)
 to replace it wholesale.
+
+### Global keyboard shortcut
+
+```heex
+<Flicker.select
+  id="site-search"
+  source={MyApp.Search.Global}
+  actor={@current_user}
+  on_select={:result_selected}
+  activate_with_keyboard="mod+k"
+/>
+```
+
+Cmd+K (macOS) / Ctrl+K (elsewhere) focuses and opens this search from
+anywhere on the page, even while another text input has focus. Pressing
+it again while already focused and open toggles it closed.
 
 ### Testing a select
 

@@ -22,5 +22,6 @@ defmodule Dev.Router do
     live("/static-provider", Dev.Live.StaticProvider)
     live("/themes", Dev.Live.ThemeShowcase)
     live("/edge-states", Dev.Live.EdgeStates)
+    live("/keyboard-activation", Dev.Live.KeyboardActivation)
   end
 end

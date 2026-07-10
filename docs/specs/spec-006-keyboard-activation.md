@@ -1,5 +1,5 @@
 ---
-status: draft
+status: shipped
 date: 2026-07-10
 depends_on: [spec-001, adr-007, adr-009]
 ---
@@ -71,6 +71,9 @@ server-side) so misconfiguration fails loudly, not silently.
 - ~~Does Flicker ship a `Flicker.palette` overlay variant?~~ — resolved:
   yes, specced as [Spec 008](./spec-008-command-palette.md); this spec
   stays the activation mechanism it builds on.
-- Should the chord also *close* (toggle) when the component is already
-  focused? (For the palette, toggle is the expected behaviour — decide
-  here, inherit there.)
+- ~~Should the chord also *close* (toggle) when the component is already
+  focused?~~ — resolved: yes. When the input already has focus and the
+  listbox is already open, the chord toggles it closed (blurs the input,
+  closes the listbox) instead of doing nothing; otherwise it focuses and
+  opens as normal. The palette (Spec 008) inherits this behaviour
+  unchanged — it's the same activation mechanism.

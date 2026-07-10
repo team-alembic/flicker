@@ -13,7 +13,10 @@ defmodule Flicker.Test.HostLive do
       `on_select`, so tests can exercise `handle_info/2` selection.
 
   Backed by `Flicker.Providers.Static` with a small fixed result set so
-  tests run with no Ash data layer at all.
+  tests run with no Ash data layer at all. The `"activate_with_keyboard"`
+  session key (controlled mode only) passes a chord straight through to
+  `Flicker.select/1`, for exercising Spec 006's server-side validation and
+  rendering.
   """
 
   use Phoenix.LiveView
@@ -34,6 +37,7 @@ defmodule Flicker.Test.HostLive do
     initial_value = Map.get(session, "initial_value")
     provider = Map.get(session, "provider", {Flicker.Providers.Static, results: @results})
     min_chars = Map.get(session, "min_chars", 0)
+    activate_with_keyboard = Map.get(session, "activate_with_keyboard")
 
     # A fresh (non-submitted) form has no `client_id` key in its params at
     # all — only seed one when the test is simulating an edit form with an
@@ -46,6 +50,7 @@ defmodule Flicker.Test.HostLive do
       |> assign(:mode, mode)
       |> assign(:provider, provider)
       |> assign(:min_chars, min_chars)
+      |> assign(:activate_with_keyboard, activate_with_keyboard)
       |> assign(:selected_result, :none)
       |> assign(:submitted_params, nil)
       |> assign(:form, to_form(initial_params, as: "form"))
@@ -102,7 +107,13 @@ defmodule Flicker.Test.HostLive do
 
   def render(assigns) do
     ~H"""
-    <Flicker.select id="picker" source={@provider} min_chars={@min_chars} on_select={:client_selected} />
+    <Flicker.select
+      id="picker"
+      source={@provider}
+      min_chars={@min_chars}
+      on_select={:client_selected}
+      activate_with_keyboard={@activate_with_keyboard}
+    />
     <p :if={@selected_result != :none} id="selection">
       {if @selected_result, do: @selected_result.label, else: "cleared"}
     </p>

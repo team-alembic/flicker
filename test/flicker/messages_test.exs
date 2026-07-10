@@ -65,6 +65,7 @@ defmodule Flicker.MessagesTest do
 
       assert is_binary(Flicker.Messages.English.message(:min_chars_hint, %{min_chars: 3}))
       assert is_binary(Flicker.Messages.English.message(:results_count, %{count: 0}))
+      assert is_binary(Flicker.Messages.English.message(:keyboard_shortcut_hint, %{chord: "Mod+K"}))
     end
   end
 end

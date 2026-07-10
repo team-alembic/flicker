@@ -24,7 +24,7 @@ defmodule Flicker.Components.Select do
 
   use Phoenix.LiveComponent
 
-  alias Flicker.{Messages, Provider, Query, Result}
+  alias Flicker.{Keyboard, Messages, Provider, Query, Result}
 
   require Logger
 
@@ -44,6 +44,7 @@ defmodule Flicker.Components.Select do
       |> assign_new(:error, fn -> false end)
       |> assign_new(:multiple, fn -> false end)
       |> assign_new(:max_selections, fn -> nil end)
+      |> assign_new(:activate_with_keyboard, fn -> nil end)
 
     socket =
       socket
@@ -405,6 +406,13 @@ defmodule Flicker.Components.Select do
 
   defp at_max?(_assigns), do: false
 
+  # Re-validates rather than trusting the caller boundary blindly — cheap,
+  # and keeps this component safe to drive directly (as tests do) without
+  # going through `Flicker.select/1`'s attr validation.
+  defp chord_display(chord), do: chord |> Keyboard.validate!() |> Keyboard.display()
+
+  defp chord_aria_keyshortcuts(chord), do: chord |> Keyboard.validate!() |> Keyboard.aria_keyshortcuts()
+
   # Bulletproof visually-hidden CSS inlined directly on the element: Flicker
   # ships no stylesheet (ADR-002 keeps it framework-free), so a bare
   # `flicker-sr-only` class name would render visibly in every host app that
@@ -421,6 +429,14 @@ defmodule Flicker.Components.Select do
       |> assign(:below_min_chars, below_min_chars?(assigns))
       |> assign(:at_max, at_max?(assigns))
       |> assign(:sr_only_style, @sr_only_style)
+      |> assign(
+        :aria_keyshortcuts,
+        assigns.activate_with_keyboard && chord_aria_keyshortcuts(assigns.activate_with_keyboard)
+      )
+      |> assign(
+        :kbd_hint_text,
+        assigns.activate_with_keyboard && chord_display(assigns.activate_with_keyboard)
+      )
 
     ~H"""
     <div
@@ -431,6 +447,7 @@ defmodule Flicker.Components.Select do
       phx-click-away="close"
       data-active-class={@theme.option_active}
       data-multiple={to_string(@multiple)}
+      data-activate-with-keyboard={@activate_with_keyboard}
     >
       <div :if={@multiple} class={@theme.chip_list} role="list" aria-label={message(assigns, :selected_items)}>
         <span :for={result <- @selected} class={@theme.chip} role="listitem">
@@ -463,11 +480,21 @@ defmodule Flicker.Components.Select do
         value={@query}
         placeholder={message(assigns, :search_placeholder)}
         disabled={!@connected?}
+        aria-keyshortcuts={@aria_keyshortcuts}
         phx-keyup="query"
         phx-debounce={@debounce}
         phx-focus="focus"
         phx-target={@myself}
       />
+      <kbd
+        :if={@activate_with_keyboard}
+        class={@theme.kbd_hint}
+        aria-hidden="true"
+        title={message(assigns, :keyboard_shortcut_hint, %{chord: @kbd_hint_text})}
+        data-flicker-kbd-hint
+      >
+        {@kbd_hint_text}
+      </kbd>
       <button
         :if={!@multiple && @selected}
         type="button"
@@ -561,6 +588,63 @@ defmodule Flicker.Components.Select do
           })
         }
 
+        // Keyboard activation (Spec 006). `activate_with_keyboard` is
+        // already syntax-validated server-side (`Flicker.Keyboard`); the
+        // "mod" alias is resolved here instead, because only the browser
+        // knows whether it's running on macOS. One shared document
+        // listener (not one per component) dispatches to whichever
+        // registered chord matches — the registry is also how duplicate
+        // chords across components are detected: first registration wins,
+        // later ones just warn.
+        function flickerIsMac() {
+          const platform = navigator.userAgentData?.platform || navigator.platform || ""
+          return /Mac|iPhone|iPad/.test(platform)
+        }
+
+        function flickerResolveModifier(modifier) {
+          return modifier === "mod" ? (flickerIsMac() ? "meta" : "ctrl") : modifier
+        }
+
+        function flickerChordSignature(modifiers, key) {
+          return `${Array.from(new Set(modifiers)).sort().join("+")}+${key.toLowerCase()}`
+        }
+
+        function flickerParseChordSignature(chord) {
+          const parts = chord.split("+")
+          const key = parts[parts.length - 1]
+          const modifiers = parts.slice(0, -1).map(flickerResolveModifier)
+          return flickerChordSignature(modifiers, key)
+        }
+
+        function flickerEventSignature(e) {
+          const modifiers = []
+          if (e.metaKey) modifiers.push("meta")
+          if (e.ctrlKey) modifiers.push("ctrl")
+          if (e.altKey) modifiers.push("alt")
+          if (e.shiftKey) modifiers.push("shift")
+          return flickerChordSignature(modifiers, e.key)
+        }
+
+        function flickerFormatChordForDisplay(chord) {
+          const mac = flickerIsMac()
+          const symbols = { meta: "⌘", ctrl: "Ctrl", alt: mac ? "⌥" : "Alt", shift: mac ? "⇧" : "Shift" }
+          const parts = chord.split("+")
+          const key = parts[parts.length - 1].toUpperCase()
+          const modifiers = parts.slice(0, -1).map(flickerResolveModifier)
+          const separator = mac ? "" : "+"
+          return modifiers.map(m => symbols[m] || m).join(separator) + separator + key
+        }
+
+        if (!window.__flickerChordRegistry) window.__flickerChordRegistry = new Map()
+
+        if (!window.__flickerActivationListenerAttached) {
+          window.__flickerActivationListenerAttached = true
+          document.addEventListener("keydown", e => {
+            const hook = window.__flickerChordRegistry.get(flickerEventSignature(e))
+            hook?.activateChord(e)
+          })
+        }
+
         export default {
           mounted() {
             this.activeIndex = -1
@@ -577,6 +661,9 @@ defmodule Flicker.Components.Select do
             this.onKeydown = e => this.handleKeydown(e)
             this.el.addEventListener("keydown", this.onKeydown)
             this.input()?.focus()
+            this.chordSignature = null
+            const chord = this.el.dataset.activateWithKeyboard
+            if (chord) this.registerChord(chord)
           },
           updated() {
             // The option set changed (the user typed, or results loaded) —
@@ -598,6 +685,47 @@ defmodule Flicker.Components.Select do
           },
           destroyed() {
             this.el.removeEventListener("keydown", this.onKeydown)
+            // Only the winning registration ever owns the registry entry
+            // (see registerChord) — a duplicate loser has nothing to undo.
+            if (this.chordSignature && window.__flickerChordRegistry.get(this.chordSignature) === this) {
+              window.__flickerChordRegistry.delete(this.chordSignature)
+            }
+          },
+          registerChord(chord) {
+            const signature = flickerParseChordSignature(chord)
+            if (window.__flickerChordRegistry.has(signature)) {
+              console.warn(
+                `Flicker: activate_with_keyboard chord "${chord}" is already claimed by another ` +
+                  "component on this page — the first registration wins, this one is inactive."
+              )
+              return
+            }
+            window.__flickerChordRegistry.set(signature, this)
+            this.chordSignature = signature
+            const hint = this.el.querySelector("[data-flicker-kbd-hint]")
+            if (hint) hint.textContent = flickerFormatChordForDisplay(chord)
+          },
+          // Deliberately reuses the existing "focus"/"close" server events
+          // (Spec 001) rather than adding new ones — activation is "press
+          // the chord, then behave exactly like a click/focus would"
+          // (Spec 006 design: no bespoke activation round-trip).
+          activateChord(e) {
+            const input = this.input()
+            // `disabled` mirrors `@connected?` — inert until the socket
+            // has joined (the dead-render rule, ADR-005), and there is no
+            // stale activation to "queue": a keypress before then is
+            // simply dropped.
+            if (!input || input.disabled) return
+            e.preventDefault()
+            const isOpen = this.el.querySelector('[role="listbox"]') !== null
+            if (document.activeElement === input && isOpen) {
+              // Already focused and open — the chord toggles closed
+              // (Spec 006 resolved open question: yes, toggle).
+              input.blur()
+              this.pushEventTo(this.el, "close", {})
+            } else {
+              input.focus()
+            }
           },
           input() {
             return this.el.querySelector('input[type="text"]')
