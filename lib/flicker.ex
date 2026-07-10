@@ -81,6 +81,27 @@ defmodule Flicker do
   receives `{on_select, %Flicker.Result{} | nil}` (`nil` on clear).
 
   Exactly one of `field` or `on_select` is required.
+
+  ## Multi-select
+
+  Passing `multiple` switches the value model to a list — the same
+  component **is** the multi-select surface, there is no separate
+  `Flicker.multi_select` (Spec 002). Selections render as removable chips;
+  form-field mode emits `name[]` array hidden inputs; controlled mode's
+  `on_select` carries the full selection list on every change. `fetch/2`
+  resolves every preselected value in one call regardless of how many are
+  set (ADR-003).
+
+      <Flicker.select
+        id="worker-select"
+        field={f[:worker_ids]}
+        multiple
+        resource={MyApp.Worker}
+        actor={\@current_user}
+        search={[:name]}
+        option_label={:name}
+        max_selections={5}
+      />
   """
   attr(:id, :string,
     required: true,
@@ -146,6 +167,16 @@ defmodule Flicker do
 
   attr(:on_select, :atom, default: nil, doc: "Selects controlled mode. See moduledoc.")
 
+  attr(:multiple, :boolean,
+    default: false,
+    doc: "Switches the value model to a list — chips, `name[]` array inputs. See moduledoc."
+  )
+
+  attr(:max_selections, :integer,
+    default: nil,
+    doc: "Multi-select only: caps the number of selected values; further picking is disabled at the cap."
+  )
+
   attr(:limit, :integer,
     default: nil,
     doc: "Max results shown. Defaults to `config :flicker, :default_limit` (25)."
@@ -196,6 +227,8 @@ defmodule Flicker do
       field={@field}
       required={@required}
       on_select={@on_select}
+      multiple={@multiple}
+      max_selections={@max_selections}
       actor={@actor}
       tenant={@tenant}
       limit={@limit}
