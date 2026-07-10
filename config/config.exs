@@ -1,9 +1,9 @@
 import Config
 
 config :git_ops,
-  mix_project: MyPackage.MixProject,
+  mix_project: Flicker.MixProject,
   changelog_file: "CHANGELOG.md",
-  repository_url: "https://github.com/team-alembic/my_package",
+  repository_url: "https://github.com/team-alembic/flicker",
   types: [
     tidbit: [
       hidden?: true

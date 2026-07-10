@@ -25,7 +25,7 @@ erl_crash.dump
 *.ez
 
 # Package tarball (`mix hex.build`). rename.sh rewrites the prefix.
-my_package-*.tar
+flicker-*.tar
 
 # Stray compile output.
 *.beam

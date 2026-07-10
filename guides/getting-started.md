@@ -8,7 +8,7 @@ Add to `mix.exs`:
 
 ```elixir
 def deps do
-  [{:my_package, "~> 0.1"}]
+  [{:flicker, "~> 0.1"}]
 end
 ```
 
@@ -21,6 +21,6 @@ mix deps.get
 ## Your first call
 
 ```elixir
-MyPackage.hello()
+Flicker.hello()
 # => :world
 ```

@@ -1,6 +1,6 @@
-defmodule MyPackage do
+defmodule Flicker do
   @moduledoc """
-  Documentation for `MyPackage`.
+  Documentation for `Flicker`.
   """
 
   @doc """
@@ -8,7 +8,7 @@ defmodule MyPackage do
 
   ## Examples
 
-      iex> MyPackage.hello()
+      iex> Flicker.hello()
       :world
 
   """

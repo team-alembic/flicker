@@ -1,12 +1,12 @@
-defmodule MyPackage.MixProject do
+defmodule Flicker.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @source_url "https://github.com/team-alembic/my_package"
+  @source_url "https://github.com/team-alembic/flicker"
 
   def project do
     [
-      app: :my_package,
+      app: :flicker,
       version: @version,
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -16,7 +16,7 @@ defmodule MyPackage.MixProject do
       aliases: aliases(),
       package: package(),
       description: description(),
-      name: "MyPackage",
+      name: "Flicker",
       source_url: @source_url,
       homepage_url: @source_url,
       docs: &docs/0,

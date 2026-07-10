@@ -1,4 +1,4 @@
-# Rules for working with MyPackage
+# Rules for working with Flicker
 
 <!--
   This file is published to Hex alongside the package and is consumed by
@@ -6,7 +6,7 @@
   USE this package. Developer-facing rules belong in AGENTS.md.
 -->
 
-## Understanding MyPackage
+## Understanding Flicker
 
 <!-- TODO: One paragraph. What problem does this solve? Who is it for? -->
 
@@ -19,7 +19,7 @@
 
 ```elixir
 # TODO: Minimal working example — fewest lines possible.
-MyPackage.hello()
+Flicker.hello()
 ```
 
 ## Common patterns
@@ -37,4 +37,4 @@ MyPackage.hello()
 
 ## See also
 
-- [HexDocs](https://hexdocs.pm/my_package)
+- [HexDocs](https://hexdocs.pm/flicker)
