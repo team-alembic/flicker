@@ -21,3 +21,22 @@ config :git_ops,
   manage_mix_version?: true,
   manage_readme_version: "README.md",
   version_tag_prefix: "v"
+
+# `Flicker.Test.Endpoint` (test/support) is only ever dispatched to
+# in-process by `Phoenix.ConnTest`/PhoenixTest — never actually listening on
+# a port — so this is the full config it needs.
+if config_env() == :test do
+  config :flicker, Flicker.Test.Endpoint,
+    url: [host: "localhost"],
+    secret_key_base: String.duplicate("a", 64),
+    live_view: [signing_salt: "flicker-test-signing-salt"],
+    render_errors: [formats: [html: Flicker.Test.ErrorHTML], layout: false],
+    pubsub_server: Flicker.Test.PubSub,
+    server: false
+
+  # `Flicker.Test.PolicyArtist`'s domain (test/support) — a select-component-
+  # level actor-scoping fixture, separate from Spec 004's `Dev.Music` harness.
+  config :flicker, ash_domains: [Dev.Music, Flicker.Test.PolicyDomain]
+
+  config :phoenix_test, :endpoint, Flicker.Test.Endpoint
+end
