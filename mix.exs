@@ -98,7 +98,16 @@ defmodule Flicker.MixProject do
         # SAT solver `Ash.Policy.Authorizer` needs — only our own dev/test
         # harness (the policy-bearing `Dev.Music.Artist`) uses policies, so
         # this is dev/test-only, not part of the published optional deps.
-        {:picosat_elixir, "~> 0.2", only: [:dev, :test], runtime: false}
+        {:picosat_elixir, "~> 0.2", only: [:dev, :test], runtime: false},
+        # Optional interop target (Spec 009, ADR-006 pattern): a `Cinder`
+        # table/collection can be driven by a `Flicker.search` filter via
+        # query composition. Nothing under `lib/` calls `Cinder.*` directly
+        # — this is dev/test-only so the playground page and its test can
+        # exercise the recipe; a real host adds `cinder` itself. Lives in
+        # `ash_deps/0`, not `tooling_deps/0`, because `cinder` hard-depends
+        # on `ash` itself — pulling it in unconditionally would drag `ash`
+        # back into the no-ash CI leg's dependency tree.
+        {:cinder, "~> 0.15", optional: true, only: [:dev, :test]}
       ]
     end
   end
