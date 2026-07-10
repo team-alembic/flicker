@@ -81,6 +81,15 @@ if Code.ensure_loaded?(Ash) do
         default(:active)
         allow_nil?(false)
       end
+
+      # A `:boolean`-typed facet (Spec 003's type table) — carries a
+      # trailing `?`, the Ash/Elixir boolean-attribute naming convention
+      # `Flicker.Query`'s facet-token grammar explicitly allows in a key.
+      attribute :verified?, :boolean do
+        public?(true)
+        default(false)
+        allow_nil?(false)
+      end
     end
 
     relationships do
@@ -95,7 +104,7 @@ if Code.ensure_loaded?(Ash) do
 
       create :create do
         primary?(true)
-        accept([:name, :status, :genre_id])
+        accept([:name, :status, :genre_id, :verified?])
       end
     end
   end
@@ -138,6 +147,17 @@ if Code.ensure_loaded?(Ash) do
           Ash.create!(
             Flicker.Test.FacetArtist,
             %{name: "Jordan Blake", status: :inactive, genre_id: major.id},
+            authorize?: false
+          )
+
+          # Shares the "Jo" free-text prefix with "Jordan Blake" but a
+          # different `:status` — lets a test prove a facet filter actually
+          # narrows *which records* the free-text match considers, not just
+          # which text it runs against (`status:active jo` should return
+          # this artist alone).
+          Ash.create!(
+            Flicker.Test.FacetArtist,
+            %{name: "Joey Turner", status: :active, genre_id: indie.id},
             authorize?: false
           )
         end

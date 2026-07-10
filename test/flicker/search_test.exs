@@ -78,6 +78,22 @@ if Code.ensure_loaded?(Ash) do
       end
     end
 
+    describe "facet-value autocomplete for a :boolean facet" do
+      test "cursor at 'verified?:' suggests both true and false", %{conn: conn} do
+        session = conn |> visit_as(%{label: nil}) |> type_search("artist-search-input", "verified?:")
+
+        assert_has(session, "[role='option']", text: "true")
+        assert_has(session, "[role='option']", text: "false")
+      end
+
+      test "prefix filtering: 'verified?:f' suggests only false", %{conn: conn} do
+        session = conn |> visit_as(%{label: nil}) |> type_search("artist-search-input", "verified?:f")
+
+        assert_has(session, "[role='option']", text: "false")
+        refute_has(session, "[role='option']", text: "true")
+      end
+    end
+
     describe "nested relationship-facet search is actor-scoped" do
       test "an actor who can read the related record sees it as a facet-value suggestion", %{conn: conn} do
         session =

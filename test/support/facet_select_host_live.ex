@@ -40,7 +40,7 @@ if Code.ensure_loaded?(Ash) do
         actor={@actor}
         search={[:name]}
         option_label={:name}
-        facets={[:status, :genre]}
+        facets={[:status, :genre, :verified?]}
         on_select={:artist_selected}
       />
       <p :if={@selected_result != :none} id="selection">

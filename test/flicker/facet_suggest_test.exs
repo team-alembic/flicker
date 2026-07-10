@@ -17,6 +17,8 @@ defmodule Flicker.FacetSuggestTest do
 
   @worker %Facet{key: :worker, label: "Worker"}
 
+  @active? %Facet{key: :active?, label: "Active?", type: :boolean, operators: [:eq], default_op: :eq}
+
   describe "classify/2" do
     test "delegates to Flicker.CursorContext with the cursor at the end of the text" do
       assert FacetSuggest.classify("stat", [@status]) == {:key, "stat"}
@@ -58,8 +60,30 @@ defmodule Flicker.FacetSuggestTest do
       assert length(FacetSuggest.enum_value_suggestions(@status, "")) == 3
     end
 
-    test "returns [] for a non-enum facet" do
+    test "returns [] for a non-enum, non-boolean facet" do
       assert FacetSuggest.enum_value_suggestions(@worker, "any") == []
+    end
+  end
+
+  # Regression: spec-003's type table promises `:boolean` facets suggest
+  # `true`/`false`, but only `:enum` had value suggestions wired up.
+  describe "enum_value_suggestions/2 with a :boolean facet" do
+    test "an empty prefix suggests both true and false" do
+      assert [%Result{label: "true", meta: %{insert: "active?:true "}}, %Result{label: "false"}] =
+               FacetSuggest.enum_value_suggestions(@active?, "")
+    end
+
+    test "prefix 'f' suggests only false" do
+      assert [%Result{label: "false", meta: %{insert: "active?:false "}}] =
+               FacetSuggest.enum_value_suggestions(@active?, "f")
+    end
+
+    test "prefix 't' suggests only true" do
+      assert [%Result{label: "true"}] = FacetSuggest.enum_value_suggestions(@active?, "t")
+    end
+
+    test "a prefix matching neither suggests nothing" do
+      assert FacetSuggest.enum_value_suggestions(@active?, "zzz") == []
     end
   end
 
@@ -82,6 +106,20 @@ defmodule Flicker.FacetSuggestTest do
   describe "resolve_facets/1" do
     test "a hand-built list of Facet structs passes through unchanged" do
       assert FacetSuggest.resolve_facets(%{facets: [@status]}) == [@status]
+    end
+
+    # Regression: the Ash-guarded `resource:` clause used to be checked
+    # before the explicit-`%Facet{}` passthrough, so `%{resource: ...,
+    # facets: [%Facet{} | _]}` was sent into `AshResource.facets/1` (which
+    # expects atom specs / `{key, overrides}` pairs, not already-built
+    # structs) and crashed. Explicit structs must win regardless of
+    # `resource:`.
+    if Code.ensure_loaded?(Ash) do
+      @tag :ash
+      test "explicit Facet structs win even when resource: is also set" do
+        assert FacetSuggest.resolve_facets(%{resource: Dev.Music.Artist, facets: [@status, @worker]}) ==
+                 [@status, @worker]
+      end
     end
 
     test "no resource/source/facets resolves to []" do

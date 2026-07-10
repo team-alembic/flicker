@@ -66,11 +66,19 @@ defmodule Flicker.FacetSuggest do
   end
 
   @doc """
-  Value suggestions for `facet`'s enum picklist, filtered by `prefix`
-  against the value's own key or label (case-insensitive substring).
+  Value suggestions for `facet`'s closed value set, filtered by `prefix`.
 
-  Returns `[]` for a non-`:enum` facet — such a facet has no closed
-  picklist to suggest from (a relationship facet's values come from
+  Two facet types have a closed set to suggest from (Spec 003's type
+  table):
+
+    * `:enum` — the picklist in `:values`, filtered by `prefix` against the
+      value's own key or label (case-insensitive substring).
+    * `:boolean` — the fixed pair `true` / `false`, filtered by `prefix`
+      (case-insensitive) against each literal's own text — `"f"` suggests
+      only `false`.
+
+  Returns `[]` for any other facet type — a plain string/numeric/date
+  facet has no closed picklist (a relationship facet's values come from
   `related_search/4` instead).
   """
   @spec enum_value_suggestions(Facet.t(), String.t()) :: [suggestion()]
@@ -82,7 +90,27 @@ defmodule Flicker.FacetSuggest do
     |> Enum.map(&enum_suggestion(key, &1, value_labels))
   end
 
+  def enum_value_suggestions(%Facet{type: :boolean, key: key}, prefix) do
+    downcased_prefix = String.downcase(prefix)
+
+    [true, false]
+    |> Enum.filter(&String.starts_with?(to_string(&1), downcased_prefix))
+    |> Enum.map(&boolean_suggestion(key, &1))
+  end
+
   def enum_value_suggestions(_facet, _prefix), do: []
+
+  defp boolean_suggestion(key, value) do
+    label = to_string(value)
+    insert = "#{key}:#{label} "
+
+    %Result{
+      value: "#{key}:#{label}",
+      label: label,
+      sublabel: nil,
+      meta: %{flicker_facet: true, insert: insert}
+    }
+  end
 
   defp value_matches?(value, value_labels, downcased_prefix) do
     label = Map.get(value_labels || %{}, value, to_string(value))
@@ -190,6 +218,15 @@ defmodule Flicker.FacetSuggest do
   """
   @spec resolve_facets(map()) :: [Facet.t()]
 
+  # Explicit `%Facet{}` structs always win, even alongside `resource:` — a
+  # caller who builds their own registry by hand is opting out of Ash
+  # derivation for it, so this clause must be checked before the `resource:`
+  # one below (clause order matters here: matching is top-to-bottom).
+  # Without this precedence, `%{resource: resource, facets: [%Facet{} | _]}`
+  # would be sent into `AshResource.facets/1`, which expects atom specs /
+  # `{key, overrides}` pairs, not already-built structs, and can crash.
+  def resolve_facets(%{facets: [%Facet{} | _] = facets}), do: facets
+
   # `resource:` (Tier 1) is itself an Ash-only concept — `AshResource.facets/1`
   # only compiles when `ash` is present (ADR-006). Without `ash`, this clause
   # doesn't exist at all, so a `resource:` assign falls through to the plain
@@ -199,8 +236,6 @@ defmodule Flicker.FacetSuggest do
       Flicker.Providers.AshResource.facets(resource: resource, facets: facets || [])
     end
   end
-
-  def resolve_facets(%{facets: [%Facet{} | _] = facets}), do: facets
 
   def resolve_facets(%{source: {module, _opts}}) when is_atom(module) do
     provider_facets(module)

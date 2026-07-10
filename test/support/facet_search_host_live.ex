@@ -39,7 +39,7 @@ if Code.ensure_loaded?(Ash) do
         id="artist-search"
         resource={Flicker.Test.FacetArtist}
         actor={@actor}
-        facets={[:status, :genre]}
+        facets={[:status, :genre, :verified?]}
         on_change={:artist_query_changed}
       />
       <p :if={@last_query} id="last-text">{@last_query.text}</p>
