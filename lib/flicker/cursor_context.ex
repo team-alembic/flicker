@@ -1,0 +1,226 @@
+defmodule Flicker.CursorContext do
+  @moduledoc """
+  The cursor-context state machine ([Spec 003](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-003-faceted-search.md)) — a pure function that,
+  given typed input, a cursor position, and the active facet registry, says
+  what the user is typing *right now*: a facet key, a facet value, or free
+  text. The dropdown reads this to pick its result source (key suggestions,
+  a facet's value picklist / nested search, or plain free-text handling)
+  and its keyboard behaviour, without needing a browser to test any of it.
+
+  This module has no LiveView dependency — `classify/3` is deterministic and
+  never raises, so it is exercised directly by unit and property tests
+  against arbitrary strings and cursor positions.
+
+  ## Cursor position
+
+  `cursor` is a **codepoint offset** into `input` (`0` is before the first
+  character, `String.length(input)` is after the last) — the same unit
+  `String.length/1` and `String.slice/3` use. A caller wiring this to a real
+  `<input>`'s `selectionStart` (a UTF-16 code-unit offset) is responsible for
+  converting between the two; out-of-range values (negative, or past the end
+  of `input`) are clamped rather than raising.
+
+  ## States
+
+    * `{:key, prefix}` — the cursor sits inside a token before any facet
+      operator has been typed (`stat|` inside `stat`, or a plain free-text
+      word not yet followed by `:`/`>`/etc.). `prefix` is the token's text
+      from its start up to the cursor — filter facet-key suggestions by it.
+    * `{:value, facet, prefix}` — the token up to the operator resolves to a
+      known facet (`status:` → `%Flicker.Facet{key: :status}`) and the
+      operator itself is legal for it (`:` is always legal; a symbol
+      operator like `>=` must be in the facet's `:operators`). `prefix` is
+      the value text typed so far (quote/escape-unwrapped if the value is
+      quoted), truncated at the cursor — filter the facet's picklist /
+      nested search by it. The value need not cast cleanly yet — that
+      validation belongs to `Flicker.Query.parse/2`, not here, or the state
+      would never fire while an enum value is still mid-type.
+    * `:text` — the token up to the operator does *not* resolve to a known,
+      legal facet (unknown key, or a symbol operator the facet doesn't
+      allow) and the cursor sits at or past that operator — this token is
+      headed for free text once `Flicker.Query.parse/2` sees it, and there
+      is no facet to drive value suggestions from.
+  """
+
+  alias Flicker.Facet
+
+  @typedoc "The text of the token from its start up to the cursor."
+  @type prefix :: String.t()
+
+  @typedoc "What the cursor is currently positioned to type."
+  @type t :: {:key, prefix()} | {:value, Facet.t(), prefix()} | :text
+
+  # Same operator grammar as `Flicker.Query`'s `@facet_token`/`@operator_symbols`
+  # — kept in sync by hand since the two modules intentionally don't share
+  # code (this one has no need for the parser's tokenizer or value casting).
+  # Longest symbols first so `>=` isn't matched as a bare `>`.
+  @operators [
+    {~c">=", :gte},
+    {~c"<=", :lte},
+    {~c"!=", :neq},
+    {~c":", nil},
+    {~c">", :gt},
+    {~c"<", :lt}
+  ]
+
+  @doc """
+  Classifies what `cursor` is positioned to type in `input`, given the
+  active `facets`.
+
+  Pure and total: any `input` (empty, malformed, arbitrary Unicode) and any
+  `cursor` (including out-of-range integers, which are clamped to
+  `0..String.length(input)`) produce one of the three states in `t/0` —
+  never an exception.
+
+  ## Examples
+
+      iex> Flicker.CursorContext.classify("stat", 4, [%Flicker.Facet{key: :status}])
+      {:key, "stat"}
+
+      iex> Flicker.CursorContext.classify("status:", 7, [%Flicker.Facet{key: :status}])
+      {:value, %Flicker.Facet{key: :status}, ""}
+
+      iex> Flicker.CursorContext.classify("status:active", 10, [%Flicker.Facet{key: :status}])
+      {:value, %Flicker.Facet{key: :status}, "act"}
+
+      iex> Flicker.CursorContext.classify("bogus:active", 13, [])
+      :text
+
+      iex> Flicker.CursorContext.classify("", 0, [])
+      {:key, ""}
+  """
+  @spec classify(String.t(), integer(), [Facet.t()]) :: t()
+  def classify(input, cursor, facets) when is_binary(input) and is_integer(cursor) and is_list(facets) do
+    codepoints = String.to_charlist(input)
+    clamped_cursor = cursor |> max(0) |> min(length(codepoints))
+    facet_index = Map.new(facets, &{&1.key, &1})
+
+    {token_chars, token_start} = current_token(codepoints, clamped_cursor)
+    classify_token(token_chars, clamped_cursor - token_start, facet_index)
+  end
+
+  # -- Locating the token under the cursor --------------------------------
+  #
+  # Tokens are whitespace-separated, except whitespace inside a
+  # double-quoted span (matching `Flicker.Query`'s tokenizer, so a quoted
+  # facet value like `worker:"Casey Nguyen"` is one token even with the
+  # cursor resting between "Casey" and "Nguyen"). When the cursor falls in
+  # a whitespace gap between tokens (or the input has none at all), it is
+  # treated as sitting in an empty virtual token — the start of a fresh one.
+
+  @spec current_token([char()], non_neg_integer()) :: {[char()], non_neg_integer()}
+  defp current_token(codepoints, cursor) do
+    tokens = tokenize_with_offsets(codepoints)
+
+    case Enum.find(tokens, fn {_chars, start, stop} -> start <= cursor and cursor <= stop end) do
+      {chars, start, _stop} -> {chars, start}
+      nil -> {[], cursor}
+    end
+  end
+
+  @spec tokenize_with_offsets([char()]) :: [{[char()], non_neg_integer(), non_neg_integer()}]
+  defp tokenize_with_offsets(codepoints), do: do_tokenize(codepoints, 0, nil, [], [], false) |> Enum.reverse()
+
+  defp do_tokenize([], idx, start, current, tokens, _in_quotes), do: finish_token(start, idx, current, tokens)
+
+  defp do_tokenize([c | rest], idx, start, current, tokens, false) when c in [?\s, ?\t, ?\n, ?\r] do
+    do_tokenize(rest, idx + 1, nil, [], finish_token(start, idx, current, tokens), false)
+  end
+
+  defp do_tokenize([?\\, c | rest], idx, start, current, tokens, true) do
+    do_tokenize(rest, idx + 2, start || idx, [c, ?\\ | current], tokens, true)
+  end
+
+  defp do_tokenize([?" | rest], idx, start, current, tokens, in_quotes) do
+    do_tokenize(rest, idx + 1, start || idx, [?" | current], tokens, not in_quotes)
+  end
+
+  defp do_tokenize([c | rest], idx, start, current, tokens, in_quotes) do
+    do_tokenize(rest, idx + 1, start || idx, [c | current], tokens, in_quotes)
+  end
+
+  defp finish_token(nil, _idx, _current, tokens), do: tokens
+
+  defp finish_token(start, idx, current, tokens), do: [{Enum.reverse(current), start, idx} | tokens]
+
+  # -- Classifying a single token ------------------------------------------
+
+  @spec classify_token([char()], non_neg_integer(), %{atom() => Facet.t()}) :: t()
+  defp classify_token(token_chars, rel_cursor, facet_index) do
+    key_run = Enum.take_while(token_chars, &key_char?/1)
+    key_len = length(key_run)
+    after_key = Enum.drop(token_chars, key_len)
+
+    with true <- key_len > 0,
+         {op_len, op} <- match_operator(after_key) do
+      resolve_within_facet_token(
+        token_chars,
+        key_run,
+        key_len,
+        op_len,
+        op,
+        rel_cursor,
+        facet_index
+      )
+    else
+      _ -> {:key, take_prefix(token_chars, rel_cursor)}
+    end
+  end
+
+  defp resolve_within_facet_token(token_chars, key_run, key_len, op_len, op, rel_cursor, facet_index) do
+    cond do
+      rel_cursor <= key_len -> {:key, take_prefix(token_chars, rel_cursor)}
+      rel_cursor < key_len + op_len -> {:key, List.to_string(key_run)}
+      true -> resolve_value(token_chars, key_run, key_len, op_len, op, rel_cursor, facet_index)
+    end
+  end
+
+  defp resolve_value(token_chars, key_run, key_len, op_len, op, rel_cursor, facet_index) do
+    with {:ok, key} <- existing_atom(List.to_string(key_run)),
+         {:ok, facet} <- Map.fetch(facet_index, key),
+         true <- operator_legal?(op, facet) do
+      value_chars =
+        token_chars |> Enum.drop(key_len + op_len) |> Enum.take(rel_cursor - key_len - op_len)
+
+      {:value, facet, value_prefix(value_chars)}
+    else
+      _ -> :text
+    end
+  end
+
+  defp key_char?(codepoint), do: Regex.match?(~r/^[\p{L}\p{N}_?]$/u, <<codepoint::utf8>>)
+
+  defp match_operator(chars) do
+    Enum.find_value(@operators, fn {symbol, op} ->
+      if prefix_match?(chars, symbol), do: {length(symbol), op}
+    end)
+  end
+
+  defp prefix_match?(chars, symbol), do: Enum.take(chars, length(symbol)) == symbol
+
+  defp take_prefix(chars, count), do: chars |> Enum.take(count) |> List.to_string()
+
+  defp existing_atom(string) do
+    {:ok, String.to_existing_atom(string)}
+  rescue
+    ArgumentError -> :error
+  end
+
+  defp operator_legal?(nil, _facet), do: true
+  defp operator_legal?(op, facet), do: op in facet.operators
+
+  # A leading `"` marks a (possibly still-open) quoted value: the quote
+  # itself is dropped and the rest unescaped the same way
+  # `Flicker.Query`'s tokenizer does (`\"` and `\\` are escapes, any other
+  # backslash is literal) — tolerant of the quote never having been closed
+  # yet, since the cursor is mid-type. An unescaped closing quote ends the
+  # value there, so a cursor parked just past it doesn't drag the literal
+  # quote character into the prefix.
+  defp value_prefix([?" | rest]), do: rest |> unescape() |> List.to_string()
+  defp value_prefix(chars), do: List.to_string(chars)
+
+  defp unescape([?\\, c | rest]) when c in [?", ?\\], do: [c | unescape(rest)]
+  defp unescape([?" | _closed]), do: []
+  defp unescape([c | rest]), do: [c | unescape(rest)]
+  defp unescape([]), do: []
+end
