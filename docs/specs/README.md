@@ -11,7 +11,7 @@ Update the status here **and** in the spec's frontmatter when it changes.
 | [002](./spec-002-multi-select-chips.md) | Multi-select: list value, array inputs, chips, batch `fetch/2` | ready |
 | [003](./spec-003-faceted-search.md) | Faceted search: standalone `Flicker.search` + facets in select/palette; parser, registry, type-derived autocomplete, cursor state machine | draft |
 | [004](./spec-004-provider-contract.md) | `Flicker.Provider` contract: behaviour, structs, built-in Ash provider, `ash` optional | shipped |
-| [005](./spec-005-dev-playground.md) | In-repo dev playground: `dev/` Phoenix app, seeded ETS domain, page per capability | ready |
+| [005](./spec-005-dev-playground.md) | In-repo dev playground: `dev/` Phoenix app, seeded ETS domain, page per capability | shipped |
 | [006](./spec-006-keyboard-activation.md) | `activate_with_keyboard="mod+k"`: global shortcut into any Flicker search | draft |
 | [007](./spec-007-screen-reader-support.md) | First-class screen-reader support: announcements, AT test matrix, a11y statement | draft |
 | [008](./spec-008-command-palette.md) | `Flicker.palette`: ⌘K fullscreen site-search overlay, grouped results, navigate-on-select | draft |
