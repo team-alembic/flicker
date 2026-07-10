@@ -12,9 +12,23 @@ the Ash type system. The differentiating feature — highest risk, built last
 on a proven base. A mini-project: expect this spec to split into sub-specs
 once the prototype lands.
 
+This spec has **two deliverables**, sharing the parser, registry, and
+cursor-context machinery:
+
+1. **`Flicker.search/1`** — a standalone public component (see the
+   component-surface table in [DESIGN.md](../DESIGN.md#component-surface)):
+   a faceted search input with *no selection semantics* that emits the
+   composed `%Flicker.Query{}` / Ash filter via `on_change`. The Datadog
+   filter bar as a component — the host feeds the filter to a Cinder
+   table, a stream, or its own list. This is faceted search's most
+   valuable form and drives the Cinder interop story.
+2. **Facets inside `Flicker.select` / `Flicker.palette`** — the same input
+   machinery embedded where the result of the narrowed search is a
+   selection or navigation.
+
 ## Scope
 
-Three pieces:
+Three shared pieces:
 
 - **Facet registry → Ash filter.** A facet maps a key to an Ash filter
   target — attribute, relationship path, aggregate, or expression calc (the

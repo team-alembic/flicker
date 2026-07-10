@@ -97,6 +97,20 @@ done.
 3. Add Flicker as a dep back into ARCC and reimplement the client/worker/
    authorization pickers on top of it.
 
+## Component surface
+
+Three public components — one axis each, all thin presentations over the
+same core (provider boundary, keyboard map, theme, messages):
+
+| Component | Question it answers | Value produced | Specs |
+|---|---|---|---|
+| `Flicker.select` | "which record(s)?" | selection → form params / `on_select`; `multiple` switches single/multi — there is **no** separate `multi_select` component | [001](./specs/spec-001-portable-single-select.md), [002](./specs/spec-002-multi-select-chips.md) |
+| `Flicker.search` | "which subset?" | `%Flicker.Query{}` / composed Ash filter → `on_change`; no selection semantics — the Datadog-style filter bar that drives a table, stream, or list | [003](./specs/spec-003-faceted-search.md) |
+| `Flicker.palette` | "take me there" | navigation via `meta.href` (⌘K overlay) | [008](./specs/spec-008-command-palette.md) |
+
+If a new capability doesn't fit one of these three questions, it's a new
+component (and a spec), not a mode flag on an existing one.
+
 ## Public API & stability
 
 What semver protects. Anything listed here is public contract: breaking it
@@ -105,8 +119,8 @@ entry). Everything *not* listed is internal — change freely.
 
 **Public:**
 
-- `Flicker.select/1` (and future public function components): attr and
-  slot names, types, defaults.
+- `Flicker.select/1`, `Flicker.search/1`, `Flicker.palette/1`: attr and
+  slot names, types, defaults (see [Component surface](#component-surface)).
 - The `Flicker.Provider` behaviour: callback signatures and documented
   `opts` keys.
 - `%Flicker.Result{}`, `%Flicker.Query{}`, `%Flicker.Facet{}` struct fields.

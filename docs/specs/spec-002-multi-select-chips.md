@@ -33,9 +33,10 @@ how many values are selected.
 
 ## Design
 
-Same component, `multiple` switches the value model — avoid forking a
-separate multi component; single-select is the one-element degenerate case
-internally where practical. State: `selected :: [Flicker.Result.t()]`, kept
+Same component, `multiple` switches the value model — `<Flicker.select
+multiple />` **is** the multi-select surface; there is no `Flicker.multi_select`
+(see the component-surface table in [DESIGN.md](../DESIGN.md#component-surface)).
+Single-select is the one-element degenerate case internally where practical. State: `selected :: [Flicker.Result.t()]`, kept
 as Results (not bare values) so chips render without refetching; `fetch/2`
 runs once on mount/update when values arrive without labels (e.g. edit form
 opening with `worker_ids` already set).
