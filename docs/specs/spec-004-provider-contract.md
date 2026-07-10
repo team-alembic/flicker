@@ -76,6 +76,29 @@ Error philosophy: providers return `{:error, term}`; the core renders a
 themed error state and never raises on provider failure. Partial `fetch/2`
 results are normal, not errors ([ADR-003](../adrs/adr-003-fetch-takes-a-list.md)).
 
+### Test harness
+
+This spec also establishes the shared test infrastructure the later specs
+assume — the first implementer builds it, everyone else reuses it:
+
+- **One demo domain, two consumers.** The seeded ETS-backed Ash domain
+  (`Dev.Music.{Artist, Album, Genre}`,
+  [Spec 005](./spec-005-dev-playground.md)) lives under `dev/` and
+  `elixirc_paths(:test)` includes it — the `ash_authentication_phoenix`
+  pattern — so the playground and the test suite exercise the *same*
+  resources and deterministic seed data. No parallel fixture domain.
+- **Policy-bearing resource** in that domain (e.g. `Artist` visible only to
+  its label's actor) so actor-scoping assertions are first-class, not
+  bolted on.
+- **Seeds as a fixture helper** (`Dev.Music.seed!/0`), deterministic, safe
+  to call per-test against a fresh ETS table.
+- **Provider tests need no LiveView**; component tests (Spec 001 onward)
+  use PhoenixTest and default to the in-memory provider, reaching for the
+  Ash provider only when the behaviour under test is Ash-specific.
+- The **no-ash CI leg** ([ADR-008](../adrs/adr-008-version-floors.md))
+  excludes the demo domain and Ash-provider tests via a test tag
+  (`@moduletag :ash`), keeping the core suite green without Ash.
+
 ## Acceptance criteria
 
 - The in-memory provider implements the behaviour with only `phoenix_live_view`

@@ -97,12 +97,37 @@ done.
 3. Add Flicker as a dep back into ARCC and reimplement the client/worker/
    authorization pickers on top of it.
 
+## Public API & stability
+
+What semver protects. Anything listed here is public contract: breaking it
+is a major bump post-1.0 (pre-1.0, a `0.x` minor with a loud CHANGELOG
+entry). Everything *not* listed is internal — change freely.
+
+**Public:**
+
+- `Flicker.select/1` (and future public function components): attr and
+  slot names, types, defaults.
+- The `Flicker.Provider` behaviour: callback signatures and documented
+  `opts` keys.
+- `%Flicker.Result{}`, `%Flicker.Query{}`, `%Flicker.Facet{}` struct fields.
+- `Flicker.Theme`: part names in the class map, and preset names.
+- `Flicker.Messages`: the callback and the message-key list
+  ([ADR-009](./adrs/adr-009-messages-module-for-user-facing-text.md)).
+- Testing helpers (`search_select/3` and variants).
+- Config keys under `config :flicker, ...` and the Igniter task name.
+- Version floors, lowered never / raised per
+  [ADR-008](./adrs/adr-008-version-floors.md).
+
+**Internal (explicitly):** the LiveComponent module, its assigns and
+events; hook internals and JS event payloads; `Flicker.Providers.AshResource`'s
+private options; DOM structure beyond documented theme parts;
+`Result.meta` contents for built-in providers (hosts own `meta` for their
+own providers).
+
 ## Open questions
 
 Cross-cutting ones live here; spec-local ones live in each spec.
 
-- Colocated hook vs npm package for the JS — which ages better against
-  LiveView releases?
 - Should Tier 1 auto-derive `search` fields from the resource's text
   attributes, or always require them explicitly?
 - Does Flicker own a global-search-bar variant (results grouped by resource

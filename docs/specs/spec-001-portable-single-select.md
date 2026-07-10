@@ -1,7 +1,7 @@
 ---
 status: ready
 date: 2026-07-10
-depends_on: [spec-004, adr-001, adr-002, adr-004, adr-005]
+depends_on: [spec-004, adr-001, adr-002, adr-004, adr-005, adr-007, adr-009]
 ---
 
 # Spec 001: Portable single-select
@@ -29,12 +29,19 @@ rendering, state, keyboard, forms.
   (drop responses for superseded keystrokes), loading and empty states,
   "keep typing to narrow" cap. `connected?/1` gating on all interactive
   controls.
-- **JS packaging**: keyboard-nav hook shipped as a LiveView colocated hook;
-  Igniter installer (`mix igniter.install flicker`) wires the hook, default
-  theme config, and formatter imports.
-- **Accessibility**: full WAI-ARIA combobox — `role`, `aria-expanded`,
-  `aria-controls`, `aria-activedescendant`, announced result counts, focus
-  management, labelled clear control.
+- **JS packaging**: keyboard-nav hook shipped as a colocated hook
+  ([ADR-007](../adrs/adr-007-colocated-js-hook.md)); Igniter installer
+  (`mix igniter.install flicker`) wires the `phoenix-colocated/flicker`
+  import, default theme config, and formatter imports.
+- **Accessibility**: WAI-ARIA editable-combobox semantics — `role`,
+  `aria-expanded`, `aria-controls`, `aria-activedescendant`,
+  `aria-autocomplete="list"` — plus the live-region announcement plumbing.
+  The full bar and AT verification are
+  [Spec 007](./spec-007-screen-reader-support.md); this spec makes the
+  markup correct and every state in the keyboard map reachable.
+- **All user-facing strings** (visible and announced) through the messages
+  module ([ADR-009](../adrs/adr-009-messages-module-for-user-facing-text.md))
+  from the first template — no inline literals.
 - **Config**: `config :flicker, default_theme:, default_limit:,
   default_debounce:`.
 - **Testing helper**: PhoenixTest `search_select/3` so consumers test at the
@@ -52,8 +59,12 @@ rendering, state, keyboard, forms.
 
 ## Design
 
-Component is a `Phoenix.LiveComponent` (`use Phoenix.LiveComponent` — no
-host web module, no `~p`, no heroicons assumption). Target usage:
+The public face is a **function component** (`Flicker.select/1`) declared
+with `attr`/`slot` so hosts get compile-time validation and HEEx docs; it
+immediately renders the internal `Phoenix.LiveComponent` that owns search
+state. Hosts never address the LiveComponent directly — its module name,
+assigns, and events are internal. No host web module, no `~p`, no heroicons
+assumption. Target usage:
 
 ```heex
 <Flicker.select
@@ -77,6 +88,31 @@ Port from ARCC with renames: `SearchableSelect` → component, JS hook,
 PhoenixTest helper. The `_unused_<field>` logic moves verbatim — it is
 proven.
 
+### Keyboard interaction — the full map
+
+Follows the WAI-ARIA APG editable-combobox pattern: DOM focus stays in the
+text input at all times; option highlight moves via
+`aria-activedescendant`. Every transition below has a defined announcement
+(keys per [ADR-009](../adrs/adr-009-messages-module-for-user-facing-text.md);
+verification in [Spec 007](./spec-007-screen-reader-support.md)).
+
+| State | Key | Behaviour |
+|---|---|---|
+| closed, input focused | `ArrowDown` / `Alt+ArrowDown` | open listbox; `ArrowDown` also makes the first option active |
+| closed, input focused | printable character | open listbox and search (subject to `min_chars`/debounce) |
+| open | `ArrowDown` / `ArrowUp` | move active option down/up; **no wrap** — stops at last/first |
+| open | `Enter` | select the active option, close, focus stays in input; no active option → no-op (never submits the surrounding form while open) |
+| open | `Escape` | close the listbox, keep input text; a second `Escape` (closed, text present) clears the input |
+| open | `Tab` | close without selecting; focus moves per natural tab order |
+| open | `Home` / `End` | **not captured** — native text-caret behaviour in the input |
+| open, results updated | — | active option resets to none (or first, configurable); count announced |
+| any | click/focus outside | close without selecting |
+| single, selection present | `Backspace`/clear control | clear the selection (returns to searchable state) |
+| multi, input empty | `Backspace` | remove last chip ([Spec 002](./spec-002-multi-select-chips.md)) |
+
+`Enter`-while-open must `preventDefault` so a combobox inside a form never
+accidentally submits it — regression-tested, it's a classic combobox bug.
+
 ## Acceptance criteria
 
 - A resource + `search` fields is sufficient config — no module written, no
@@ -92,13 +128,20 @@ proven.
   `connected?/1`).
 - A stale response (slower query for an earlier keystroke) never overwrites
   newer results.
-- Keyboard: arrows navigate, Enter selects, Escape closes, focus management
-  per WAI-ARIA combobox; axe (or equivalent) passes on the rendered markup.
+- Every row of the keyboard map behaves as specified, covered by tests;
+  `Enter` while the listbox is open never submits the surrounding form.
+- axe reports zero violations on the rendered markup (full AT verification
+  is [Spec 007](./spec-007-screen-reader-support.md)).
+- No user-facing string literal appears in templates — all text resolves
+  through the messages module.
 - `mix igniter.install flicker` on a fresh Phoenix app yields a working
   select with zero manual wiring.
 - A consumer test can drive selection with `search_select/3` alone.
 
 ## Open questions
 
-- Colocated hook vs npm package — colocated assumed here; revisit if
-  LiveView-version coupling bites (tracked in [DESIGN.md](../DESIGN.md)).
+- ~~Colocated hook vs npm package~~ — resolved: colocated
+  ([ADR-007](../adrs/adr-007-colocated-js-hook.md)).
+- After results update, does the active option reset to none or first?
+  (Map above says configurable; pick a default during implementation and
+  record it.)
