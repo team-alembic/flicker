@@ -26,6 +26,8 @@ defmodule Flicker.Messages.English do
       shorter than the configured `min_chars`.
     * `:results_count` — %{count: n} — the live-region announcement after
       results update.
+    * `:item_selected` — %{label: name} — the live-region announcement after
+      a single-select selection is made, naming the selected item.
     * `:clear_selection` — visible text and `aria-label` for the button that
       clears the current selection.
     * `:selected_items` — `aria-label` for the multi-select chip list.
@@ -80,6 +82,7 @@ defmodule Flicker.Messages.English do
   def message(:results_count, %{count: 0}), do: "No results available"
   def message(:results_count, %{count: 1}), do: "1 result available"
   def message(:results_count, %{count: count}), do: "#{count} results available"
+  def message(:item_selected, %{label: label}), do: "#{label} selected"
   def message(:clear_selection, _bindings), do: "Clear selection"
   def message(:selected_items, _bindings), do: "Selected items"
   def message(:remove_chip, %{label: label}), do: "Remove #{label}"

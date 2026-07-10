@@ -167,6 +167,24 @@ defmodule Flicker.Components.Search do
 
   defp suggestions_count_message(_assigns, :text), do: ""
 
+  # The single live-region announcement (Spec 007), derived from exactly the
+  # assigns that drive the visual render — see `Flicker.Components.Select`'s
+  # `announcement/1` for the same design decision. Loading takes priority
+  # over the context/count messages since the count isn't known yet; a
+  # stale, slower response for an earlier keystroke can never land here
+  # because `load_suggestions/2` cancels the previous `:related_search` task
+  # by name before starting a new one.
+  defp announcement(%{suggestions_loading: true} = assigns), do: message(assigns, :loading)
+
+  defp announcement(assigns) do
+    [
+      context_message(assigns, assigns.context),
+      suggestions_count_message(assigns, assigns.context)
+    ]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join(" ")
+  end
+
   # Same bulletproof visually-hidden inline style as `Flicker.Components.Select`
   # (ADR-002 keeps Flicker stylesheet-free).
   @sr_only_style "position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; " <>
@@ -179,9 +197,9 @@ defmodule Flicker.Components.Search do
       |> assign(:input_id, input_id_for(assigns.id))
       |> assign(:listbox_id, listbox_id_for(assigns.id))
       |> assign(:sr_only_style, @sr_only_style)
-      |> assign(:context_message, context_message(assigns, assigns.context))
-      |> assign(:suggestions_count_message, suggestions_count_message(assigns, assigns.context))
       |> assign(:show_suggestions, assigns.open and assigns.context != :text)
+
+    assigns = assign(assigns, :announcement, announcement(assigns))
 
     ~H"""
     <div
@@ -192,7 +210,7 @@ defmodule Flicker.Components.Search do
       phx-click-away="close"
       data-active-class={@theme.option_active}
     >
-      <label for={@input_id} class="flicker-sr-only" style={@sr_only_style}>
+      <label id={"#{@input_id}-label"} for={@input_id} class="flicker-sr-only" style={@sr_only_style}>
         {message(assigns, :facet_search_placeholder)}
       </label>
       <input
@@ -225,11 +243,10 @@ defmodule Flicker.Components.Search do
       >
         {message(assigns, :clear_selection)}
       </button>
-      <div aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>{@context_message}</div>
-      <div :if={@context != :text} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
-        {@suggestions_count_message}
+      <div id={"#{@id}-announcer"} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
+        {@announcement}
       </div>
-      <ul :if={@show_suggestions} id={@listbox_id} role="listbox" class={@theme.listbox}>
+      <ul :if={@show_suggestions} id={@listbox_id} role="listbox" aria-labelledby={"#{@input_id}-label"} class={@theme.listbox}>
         <li :if={@suggestions_loading} class={@theme.loading_state}>{message(assigns, :loading)}</li>
         <li :if={!@suggestions_loading && @suggestions == []} class={@theme.empty_state}>
           {message(assigns, :no_results)}

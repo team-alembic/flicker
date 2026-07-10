@@ -507,6 +507,68 @@ defmodule Flicker.Components.Select do
 
   defp message(assigns, key, bindings \\ %{}), do: Messages.get(assigns[:messages], key, bindings)
 
+  # The single live-region announcement (Spec 007), derived from exactly the
+  # assigns that drive the visual render — never a parallel "last announced"
+  # assign that could drift from what's on screen. `run_search/2`'s
+  # `start_async/3` same-name cancellation (see the comment there) already
+  # guarantees `@results`/`@loading`/`@error` reflect only the latest query,
+  # so deriving the announcement from them for free extends that guarantee
+  # to announcements. Rapid keystrokes never queue a backlog of stale
+  # announcements because the underlying state itself only changes as often
+  # as `phx-debounce={@debounce}` lets a "query" event reach the server.
+  defp announcement(assigns) do
+    [state_announcement(assigns), selection_announcement(assigns)]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join(" ")
+  end
+
+  defp state_announcement(%{error: true} = assigns), do: message(assigns, :error)
+  defp state_announcement(%{loading: true} = assigns), do: message(assigns, :loading)
+
+  defp state_announcement(%{multiple: true, at_max: true} = assigns),
+    do: message(assigns, :max_selections_reached, %{max: assigns.max_selections})
+
+  defp state_announcement(%{open: true, facets: [_ | _], facet_context: context} = assigns),
+    do: facet_state_announcement(assigns, context)
+
+  defp state_announcement(%{open: true} = assigns),
+    do: message(assigns, :results_count, %{count: length(assigns.results)})
+
+  defp state_announcement(_assigns), do: ""
+
+  defp facet_state_announcement(assigns, {:key, _prefix}) do
+    [
+      message(assigns, :facet_key_context),
+      message(assigns, :facet_key_suggestions_count, %{count: length(assigns.results)})
+    ]
+    |> Enum.join(" ")
+  end
+
+  defp facet_state_announcement(assigns, {:value, facet, _prefix}) do
+    [
+      message(assigns, :facet_value_context, %{facet: facet_label(facet)}),
+      message(assigns, :facet_value_suggestions_count, %{count: length(assigns.results)})
+    ]
+    |> Enum.join(" ")
+  end
+
+  defp facet_state_announcement(assigns, :text), do: message(assigns, :results_count, %{count: length(assigns.results)})
+
+  defp facet_label(%{label: nil, key: key}), do: to_string(key)
+  defp facet_label(%{label: label}), do: label
+
+  # Multi-select's selected-count reflects both additions and removals (a
+  # chip removed is just the count going down) — one message key covers
+  # both, rather than a bespoke "chip removed" sentence naming the chip,
+  # since the chip's own label is no longer render state once it's gone.
+  defp selection_announcement(%{multiple: true} = assigns),
+    do: message(assigns, :selected_count, %{count: length(assigns.selected)})
+
+  defp selection_announcement(%{multiple: false, selected: %Result{} = result, open: false} = assigns),
+    do: message(assigns, :item_selected, %{label: result.label})
+
+  defp selection_announcement(_assigns), do: ""
+
   # A slower response for an earlier keystroke could otherwise repopulate
   # `@results` after the query has since dropped below `min_chars`
   # (`cancel_async/2` in `apply_query/2` prevents that) — this is a pure
@@ -580,6 +642,8 @@ defmodule Flicker.Components.Select do
         assigns.activate_with_keyboard && chord_display(assigns.activate_with_keyboard)
       )
 
+    assigns = assign(assigns, :announcement, announcement(assigns))
+
     ~H"""
     <div
       id={@id}
@@ -607,7 +671,9 @@ defmodule Flicker.Components.Select do
           </button>
         </span>
       </div>
-      <label for={@input_id} class="flicker-sr-only" style={@sr_only_style}>{message(assigns, :search_placeholder)}</label>
+      <label id={"#{@input_id}-label"} for={@input_id} class="flicker-sr-only" style={@sr_only_style}>
+        {message(assigns, :search_placeholder)}
+      </label>
       <input
         type="text"
         id={@input_id}
@@ -659,13 +725,10 @@ defmodule Flicker.Components.Select do
       >
         {message(assigns, :clear_all)}
       </button>
-      <div aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
-        {message(assigns, :results_count, %{count: length(@results)})}
+      <div id={"#{@id}-announcer"} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
+        {@announcement}
       </div>
-      <div :if={@multiple} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
-        {message(assigns, :selected_count, %{count: length(@selected)})}
-      </div>
-      <ul :if={@open} id={@listbox_id} role="listbox" class={@theme.listbox}>
+      <ul :if={@open} id={@listbox_id} role="listbox" aria-labelledby={"#{@input_id}-label"} class={@theme.listbox}>
         <li :if={@loading} class={@theme.loading_state}>{message(assigns, :loading)}</li>
         <li :if={@error} class={@theme.error_state}>{message(assigns, :error)}</li>
         <li :if={!@loading && !@error && @at_max} class={@theme.hint}>
