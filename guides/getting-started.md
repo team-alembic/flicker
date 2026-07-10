@@ -1,12 +1,24 @@
 # Getting started
 
-<!-- TODO: A short "first five minutes" tutorial once the component itself
-(Spec 001) ships. For now, this covers the data-source contract every
-picker is built on. -->
+Flicker is a type-to-search, pick-one combobox for Phoenix LiveView that
+reads directly off an Ash resource — no options plumbing, no host web
+module, no `~p`. This guide takes you from a fresh dependency to a working
+select in a form.
 
 ## Install
 
-Add to `mix.exs`:
+The fastest path is [Igniter](https://hex.pm/packages/igniter):
+
+```bash
+mix igniter.install flicker
+```
+
+This adds `flicker` to `mix.exs`, imports it into your `.formatter.exs`,
+adds `config :flicker, default_limit: 25, default_debounce: 150` to
+`config/config.exs`, and wires the keyboard-nav colocated hook into your
+`assets/js/app.js` — no manual JS wiring needed.
+
+Installing by hand instead? Add the dependency:
 
 ```elixir
 def deps do
@@ -14,53 +26,133 @@ def deps do
 end
 ```
 
-Then fetch:
+then wire the colocated hook into `assets/js/app.js` yourself — it ships
+as a `Phoenix.LiveView.ColocatedHook` (requires Phoenix 1.8+), aggregated
+per-dependency under its own manifest:
 
-```bash
-mix deps.get
+```javascript
+import {hooks as flickerHooks} from "phoenix-colocated/flicker"
+
+const liveSocket = new LiveSocket("/live", Socket, {
+  hooks: {...flickerHooks},
+  // merge in your own colocated hooks too, if you have any:
+  // hooks: {...colocatedHooks, ...flickerHooks},
+  ...
+})
 ```
 
-## The provider contract
+## Your first select
 
-Everything Flicker searches or selects from is a `Flicker.Provider` — a
-small behaviour with two required callbacks:
+The common case — a resource and a few field names, no provider module of
+your own — is **Tier 1 declarative config**:
 
-```elixir
-@callback search(query :: Flicker.Query.t(), opts :: keyword()) ::
-            {:ok, [Flicker.Result.t()]} | {:error, term()}
-@callback fetch(values :: [term()], opts :: keyword()) ::
-            {:ok, [Flicker.Result.t()]} | {:error, term()}
+```heex
+<Flicker.select
+  id="client-select"
+  field={@form[:client_id]}
+  resource={MyApp.Client}
+  actor={@current_user}
+  search={[:first_name, :last_name, :uci_number]}
+  option_label={:full_name}
+  option_sublabel={fn client -> "#{client.uci_number} · #{client.city}" end}
+  read_action={:search}
+  limit={20}
+/>
 ```
 
-If you're on Ash, the built-in `Flicker.Providers.AshResource` is generated
-for you from a resource and a few field names — most Ash users never write
-a provider by hand. If you aren't on Ash, or need federated search across
-multiple sources, implement the behaviour directly.
+- `resource` — the Ash resource to read.
+- `actor` — passed straight through to Ash's authorizer and policies; a
+  record the actor can't read never appears in results.
+- `search` — the attributes the typed text matches against.
+- `option_label` — an atom (a struct field) or a 1-arity function
+  producing the row's display label.
+- `option_sublabel` — same shape, for the smaller secondary line.
+- `read_action`, `sort`, `filter` — optional; narrow or order what's
+  searched.
 
-## Writing your own provider
+Reaching for federated search across multiple sources, or a data source
+that isn't an Ash resource at all? Pass `source` (a module or
+`{module, opts}` implementing `Flicker.Provider`) instead of `resource` —
+see `Flicker.Provider`'s moduledoc.
 
-`Flicker.Providers.Static` — a small in-memory provider — is the worked
-example:
+## Form mode vs. controlled mode
+
+`Flicker.select/1` runs in exactly one of two modes, chosen by which attr
+you pass:
+
+**Form-field mode** — pass `field` (a `Phoenix.HTML.FormField`, e.g.
+`@form[:client_id]`), as in the example above. The component owns its own
+hidden input and submits the selected value under that field's name.
+Required-field errors don't fire until the field is engaged, and the
+selection survives a LiveSocket reconnect. If your form is backed by
+`AshPhoenix.Form`, attach the adapter once in `mount/3` so a selection
+merges into the form without wiping other fields' in-progress state:
 
 ```elixir
-defmodule MyApp.Providers.Http do
-  @behaviour Flicker.Provider
-
-  @impl true
-  def search(%Flicker.Query{text: text}, _opts) do
-    # call an external API, map its results to `Flicker.Result` structs
-    {:ok, [%Flicker.Result{value: "42", label: "Example result"}]}
-  end
-
-  @impl true
-  def fetch(values, _opts) do
-    # resolve `values` in one call; omit any that don't resolve — this is
-    # a normal partial result, not an error
-    {:ok, []}
-  end
+def mount(_params, _session, socket) do
+  {:ok,
+   socket
+   |> assign(form: to_form(AshPhoenix.Form.for_create(MyApp.Client, :create)))
+   |> Flicker.AshPhoenixForm.attach(form: :form)}
 end
 ```
 
-See `Flicker.Provider`'s module docs for the full contract (including the
-optional `facets/0` and `render_option/2` callbacks), and
-`Flicker.Providers.Static` for a complete, tested implementation.
+**Controlled mode** — omit `field` and pass `on_select` (an atom) instead.
+No form inputs are rendered; your `handle_info/2` receives
+`{on_select, %Flicker.Result{} | nil}` (`nil` on clear):
+
+```heex
+<Flicker.select
+  id="global-search"
+  source={MyApp.Search.Global}
+  actor={@current_user}
+  on_select={:result_selected}
+/>
+```
+
+```elixir
+def handle_info({:result_selected, result}, socket) do
+  {:noreply, assign(socket, :selected, result)}
+end
+```
+
+## Testing a select
+
+`Flicker.Test.search_select/3` drives a picker the way a user would —
+open it, type to filter, pick a result — from a `PhoenixTest` session:
+
+```elixir
+test "picks a client", %{conn: conn} do
+  conn
+  |> visit(~p"/clients/new")
+  |> Flicker.Test.search_select("Search...", "Casey Cassidy")
+  |> assert_has("#client-select-input[value='Casey Cassidy']")
+end
+```
+
+Requires `phoenix_test` in your own `:test` deps (most PhoenixTest users
+already have it).
+
+## Theming
+
+Every visually distinct part of the rendered markup — the wrapper, the
+input, the listbox, an option, its active state, and more — has a named
+key in `Flicker.Theme`. Three presets ship: `Flicker.Theme.vanilla/0`
+(plain, framework-free class names — the default),
+`Flicker.Theme.tailwind/0`, and `Flicker.Theme.daisy_ui/0`. Set one
+globally:
+
+```elixir
+config :flicker, default_theme: Flicker.Theme.tailwind()
+```
+
+or per-component, with a full preset or a partial override of just the
+parts you want to change:
+
+```heex
+<Flicker.select theme={%{search_input: "my-custom-input"}} ... />
+```
+
+See `Flicker.Theme`'s moduledoc for the full list of parts, and
+`Flicker.Messages` for overriding the (English-default) strings the
+component renders and announces.
