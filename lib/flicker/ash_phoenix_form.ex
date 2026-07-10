@@ -58,7 +58,12 @@ if Code.ensure_loaded?(AshPhoenix.Form) do
 
       case parse_field_name(field_name) do
         {root, key} ->
-          if root == to_string(form_key) do
+          # `field_name` is the field's actual param name (e.g.
+          # "artist[client_id]"), which is `form.name`-derived, not the
+          # socket assign key `form_key` lives under — those two only
+          # coincide by accident (e.g. `assign(:form, ...)` with no `as:`
+          # override and a resource literally named "form").
+          if root == form.name do
             params =
               (form.source.params || %{})
               |> Map.put(key, value)

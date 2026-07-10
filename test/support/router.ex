@@ -20,5 +20,9 @@ defmodule Flicker.Test.Router do
     if Code.ensure_loaded?(Ash) do
       live("/ash", Flicker.Test.AshHostLive)
     end
+
+    if Code.ensure_loaded?(AshPhoenix.Form) do
+      live("/ash-phoenix-form", Flicker.Test.AshPhoenixFormHostLive)
+    end
   end
 end
