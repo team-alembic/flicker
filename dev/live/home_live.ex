@@ -15,7 +15,9 @@ defmodule Dev.Live.Home do
     {"/themes", "Theme showcase", "The same select in every shipped theme preset"},
     {"/edge-states", "Edge states", "Slow, erroring, and empty-result providers, on demand"},
     {"/keyboard-activation", "Keyboard activation",
-     "mod+k focuses and opens a search from anywhere on the page, plus the duplicate-chord warning"}
+     "mod+k focuses and opens a search from anywhere on the page, plus the duplicate-chord warning"},
+    {"/faceted-search", "Faceted search",
+     "Flicker.search filtering a live list of Dev.Music artists — key/value facet autocomplete, no selection semantics"}
   ]
 
   @impl true

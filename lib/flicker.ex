@@ -35,8 +35,9 @@ defmodule Flicker do
 
   use Phoenix.Component
 
+  alias Flicker.Components.Search, as: SearchComponent
   alias Flicker.Components.Select, as: SelectComponent
-  alias Flicker.Theme
+  alias Flicker.{FacetSuggest, Theme}
 
   @default_limit 25
   @default_debounce 150
@@ -215,6 +216,15 @@ defmodule Flicker do
         "on the page. `mod` resolves to Cmd on macOS, Ctrl elsewhere. See Spec 006."
   )
 
+  attr(:facets, :list,
+    default: [],
+    doc:
+      "Faceted key/value autocomplete over the search input (Spec 003) — Tier 1: a list of " <>
+        "bare facet keys / `{key, overrides}` pairs, expanded via `Flicker.Providers.AshResource.facets/1`; " <>
+        "or a hand-built list of `Flicker.Facet` structs. Narrows the free-text portion sent to the " <>
+        "provider; see the moduledoc for what's in and out of scope for facets-in-select in v1."
+  )
+
   slot(:option, doc: "Custom option rendering, given the `Flicker.Result` as the slot argument.")
 
   @spec select(map()) :: Phoenix.LiveView.Rendered.t()
@@ -226,6 +236,7 @@ defmodule Flicker do
     assigns =
       assigns
       |> assign(:provider, provider)
+      |> assign(:resolved_facets, FacetSuggest.resolve_facets(assigns))
       |> assign(
         :limit,
         assigns[:limit] || Application.get_env(:flicker, :default_limit, @default_limit)
@@ -254,7 +265,116 @@ defmodule Flicker do
       theme={@theme}
       messages={@messages}
       activate_with_keyboard={@activate_with_keyboard}
+      facets={@resolved_facets}
       option={@option}
+    />
+    """
+  end
+
+  @doc """
+  Renders a standalone faceted search / filter bar — "which subset?" (see
+  the [component-surface table](https://github.com/team-alembic/flicker/blob/main/docs/DESIGN.md#component-surface)).
+
+  No selection semantics: `Flicker.search/1` never lists or fetches
+  records itself. It emits the parsed `%Flicker.Query{}` and its composed
+  Ash filter map (`Flicker.Query.to_filter/2`) via `on_change` — the host's
+  `handle_info/2` receives `{on_change, %Flicker.Query{}, filter}` on every
+  keystroke, and feeds `filter` to its own Cinder table, `Ash.read/2` call,
+  or list.
+
+      <Flicker.search
+        id="artist-search"
+        resource={Dev.Music.Artist}
+        actor={\@current_user}
+        facets={[:status, :tier, :genre, after: [attribute: :formed_on, op: :>=]]}
+        on_change={:artist_query_changed}
+      />
+
+      def handle_info({:artist_query_changed, _query, filter}, socket) do
+        {:noreply, assign(socket, artists: Ash.read!(Dev.Music.Artist |> Ash.Query.filter_input(filter)))}
+      end
+
+  `facets` derives value autocomplete straight from the Ash type system
+  (Spec 003's type table): an enum attribute gets a value picklist; a
+  `belongs_to`/`has_*` facet opens a nested, actor-scoped record search
+  over the related resource, inserting `key:<id>` (displayed, while
+  choosing, as the related record's own label) rather than a raw id typed
+  by hand.
+
+  `resource` (Tier 1) derives facets via `Flicker.Providers.AshResource.facets/1`;
+  `source` (Tier 2, a `Flicker.Provider` implementing the optional
+  `facets/0` callback) or a hand-built list of `Flicker.Facet` structs
+  passed directly as `facets` both work without any Ash resource at all.
+  """
+  attr(:id, :string, required: true, doc: "DOM id for the component.")
+  attr(:resource, :atom, default: nil, doc: "Tier 1: the Ash resource `facets` introspects.")
+
+  attr(:source, :any,
+    default: nil,
+    doc: "Tier 2: a `Flicker.Provider` module, or `{module, opts}`."
+  )
+
+  attr(:facets, :list,
+    default: [],
+    doc: "Facet keys/overrides (Tier 1), or a hand-built list of `Flicker.Facet` structs."
+  )
+
+  attr(:actor, :any,
+    default: nil,
+    doc: "The reading actor — scopes nested relationship-facet searches (ADR-004)."
+  )
+
+  attr(:tenant, :any,
+    default: nil,
+    doc: "The tenant — scopes nested relationship-facet searches."
+  )
+
+  attr(:on_change, :atom,
+    required: true,
+    doc: "The host receives `{on_change, %Flicker.Query{}, filter}` on every keystroke."
+  )
+
+  attr(:limit, :integer, default: nil, doc: "Max nested relationship-facet search results shown.")
+
+  attr(:debounce, :integer,
+    default: nil,
+    doc: "Input debounce (ms). Defaults to `config :flicker, :default_debounce` (150)."
+  )
+
+  attr(:theme, :any, default: nil, doc: "A `Flicker.Theme` override. See `Flicker.Theme`.")
+
+  attr(:messages, :atom,
+    default: nil,
+    doc: "A `Flicker.Messages` override module. See `Flicker.Messages`."
+  )
+
+  @spec search(map()) :: Phoenix.LiveView.Rendered.t()
+  def search(assigns) do
+    assigns =
+      assigns
+      |> assign(:resolved_facets, FacetSuggest.resolve_facets(assigns))
+      |> assign(
+        :limit,
+        assigns[:limit] || Application.get_env(:flicker, :default_limit, @default_limit)
+      )
+      |> assign(
+        :debounce,
+        assigns[:debounce] || Application.get_env(:flicker, :default_debounce, @default_debounce)
+      )
+      |> assign(:theme, Theme.resolve(assigns[:theme]))
+
+    ~H"""
+    <.live_component
+      module={SearchComponent}
+      id={@id}
+      facets={@resolved_facets}
+      actor={@actor}
+      tenant={@tenant}
+      on_change={@on_change}
+      limit={@limit}
+      debounce={@debounce}
+      theme={@theme}
+      messages={@messages}
     />
     """
   end

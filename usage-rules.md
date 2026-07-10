@@ -8,11 +8,13 @@
 
 ## Understanding Flicker
 
-Flicker is an Ash-native searchable select / combobox for Phoenix
-LiveView: a type-to-search, pick-one control that reads directly off an
-Ash resource (or any `Flicker.Provider`) — no options plumbing, no host
-web module. `Flicker.select/1` is the only public entry point; its
-backing `Phoenix.LiveComponent` is a private implementation detail.
+Flicker is an Ash-native searchable select / combobox / faceted-search
+library for Phoenix LiveView. It reads directly off an Ash resource (or
+any `Flicker.Provider`) — no options plumbing, no host web module.
+`Flicker.select/1` (pick-one/pick-many) and `Flicker.search/1` (a
+standalone faceted filter bar, no selection semantics) are the public
+entry points; their backing `Phoenix.LiveComponent`s are private
+implementation details.
 
 ## Core concepts
 
@@ -45,6 +47,15 @@ backing `Phoenix.LiveComponent` is a private implementation detail.
   resolves to Cmd on macOS, Ctrl elsewhere. Bare-key chords (no modifier)
   raise `ArgumentError` at render time rather than silently hijacking
   ordinary typing.
+- **`facets`** (on `Flicker.select/1`, and the whole point of
+  `Flicker.search/1`) — Datadog-style `status:active worker:"Casey Nguyen"
+  after:7d free text`. Pass bare facet keys/overrides (Tier 1, expanded by
+  introspecting the resource's own type system) or a hand-built list of
+  `Flicker.Facet` structs. An enum attribute gets a value picklist; a
+  `belongs_to`/`has_*` facet opens a nested, actor-scoped record search
+  over the related resource. `Flicker.search/1` emits
+  `{on_change, %Flicker.Query{}, filter}` — no selection semantics, you
+  feed `filter` to your own table/stream/list.
 
 ## Basic usage
 
@@ -140,6 +151,29 @@ to replace it wholesale.
 Cmd+K (macOS) / Ctrl+K (elsewhere) focuses and opens this search from
 anywhere on the page, even while another text input has focus. Pressing
 it again while already focused and open toggles it closed.
+
+### Faceted search filtering a list
+
+```heex
+<Flicker.search
+  id="artist-search"
+  resource={MyApp.Artist}
+  actor={@current_user}
+  facets={[:status, :genre, after: [attribute: :formed_on, op: :>=]]}
+  on_change={:artist_query_changed}
+/>
+```
+
+```elixir
+def handle_info({:artist_query_changed, _query, filter}, socket) do
+  artists =
+    MyApp.Artist
+    |> Ash.Query.filter_input(filter)
+    |> Ash.read!(actor: socket.assigns.current_user)
+
+  {:noreply, assign(socket, :artists, artists)}
+end
+```
 
 ### Testing a select
 

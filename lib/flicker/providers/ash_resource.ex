@@ -282,14 +282,50 @@ if Code.ensure_loaded?(Ash) do
     end
 
     defp relationship_facet(key, relationship) do
+      destination = relationship.destination
+
       %Flicker.Facet{
         key: key,
         type: :string,
         operators: [:eq],
         default_op: :eq,
         target: relationship_target(relationship),
-        related: %{resource: relationship.destination}
+        related: %{
+          resource: destination,
+          search: related_search_fields(destination),
+          option_label: related_option_label(destination)
+        }
       }
+    end
+
+    # Picks a default search/label field for the related resource's nested
+    # search (Spec 003): `:name`, then `:title`, then the first public
+    # string attribute, then the primary key itself — always something,
+    # never an empty list, so the nested search never has nothing to match
+    # or display against.
+    defp related_search_fields(resource) do
+      cond do
+        Ash.Resource.Info.attribute(resource, :name) -> [:name]
+        Ash.Resource.Info.attribute(resource, :title) -> [:title]
+        field = first_public_string_attribute(resource) -> [field]
+        true -> Ash.Resource.Info.primary_key(resource)
+      end
+    end
+
+    defp related_option_label(resource) do
+      case related_search_fields(resource) do
+        [field | _] -> field
+      end
+    end
+
+    defp first_public_string_attribute(resource) do
+      resource
+      |> Ash.Resource.Info.public_attributes()
+      |> Enum.find(&(&1.type == Ash.Type.String))
+      |> case do
+        nil -> nil
+        attribute -> attribute.name
+      end
     end
 
     defp relationship_target(%Ash.Resource.Relationships.BelongsTo{source_attribute: source_attribute}),

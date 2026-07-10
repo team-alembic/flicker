@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: shipped
 date: 2026-07-10
 depends_on: [spec-001, spec-002, adr-001, adr-006]
 ---
@@ -112,10 +112,63 @@ cannot drift from form rendering elsewhere in the host app.
   cursor position, including mid-token edits — covered by unit tests on the
   pure function.
 
-## Open questions
+## Open questions — resolved
 
-- Facet grammar scope: how far toward Datadog (grouping, `OR`, negation)
-  before it's its own query language? Start minimal; extend by demand.
-- Does the global-search-bar variant (results grouped by resource type) live
-  in Flicker or as a `Flicker.Provider` recipe in docs?
-- Relative-date grammar (`7d`, `2w`) — fixed set or pluggable?
+- **Facet grammar scope**: resolved to the minimum in [Non-goals](#non-goals-initially)
+  — no grouping, no explicit `OR`/`AND` syntax, no negation in v1. Distinct
+  facet keys AND; repeated instances of the same key OR (`Flicker.Query.to_filter/2`).
+  Extend by demand once a real use case needs it, as its own follow-up spec
+  rather than growing this parser in place.
+- **Global-search-bar variant**: out of scope here — it's
+  [Spec 008 (`Flicker.palette`)](./spec-008-command-palette.md)'s concern,
+  not `Flicker.search`'s.
+- **Relative-date grammar**: shipped as the fixed set implemented in
+  `Flicker.Query.cast_relative_date/1` — `<n>d` / `<n>w` / `<n>m` (30 days)
+  / `<n>y` (365 days). Pluggable relative-date units are a follow-up, not
+  needed by any current consumer.
+
+## Implementation notes (v1 scope cuts)
+
+Both deliverables ship on the shared parser/registry/cursor-context
+machinery above (`Flicker.Query`, `Flicker.Facet`,
+`Flicker.Providers.AshResource.facets/1`, `Flicker.CursorContext`,
+`Flicker.FacetSuggest`). Two scope cuts were made to ship v1 without
+growing this spec into its own multi-phase project — both are cheap to
+lift later, and don't change any public struct shape:
+
+- **Cursor tracking assumes the caret sits at the end of the typed text.**
+  Flicker wires plain `phx-keyup` payloads (value only, no
+  `selectionStart`) rather than a bespoke JS hook reporting real caret
+  position. `Flicker.CursorContext.classify/3` itself supports arbitrary
+  cursor positions and is exercised at every position by its own unit and
+  property tests — this is a component-wiring simplification (documented
+  on `Flicker.FacetSuggest.classify/2`), not a limitation of the state
+  machine. Mid-token editing (moving the caret back into an already-typed
+  token) types "at the end" instead of resuming in place. A follow-up: a
+  colocated hook reporting `selectionStart` on every keystroke.
+- **`facets` on `Flicker.select/1` narrows the autocomplete UX and the
+  free-text portion of the search, but does not yet AND the parsed facet
+  filter into the provider's own record query.** While the cursor is in
+  facet-key/value position the listbox shows key/value suggestions instead
+  of records (picking one edits the typed text); once back in free-text
+  position, the listbox reverts to an ordinary record search run against
+  `Flicker.Query.parse/2`'s `.text` (so a completed `status:active` token
+  never leaks into the `ilike` match) — but that search doesn't also apply
+  `Flicker.Query.to_filter/2`'s facet clauses to narrow *which records* are
+  offered. `Flicker.search/1` has no such gap — it never lists records
+  itself, it only emits the filter for the host to apply. Composing the two
+  for `facets`-on-`Flicker.select` is a follow-up.
+
+Acceptance criteria coverage: each type-table row has an end-to-end test
+against `Dev.Music`/a purpose-built fixture (`Flicker.Providers.AshResourceFacetsTest`,
+`Flicker.SearchTest`); distinct-AND/repeated-OR is asserted against the
+generated Ash filter (`Flicker.QueryAshFilterTest`, `Flicker.SearchTest`);
+unknown keys/malformed values degrade to free text without erroring
+(`Flicker.QueryTest`, `Flicker.QueryPropertyTest`, `Flicker.SearchTest`);
+the nested relationship-facet search is actor-scoped
+(`Flicker.SearchTest`'s "nested relationship-facet search is actor-scoped"
+describe block, against `Flicker.Test.FacetGenre`'s policy); the
+cursor-context state machine is covered at every position by
+`Flicker.CursorContextTest`/`Flicker.CursorContextPropertyTest`. The dev
+playground's `/faceted-search` page runs `Flicker.search/1` against
+`Dev.Music.Artist` live.

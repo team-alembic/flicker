@@ -41,6 +41,22 @@ defmodule Flicker.Messages.English do
     * `:keyboard_shortcut_hint` — %{chord: text} — `title` on the
       `activate_with_keyboard` kbd hint (Spec 006), naming the chord that
       focuses and opens the search from anywhere on the page.
+    * `:facet_key_context` — the live-region announcement (Spec 003) when
+      the cursor moves into facet-key position (`stat|` before any `:`) —
+      key suggestions are now driving the dropdown.
+    * `:facet_value_context` — %{facet: label} — the live-region
+      announcement when the cursor moves into a known facet's value
+      position (`status:|`) — that facet's picklist/nested search is now
+      driving the dropdown.
+    * `:free_text_context` — the live-region announcement when the cursor
+      is in plain free-text position — no facet is driving the dropdown.
+    * `:facet_key_suggestions_count` — %{count: n} — the live-region
+      announcement after facet-key suggestions update.
+    * `:facet_value_suggestions_count` — %{count: n} — the live-region
+      announcement after facet-value suggestions (enum picklist or nested
+      search) update.
+    * `:facet_search_placeholder` — placeholder text for `Flicker.search/1`'s
+      input.
   """
   @spec message(atom(), map()) :: String.t()
   def message(:search_placeholder, _bindings), do: "Search..."
@@ -64,4 +80,14 @@ defmodule Flicker.Messages.English do
   def message(:selected_count, %{count: count}), do: "#{count} items selected"
   def message(:max_selections_reached, %{max: max}), do: "Maximum of #{max} selections reached"
   def message(:keyboard_shortcut_hint, %{chord: chord}), do: "Keyboard shortcut: #{chord}"
+  def message(:facet_key_context, _bindings), do: "Typing a facet name"
+  def message(:facet_value_context, %{facet: facet}), do: "Typing a value for #{facet}"
+  def message(:free_text_context, _bindings), do: "Typing free text"
+  def message(:facet_key_suggestions_count, %{count: 0}), do: "No matching facets"
+  def message(:facet_key_suggestions_count, %{count: 1}), do: "1 matching facet"
+  def message(:facet_key_suggestions_count, %{count: count}), do: "#{count} matching facets"
+  def message(:facet_value_suggestions_count, %{count: 0}), do: "No matching values"
+  def message(:facet_value_suggestions_count, %{count: 1}), do: "1 matching value"
+  def message(:facet_value_suggestions_count, %{count: count}), do: "#{count} matching values"
+  def message(:facet_search_placeholder, _bindings), do: "Filter... (try status:active)"
 end

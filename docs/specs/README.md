@@ -9,7 +9,7 @@ Update the status here **and** in the spec's frontmatter when it changes.
 |---|---|---|
 | [001](./spec-001-portable-single-select.md) | Portable single-select: decoupled component, theme, form + controlled modes, hook + installer | shipped |
 | [002](./spec-002-multi-select-chips.md) | Multi-select: list value, array inputs, chips, batch `fetch/2` | shipped |
-| [003](./spec-003-faceted-search.md) | Faceted search: standalone `Flicker.search` + facets in select/palette; parser, registry, type-derived autocomplete, cursor state machine | in-progress |
+| [003](./spec-003-faceted-search.md) | Faceted search: standalone `Flicker.search` + facets in select/palette; parser, registry, type-derived autocomplete, cursor state machine | shipped |
 | [004](./spec-004-provider-contract.md) | `Flicker.Provider` contract: behaviour, structs, built-in Ash provider, `ash` optional | shipped |
 | [005](./spec-005-dev-playground.md) | In-repo dev playground: `dev/` Phoenix app, seeded ETS domain, page per capability | shipped |
 | [006](./spec-006-keyboard-activation.md) | `activate_with_keyboard="mod+k"`: global shortcut into any Flicker search | shipped |

@@ -37,9 +37,13 @@ defmodule Flicker.Facet do
       `Flicker.Providers.AshResource.facets/1` (the facet registry,
       [Spec 003](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-003-faceted-search.md));
       hand-built facets can set it directly.
-    * `:related` — for a `belongs_to`/`has_*` facet, `%{resource: module}`
+    * `:related` — for a `belongs_to`/`has_*` facet, `%{resource: module,
+      search: [atom()], option_label: atom() | (struct() -> String.t())}`
       describing the related resource a nested search over this facet's
-      values would run against. `nil` for non-relationship facets.
+      values would run against (the same `Flicker.Providers.AshResource`
+      `:search`/`:option_label` shape, so the nested search is a plain
+      inner `Flicker.select`-style provider call) — `nil` for
+      non-relationship facets.
 
   Hand-build a `Flicker.Facet` directly, or — for an Ash resource — derive
   it from `facets: [:status, :worker, ...]` via
@@ -55,7 +59,11 @@ defmodule Flicker.Facet do
   @type operator :: :eq | :neq | :gt | :gte | :lt | :lte | :contains
 
   @typedoc "The related resource a `belongs_to`/`has_*` facet searches over."
-  @type related :: %{resource: module()}
+  @type related :: %{
+          resource: module(),
+          search: [atom()],
+          option_label: atom() | (struct() -> String.t())
+        }
 
   @typedoc "A facet definition."
   @type t :: %__MODULE__{
