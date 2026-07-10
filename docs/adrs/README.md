@@ -13,3 +13,6 @@ number sequentially.
 | [004](./adr-004-authorization-via-actor-and-policies.md) | Authorisation via `actor:`-scoped reads + policies; no bespoke gate | accepted |
 | [005](./adr-005-form-field-mode-owns-hidden-inputs.md) | Form-field mode owns hidden inputs + `_unused_` marker; controlled mode separate | accepted |
 | [006](./adr-006-core-depends-only-on-provider.md) | Core depends only on `Flicker.Provider`; Ash is the built-in provider; `ash` optional dep | accepted |
+| [007](./adr-007-colocated-js-hook.md) | JS ships as a colocated LiveView hook; no npm package | accepted |
+| [008](./adr-008-version-floors.md) | Version floors (LiveView ≥ 1.1, Ash ≥ 3.0 optional) + oldest/latest/no-ash CI matrix | accepted |
+| [009](./adr-009-messages-module-for-user-facing-text.md) | All user-facing text through one overridable messages module; gettext optional | accepted |
