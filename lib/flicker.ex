@@ -102,6 +102,12 @@ defmodule Flicker do
         option_label={:name}
         max_selections={5}
       />
+
+  ## Keyboard activation
+
+  `activate_with_keyboard="mod+k"` focuses and opens this search from
+  anywhere on the page — a global Cmd/Ctrl+K supersearch shortcut. See
+  Spec 006 for the chord syntax and behaviour.
   """
   attr(:id, :string,
     required: true,
@@ -199,12 +205,20 @@ defmodule Flicker do
     doc: "A `Flicker.Messages` override module. See `Flicker.Messages`."
   )
 
+  attr(:activate_with_keyboard, :string,
+    default: nil,
+    doc:
+      "A chord string (e.g. `\"mod+k\"`) that focuses and opens this search from anywhere " <>
+        "on the page. `mod` resolves to Cmd on macOS, Ctrl elsewhere. See Spec 006."
+  )
+
   slot(:option, doc: "Custom option rendering, given the `Flicker.Result` as the slot argument.")
 
   @spec select(map()) :: Phoenix.LiveView.Rendered.t()
   def select(assigns) do
     provider = resolve_provider(assigns)
     validate_mode!(assigns)
+    validate_chord!(assigns)
 
     assigns =
       assigns
@@ -236,6 +250,7 @@ defmodule Flicker do
       debounce={@debounce}
       theme={@theme}
       messages={@messages}
+      activate_with_keyboard={@activate_with_keyboard}
       option={@option}
     />
     """
@@ -248,6 +263,12 @@ defmodule Flicker do
   end
 
   defp validate_mode!(_assigns), do: :ok
+
+  # Fails loudly at the call site (Spec 006) rather than the hook silently
+  # doing nothing in the browser for a malformed `activate_with_keyboard`.
+  defp validate_chord!(%{activate_with_keyboard: chord}) when is_binary(chord), do: Flicker.Keyboard.validate!(chord)
+
+  defp validate_chord!(_assigns), do: :ok
 
   defp resolve_provider(%{source: source}) when not is_nil(source), do: source
 

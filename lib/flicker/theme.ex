@@ -33,6 +33,8 @@ defmodule Flicker.Theme do
     * `:chip_list` — multi-select: the wrapper around the selected chips.
     * `:chip` — multi-select: a single selected-value chip.
     * `:chip_remove` — multi-select: the per-chip remove button.
+    * `:kbd_hint` — the `<kbd>` discoverability hint rendered when
+      `activate_with_keyboard` is set (Spec 006).
 
   ## Resolution
 
@@ -62,7 +64,8 @@ defmodule Flicker.Theme do
           hint: String.t(),
           chip_list: String.t(),
           chip: String.t(),
-          chip_remove: String.t()
+          chip_remove: String.t(),
+          kbd_hint: String.t()
         }
 
   @typedoc "An override: a full theme, or a partial map/keyword list of parts."
@@ -80,7 +83,8 @@ defmodule Flicker.Theme do
             hint: "flicker-hint",
             chip_list: "flicker-chip-list",
             chip: "flicker-chip",
-            chip_remove: "flicker-chip-remove"
+            chip_remove: "flicker-chip-remove",
+            kbd_hint: "flicker-kbd-hint"
 
   @doc "The default preset: plain, framework-free `flicker-*` class names."
   @spec vanilla() :: t()
@@ -110,7 +114,9 @@ defmodule Flicker.Theme do
       hint: "px-3 py-2 text-xs text-gray-400",
       chip_list: "flex flex-wrap gap-1",
       chip: "inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-xs text-indigo-700",
-      chip_remove: "text-indigo-400 hover:text-indigo-700"
+      chip_remove: "text-indigo-400 hover:text-indigo-700",
+      kbd_hint:
+        "pointer-events-none absolute inset-y-0 right-2 flex items-center rounded border border-gray-300 px-1.5 text-xs text-gray-400"
     }
   end
 
@@ -137,7 +143,8 @@ defmodule Flicker.Theme do
       hint: "px-3 py-2 text-xs text-base-content/50",
       chip_list: "flex flex-wrap gap-1",
       chip: "badge badge-primary gap-1",
-      chip_remove: "cursor-pointer"
+      chip_remove: "cursor-pointer",
+      kbd_hint: "kbd kbd-sm pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
     }
   end
 

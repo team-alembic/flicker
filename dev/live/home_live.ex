@@ -13,7 +13,9 @@ defmodule Dev.Live.Home do
     {"/multi-select", "Multi-select", "Chips, batch fetch/2 on a preselected edit form, and a max_selections cap"},
     {"/static-provider", "Static provider", "Pure-Elixir, no-Ash `Flicker.Providers.Static` path"},
     {"/themes", "Theme showcase", "The same select in every shipped theme preset"},
-    {"/edge-states", "Edge states", "Slow, erroring, and empty-result providers, on demand"}
+    {"/edge-states", "Edge states", "Slow, erroring, and empty-result providers, on demand"},
+    {"/keyboard-activation", "Keyboard activation",
+     "mod+k focuses and opens a search from anywhere on the page, plus the duplicate-chord warning"}
   ]
 
   @impl true

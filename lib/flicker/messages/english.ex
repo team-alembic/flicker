@@ -38,6 +38,9 @@ defmodule Flicker.Messages.English do
       the multi-select selection changes.
     * `:max_selections_reached` — %{max: n} — shown in the listbox once
       `max_selections` is reached.
+    * `:keyboard_shortcut_hint` — %{chord: text} — `title` on the
+      `activate_with_keyboard` kbd hint (Spec 006), naming the chord that
+      focuses and opens the search from anywhere on the page.
   """
   @spec message(atom(), map()) :: String.t()
   def message(:search_placeholder, _bindings), do: "Search..."
@@ -60,4 +63,5 @@ defmodule Flicker.Messages.English do
   def message(:selected_count, %{count: 1}), do: "1 item selected"
   def message(:selected_count, %{count: count}), do: "#{count} items selected"
   def message(:max_selections_reached, %{max: max}), do: "Maximum of #{max} selections reached"
+  def message(:keyboard_shortcut_hint, %{chord: chord}), do: "Keyboard shortcut: #{chord}"
 end
