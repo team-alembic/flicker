@@ -68,9 +68,9 @@ server-side) so misconfiguration fails loudly, not silently.
 
 ## Open questions
 
-- Does Flicker ship a `Flicker.palette` overlay variant (centred modal,
-  backdrop, recent-searches) as the blessed supersearch, or stay a recipe
-  in the playground + docs? Lean: recipe first, promote if every consumer
-  builds the same modal.
+- ~~Does Flicker ship a `Flicker.palette` overlay variant?~~ — resolved:
+  yes, specced as [Spec 008](./spec-008-command-palette.md); this spec
+  stays the activation mechanism it builds on.
 - Should the chord also *close* (toggle) when the component is already
-  focused?
+  focused? (For the palette, toggle is the expected behaviour — decide
+  here, inherit there.)

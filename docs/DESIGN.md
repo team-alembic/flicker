@@ -130,5 +130,7 @@ Cross-cutting ones live here; spec-local ones live in each spec.
 
 - Should Tier 1 auto-derive `search` fields from the resource's text
   attributes, or always require them explicitly?
-- Does Flicker own a global-search-bar variant (results grouped by resource
-  type), or is that a `Flicker.Provider` recipe in docs?
+- ~~Does Flicker own a global-search-bar variant?~~ — resolved: yes, as
+  the `Flicker.palette` ⌘K command-palette experience
+  ([Spec 008](./specs/spec-008-command-palette.md)) — thin composition
+  over the core, DocSearch/cmdk prior art.
