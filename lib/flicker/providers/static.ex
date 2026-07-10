@@ -61,13 +61,19 @@ defmodule Flicker.Providers.Static do
   Resolves `values` against `opts[:results]` in one pass, returning only
   the ones present — unresolvable values are simply absent, not an error
   (ADR-003).
+
+  Matches by `to_string/1`, not strict term equality: form-field mode's
+  `field.value` always arrives as a string (from params, or a LiveSocket
+  reconnect), while a result's `:value` is commonly an integer or atom —
+  the same string-normalised comparison `Flicker.Components.Select` itself
+  uses everywhere (`reorder_like/2`, `matches_values?/2`, `filter_selected/2`).
   """
   @spec fetch([term()], keyword()) :: {:ok, [Result.t()]} | {:error, term()}
   def fetch(values, opts) do
     results = Keyword.get(opts, :results, [])
-    wanted = MapSet.new(values)
+    wanted = MapSet.new(values, &to_string/1)
 
-    {:ok, Enum.filter(results, &MapSet.member?(wanted, &1.value))}
+    {:ok, Enum.filter(results, &MapSet.member?(wanted, to_string(&1.value)))}
   end
 
   defp matches?(_result, ""), do: true

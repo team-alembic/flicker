@@ -51,5 +51,10 @@ defmodule Flicker.Providers.StaticTest do
       assert {:ok, results} = Static.fetch([1, 999], results: @results)
       assert [%Result{value: 1}] = results
     end
+
+    test "resolves string values against integer-valued results (form params, LiveSocket reconnect)" do
+      assert {:ok, results} = Static.fetch(["1", "3"], results: @results)
+      assert Enum.map(results, & &1.value) |> Enum.sort() == [1, 3]
+    end
   end
 end
