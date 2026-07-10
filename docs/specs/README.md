@@ -15,6 +15,7 @@ Update the status here **and** in the spec's frontmatter when it changes.
 | [006](./spec-006-keyboard-activation.md) | `activate_with_keyboard="mod+k"`: global shortcut into any Flicker search | draft |
 | [007](./spec-007-screen-reader-support.md) | First-class screen-reader support: announcements, AT test matrix, a11y statement | draft |
 | [008](./spec-008-command-palette.md) | `Flicker.palette`: ⌘K fullscreen site-search overlay, grouped results, navigate-on-select | draft |
+| [009](./spec-009-cinder-interop.md) | Cinder interop: `Flicker.search` drives a Cinder collection (recipe → adapter → upstream) | draft |
 
 Build order is 004 → 001 (005 starts alongside) → 002 → 003; the playground
 gains a page as each spec ships (see [DESIGN.md](../DESIGN.md#sequencing)).
