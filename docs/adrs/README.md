@@ -12,3 +12,4 @@ number sequentially.
 | [003](./adr-003-fetch-takes-a-list.md) | `Provider.fetch/2` resolves a list of values in one query | accepted |
 | [004](./adr-004-authorization-via-actor-and-policies.md) | Authorisation via `actor:`-scoped reads + policies; no bespoke gate | accepted |
 | [005](./adr-005-form-field-mode-owns-hidden-inputs.md) | Form-field mode owns hidden inputs + `_unused_` marker; controlled mode separate | accepted |
+| [006](./adr-006-core-depends-only-on-provider.md) | Core depends only on `Flicker.Provider`; Ash is the built-in provider; `ash` optional dep | accepted |

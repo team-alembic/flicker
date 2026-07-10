@@ -1,27 +1,24 @@
 ---
 status: ready
 date: 2026-07-10
-depends_on: [adr-001, adr-002, adr-004, adr-005]
+depends_on: [spec-004, adr-001, adr-002, adr-004, adr-005]
 ---
 
 # Spec 001: Portable single-select
 
 Make the extracted ARCC `SearchableSelect` library-grade: a type-to-search,
-pick-one combobox over an Ash resource, with no host-app couplings. This is
-the foundation everything else builds on — mostly decoupling and hardening,
-not new capability.
+pick-one combobox over an Ash resource, with no host-app couplings. Builds
+on the provider contract from
+[Spec 004](./spec-004-provider-contract.md) — this spec is the component:
+rendering, state, keyboard, forms.
 
 ## Scope
 
 - **Declarative Tier 1 config** ([ADR-001](../adrs/adr-001-two-tier-provider-architecture.md)):
   `resource`, `actor`, `tenant`, `search` (field list), `option_label`,
   `option_sublabel` (atom or 1-arity fun), `read_action`, `limit`, `sort`,
-  base `filter`.
-- **`Flicker.Provider` behaviour** for custom/federated sources, with
-  `source={MyApp.Search.Global}` on the component. `search/2` and `fetch/2`
-  required; `facets/0` and `render_option/2` optional no-ops for now.
-- **`%Flicker.Result{value, label, sublabel, meta}`** and `Flicker.Query`
-  structs.
+  base `filter` — compiled at mount to the `AshResource` provider from
+  Spec 004. Custom providers via `source={MyApp.Search.Global}`.
 - **Both selection modes** ([ADR-005](../adrs/adr-005-form-field-mode-owns-hidden-inputs.md)):
   form-field mode (hidden input + `_unused_` marker, ported from ARCC) and
   controlled mode (`on_select`). Optional AshPhoenix.Form `attach/2` adapter.
@@ -45,6 +42,8 @@ not new capability.
 
 ## Non-goals
 
+- The provider behaviour, structs, and `AshResource`/in-memory providers —
+  built first in [Spec 004](./spec-004-provider-contract.md).
 - Multi-select, chips, list values ([Spec 002](./spec-002-multi-select-chips.md)).
 - Facets, `key:value` parsing, value autocomplete ([Spec 003](./spec-003-faceted-search.md)) —
   but `Flicker.Query` and the provider contract must not preclude them.
@@ -69,15 +68,14 @@ host web module, no `~p`, no heroicons assumption). Target usage:
 />
 ```
 
-Tier 1 compiles to an anonymous provider so search/fetch have one execution
-path. Reads are `actor:`-scoped, policies filter
+All data access goes through the Spec 004 provider boundary — one execution
+path, and component tests run against the in-memory provider with no Ash
+data layer. Reads are `actor:`-scoped, policies filter
 ([ADR-004](../adrs/adr-004-authorization-via-actor-and-policies.md)).
-Free-text matching is ilike over the `search` fields, with the strategy left
-pluggable internally (trigram/full-text later).
 
-Port from ARCC with renames: `SearchableSelect` → component,
-`Search.{Source,Result}` → `Flicker.{Provider,Result}`, JS hook, PhoenixTest
-helper. The `_unused_<field>` logic moves verbatim — it is proven.
+Port from ARCC with renames: `SearchableSelect` → component, JS hook,
+PhoenixTest helper. The `_unused_<field>` logic moves verbatim — it is
+proven.
 
 ## Acceptance criteria
 
