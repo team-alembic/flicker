@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: shipped
 date: 2026-07-10
 depends_on: [spec-004, adr-001, adr-002, adr-004, adr-005, adr-007, adr-009]
 ---
@@ -20,9 +20,9 @@ rendering, state, keyboard, forms.
   base `filter` — compiled at mount to the `AshResource` provider from
   Spec 004. Custom providers via `source={MyApp.Search.Global}`.
 - **Both selection modes** ([ADR-005](../adrs/adr-005-form-field-mode-owns-hidden-inputs.md)):
-  form-field mode (hidden input + `_unused_` marker, ported per the
-  [extraction notes](../reference/extraction-notes.md)) and
-  controlled mode (`on_select`). Optional AshPhoenix.Form `attach/2` adapter.
+  form-field mode (hidden input + `_unused_` marker, ported from the
+  origin app) and controlled mode (`on_select`). Optional AshPhoenix.Form
+  `attach/2` adapter.
 - **Theme system** ([ADR-002](../adrs/adr-002-rendering-via-slots-and-theme-map.md)):
   `Flicker.Theme` class-map, vanilla + Tailwind + daisyUI presets, `:option`
   slot override.
@@ -85,10 +85,9 @@ path, and component tests run against the in-memory provider with no Ash
 data layer. Reads are `actor:`-scoped, policies filter
 ([ADR-004](../adrs/adr-004-authorization-via-actor-and-policies.md)).
 
-Port from the origin implementation — the
-[extraction notes](../reference/extraction-notes.md) carry the component
-event flow, the JS hook, the PhoenixTest helper, and the origin's known
-gaps. The `_unused_<field>` logic moves verbatim — it is proven.
+Ported from the origin implementation: the component event flow, the JS
+hook, and the PhoenixTest helper. The `_unused_<field>` logic moved
+verbatim — it was proven there.
 
 ### Keyboard interaction — the full map
 
