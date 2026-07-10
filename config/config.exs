@@ -40,3 +40,20 @@ if config_env() == :test do
 
   config :phoenix_test, :endpoint, Flicker.Test.Endpoint
 end
+
+# `Dev.Endpoint` (dev/) — the dev playground's Bandit-served endpoint
+# (Spec 005), only ever started by `Dev.Application` (mix.exs wires it as
+# the `:dev`-only `mod` callback).
+if config_env() == :dev do
+  config :flicker, Dev.Endpoint,
+    url: [host: "localhost"],
+    http: [ip: {127, 0, 0, 1}, port: 4000],
+    secret_key_base: String.duplicate("d", 64),
+    live_view: [signing_salt: "flicker-dev-signing-salt"],
+    render_errors: [formats: [html: Dev.ErrorHTML], layout: false],
+    pubsub_server: Dev.PubSub,
+    adapter: Bandit.PhoenixAdapter,
+    check_origin: false,
+    debug_errors: true,
+    server: true
+end

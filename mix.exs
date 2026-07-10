@@ -34,19 +34,27 @@ defmodule Flicker.MixProject do
     ]
   end
 
+  # `Dev.Application` (dev/application.ex) starts the dev playground's
+  # Bandit-served endpoint (Spec 005) — wired as the `mod` callback only in
+  # `:dev`, so `:test`/`:prod` builds never boot it even though `dev/` is on
+  # `:test`'s `elixirc_paths` too (Spec 004's harness needs it compiled, not
+  # running).
   def application do
-    [extra_applications: [:logger]]
+    base = [extra_applications: [:logger]]
+    if Mix.env() == :dev, do: base ++ [mod: {Dev.Application, []}], else: base
   end
 
-  # `dev/` holds the seeded Ash demo domain (Spec 004's test harness, and
-  # Spec 005's playground). It's Ash-dependent, so it's only added to the
-  # test path when `ash` is actually in this build's deps — the same
-  # `FLICKER_NO_ASH` switch `ash_deps/0` uses, so the no-ash CI leg never
-  # compiles it. (Deps aren't compiled yet when `elixirc_paths/1` runs, so
-  # `Code.ensure_loaded?/1` can't be used to detect this here.)
+  # `dev/` holds the seeded Ash demo domain (Spec 004's test harness) and the
+  # dev playground built on it (Spec 005). It's Ash-dependent, so it's only
+  # added to the test path when `ash` is actually in this build's deps — the
+  # same `FLICKER_NO_ASH` switch `ash_deps/0` uses, so the no-ash CI leg
+  # never compiles it. (Deps aren't compiled yet when `elixirc_paths/1` runs,
+  # so `Code.ensure_loaded?/1` can't be used to detect this here.)
   defp elixirc_paths(:test) do
     if System.get_env("FLICKER_NO_ASH"), do: ["lib", "test/support"], else: ["lib", "test/support", "dev"]
   end
+
+  defp elixirc_paths(:dev), do: ["lib", "dev"]
 
   defp elixirc_paths(_), do: ["lib"]
 
@@ -135,7 +143,11 @@ defmodule Flicker.MixProject do
       # Needed by `mix igniter.install` (the installer, downstream), our own
       # `mix usage_rules.sync`, and the installer's tests (`:test`) —
       # optional, not a hard runtime dep.
-      {:igniter, "~> 0.6", optional: true, only: [:dev, :test], runtime: false}
+      {:igniter, "~> 0.6", optional: true, only: [:dev, :test], runtime: false},
+
+      # HTTP server for the dev playground's endpoint (Spec 005) — `:dev`
+      # only, never shipped and never started outside `mix dev`.
+      {:bandit, "~> 1.0", only: :dev}
     ]
   end
 
@@ -156,7 +168,10 @@ defmodule Flicker.MixProject do
       # If you enable ash_credo, use `mix lint` instead of `mix credo` — the
       # compiled-introspection checks need modules to be compiled first.
       lint: ["compile", "credo --strict"],
-      sobelow: ["sobelow --config"]
+      sobelow: ["sobelow --config"],
+      # Starts the dev playground (Spec 005): seeded `Dev.Music` domain,
+      # Bandit-served endpoint, no database.
+      dev: ["run --no-halt"]
     ]
   end
 
