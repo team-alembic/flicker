@@ -50,9 +50,11 @@ defmodule Flicker.Components.Select do
       if socket.assigns.open do
         socket
       else
-        socket
-        |> assign(open: true, query: "")
-        |> run_search("")
+        # Re-run the search against whatever text is already in the input
+        # (blank, previously typed, or a resolved selection's label) rather
+        # than blanking it — Escape closes the listbox "keeping input text"
+        # and ArrowDown only opens the listbox, neither should discard it.
+        apply_query(socket, socket.assigns.query)
       end
 
     {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
@@ -135,7 +137,9 @@ defmodule Flicker.Components.Select do
         run_search(socket, "")
 
       String.length(trimmed) < socket.assigns.min_chars ->
-        assign(socket, results: [], has_more: false, loading: false, error: false)
+        socket
+        |> cancel_async(:search)
+        |> assign(results: [], has_more: false, loading: false, error: false)
 
       true ->
         run_search(socket, trimmed)
@@ -238,16 +242,41 @@ defmodule Flicker.Components.Select do
 
   defp message(assigns, key, bindings \\ %{}), do: Messages.get(assigns[:messages], key, bindings)
 
+  # A slower response for an earlier keystroke could otherwise repopulate
+  # `@results` after the query has since dropped below `min_chars`
+  # (`cancel_async/2` in `apply_query/2` prevents that) — this is a pure
+  # function of the current query/min_chars so the empty-state row below
+  # never needs its own tracked assign.
+  defp below_min_chars?(%{min_chars: min_chars, query: query}) do
+    min_chars > 0 && String.length(String.trim(query)) < min_chars
+  end
+
+  # Bulletproof visually-hidden CSS inlined directly on the element: Flicker
+  # ships no stylesheet (ADR-002 keeps it framework-free), so a bare
+  # `flicker-sr-only` class name would render visibly in every host app that
+  # hasn't defined it themselves.
+  @sr_only_style "position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; " <>
+                   "overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;"
+
   @impl true
   def render(assigns) do
     assigns =
       assigns
       |> assign(:input_id, input_id_for(assigns.id))
       |> assign(:listbox_id, listbox_id_for(assigns.id))
+      |> assign(:below_min_chars, below_min_chars?(assigns))
+      |> assign(:sr_only_style, @sr_only_style)
 
     ~H"""
-    <div id={@id} class={@theme.wrapper} phx-hook=".Nav" phx-target={@myself} data-active-class={@theme.option_active}>
-      <label for={@input_id} class="flicker-sr-only">{message(assigns, :search_placeholder)}</label>
+    <div
+      id={@id}
+      class={@theme.wrapper}
+      phx-hook=".Nav"
+      phx-target={@myself}
+      phx-click-away="close"
+      data-active-class={@theme.option_active}
+    >
+      <label for={@input_id} class="flicker-sr-only" style={@sr_only_style}>{message(assigns, :search_placeholder)}</label>
       <input
         type="text"
         id={@input_id}
@@ -278,17 +307,33 @@ defmodule Flicker.Components.Select do
       >
         {message(assigns, :clear_selection)}
       </button>
-      <div aria-live="polite" class="flicker-sr-only">
+      <div aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
         {message(assigns, :results_count, %{count: length(@results)})}
       </div>
       <ul :if={@open} id={@listbox_id} role="listbox" class={@theme.listbox}>
         <li :if={@loading} class={@theme.loading_state}>{message(assigns, :loading)}</li>
         <li :if={@error} class={@theme.error_state}>{message(assigns, :error)}</li>
-        <li :if={!@loading && !@error && @results == []} class={@theme.empty_state}>
+        <li :if={!@loading && !@error && @below_min_chars} class={@theme.hint}>
+          {message(assigns, :min_chars_hint, %{min_chars: @min_chars})}
+        </li>
+        <li :if={!@loading && !@error && !@below_min_chars && @results == []} class={@theme.empty_state}>
           {message(assigns, :no_results)}
         </li>
-        <li :for={{result, index} <- Enum.with_index(@results)} id={option_id(assigns, index)} role="option" aria-selected="false" class={@theme.option}>
-          <button type="button" phx-click="select" phx-value-value={to_string(result.value)} phx-target={@myself} disabled={!@connected?}>
+        <li
+          :for={{result, index} <- Enum.with_index(@results)}
+          id={option_id(assigns, index)}
+          role="option"
+          aria-selected="false"
+          class={@theme.option}
+        >
+          <button
+            type="button"
+            tabindex="-1"
+            phx-click="select"
+            phx-value-value={to_string(result.value)}
+            phx-target={@myself}
+            disabled={!@connected?}
+          >
             <%= if @option != [] do %>
               {render_slot(@option, result)}
             <% else %>
@@ -319,6 +364,12 @@ defmodule Flicker.Components.Select do
         export default {
           mounted() {
             this.activeIndex = -1
+            // Set when ArrowDown opens a closed listbox (spec 001:
+            // "ArrowDown also makes the first option active"; Alt+ArrowDown
+            // opens without activating) — consumed the first time options
+            // actually exist, since the "focus" round-trip re-renders the
+            // loading state (no options yet) before the results land.
+            this.pendingActivateFirst = false
             // Listen on the wrapper, not the input: the input node
             // re-renders as results change, which would strip a listener
             // bound to it directly, and keydown bubbles up from the
@@ -330,8 +381,19 @@ defmodule Flicker.Components.Select do
           updated() {
             // The option set changed (the user typed, or results loaded) —
             // start fresh with no highlight (spec: active option resets to
-            // none after results update).
-            this.activeIndex = -1
+            // none after results update), unless an ArrowDown-open is still
+            // waiting for the first batch of options to activate.
+            if (this.pendingActivateFirst) {
+              const options = this.options()
+              if (options.length > 0) {
+                this.activeIndex = 0
+                this.pendingActivateFirst = false
+              } else {
+                this.activeIndex = -1
+              }
+            } else {
+              this.activeIndex = -1
+            }
             this.render()
           },
           destroyed() {
@@ -362,8 +424,8 @@ defmodule Flicker.Components.Select do
               case "ArrowDown":
                 e.preventDefault()
                 if (!isOpen) {
+                  this.pendingActivateFirst = !e.altKey
                   this.pushEventTo(this.el, "focus", {})
-                  this.activeIndex = 0
                 } else {
                   this.move(1)
                 }
