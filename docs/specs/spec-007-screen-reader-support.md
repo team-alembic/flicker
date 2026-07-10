@@ -1,5 +1,5 @@
 ---
-status: draft
+status: in-progress
 date: 2026-07-10
 depends_on: [spec-001, adr-009]
 ---
@@ -79,4 +79,36 @@ over roving focus because the input must keep receiving keystrokes.
 - JAWS licensing/access for the matrix — test lab, or community-verified?
 - Can announcement expectations be asserted in ExUnit (live-region content
   as rendered HTML) to catch regressions between manual passes? (Likely
-  yes — the live region is just DOM.)
+  yes — the live region is just DOM.) — **resolved yes**: see
+  `test/flicker/select_announcements_test.exs` and
+  `test/flicker/search_announcements_test.exs`.
+
+## Status note (2026-07-10)
+
+The automatable scope has shipped: one derived, debounced polite live
+region per component instance across `Flicker.select/1`,
+`Flicker.search/1`, and `Flicker.palette/1`; every announcement (result
+counts, loading, empty, selection made, chip added/removed,
+`max_selections`, facet cursor-context changes) routes through
+`Flicker.Messages`; stale-result cancellation is proven to extend to
+announcements; ARIA semantics (labelled listbox via `aria-labelledby`,
+`aria-expanded` correctness, chips as a labelled list) were audited and
+fixed; ExUnit covers every server-reachable keyboard-map transition; the
+accessibility statement and manual test script ship in
+`guides/accessibility.md`.
+
+**Do not read this as "shipped."** What remains before this spec can move
+to `shipped`, and is explicitly *not* done:
+
+- The manual AT matrix passes (VoiceOver+Safari, NVDA+Firefox,
+  JAWS+Chrome as budget allows) against the script in
+  `guides/accessibility.md` — no AT has actually been run against this
+  yet, and results need to land in the repo.
+- An automated `axe-core` run against the `dev/` playground pages, wired
+  into CI — not implemented; `axe reports zero violations ... enforced in
+  CI` (acceptance criteria above) is unmet.
+- Arrow-key/`Enter`/`aria-activedescendant` client-side behaviour is
+  implemented but only exercised by the (not-yet-run) manual script, not
+  by an automated browser-driven test.
+
+Status stays `in-progress` until those three land.
