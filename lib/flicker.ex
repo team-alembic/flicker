@@ -16,8 +16,11 @@ defmodule Flicker do
       (`search/2`, `fetch/2`), and the internal invocation boundary
       (`run_search/3`, `run_fetch/3`) core code calls through.
     * `Flicker.Result` — the display struct providers return.
-    * `Flicker.Query` — the search request struct passed to `search/2`.
-    * `Flicker.Facet` — the (currently placeholder) faceted-search struct.
+    * `Flicker.Query` — the search request struct passed to `search/2`;
+      also `Flicker.Query.parse/2`, the faceted-search query parser, and
+      `Flicker.Query.to_filter/1`, its Ash filter builder.
+    * `Flicker.Facet` — a faceted-search facet definition, consumed by
+      `Flicker.Query.parse/2`.
     * `Flicker.Providers.Static` — an in-memory reference provider, useful
       as a test double or for small fixed option lists.
     * `Flicker.Providers.AshResource` — the built-in provider Tier 1

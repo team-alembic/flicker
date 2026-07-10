@@ -110,6 +110,12 @@ defmodule Flicker.MixProject do
 
       # Test support
       {:phoenix_test, "~> 0.11", only: [:dev, :test], runtime: false},
+      # Property-testing the query parser (Spec 003) — a direct dep so it's
+      # available on the no-ash CI leg too, where `ash` (which also brings
+      # `stream_data` transitively) is deliberately absent. No `:only`
+      # restriction: `ash` depends on it unrestricted (`env: :prod`), and
+      # Mix requires matching `:only` constraints across the dep graph.
+      {:stream_data, "~> 1.0", runtime: false},
       # `mix_audit`'s `req` and `phoenix_test`'s `plug` want `mime` in
       # different envs; pin it ourselves so the two don't diverge.
       {:mime, "~> 2.0", only: [:dev, :test], override: true},

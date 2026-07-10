@@ -1,7 +1,7 @@
 ---
-status: draft
+status: in-progress
 date: 2026-07-10
-depends_on: [spec-001, spec-002, adr-001]
+depends_on: [spec-001, spec-002, adr-001, adr-006]
 ---
 
 # Spec 003: Faceted / scoped filtering
