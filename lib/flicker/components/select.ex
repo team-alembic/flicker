@@ -20,11 +20,24 @@ defmodule Flicker.Components.Select do
   already in `selected` are excluded from search results; `fetch/2` still
   runs exactly once, resolving every preselected value in one call
   (ADR-003) regardless of how many are set.
+
+  `facets` (Spec 003) drives the same `Flicker.CursorContext`/
+  `Flicker.FacetSuggest` machinery `Flicker.Components.Search` does: while
+  the cursor sits in facet-key or facet-value position, the listbox shows
+  key/value suggestions (tagged `meta.flicker_facet: true`) instead of
+  record results, and picking one edits the typed text rather than
+  selecting a record. Once the cursor is back in free-text position, the
+  listbox reverts to ordinary record search — run against the free-text
+  portion `Flicker.Query.parse/2` extracts, not the raw typed string (so a
+  completed `status:active` doesn't leak into the `ilike` match). v1 scope
+  note: the parsed facet filter narrows the *autocomplete UX* only — it is
+  not yet AND-ed into the provider's own record query (recorded as a
+  follow-up in Spec 003's open questions).
   """
 
   use Phoenix.LiveComponent
 
-  alias Flicker.{Keyboard, Messages, Provider, Query, Result}
+  alias Flicker.{FacetSuggest, Keyboard, Messages, Provider, Query, Result}
 
   require Logger
 
@@ -45,6 +58,8 @@ defmodule Flicker.Components.Select do
       |> assign_new(:multiple, fn -> false end)
       |> assign_new(:max_selections, fn -> nil end)
       |> assign_new(:activate_with_keyboard, fn -> nil end)
+      |> assign_new(:facets, fn -> [] end)
+      |> assign_new(:facet_context, fn -> :text end)
 
     socket =
       socket
@@ -81,33 +96,9 @@ defmodule Flicker.Components.Select do
     end
   end
 
-  def handle_event("select", %{"value" => raw_value}, %{assigns: %{multiple: true}} = socket) do
-    result = Enum.find(socket.assigns.results, &(to_string(&1.value) == raw_value))
-
-    socket =
-      if result && addable?(socket) do
-        new_selected = socket.assigns.selected ++ [result]
-
-        socket
-        |> assign(selected: new_selected)
-        |> update_results(&filter_selected(&1, new_selected))
-        |> notify_multi_selection(new_selected)
-      else
-        socket
-      end
-
-    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
-  end
-
   def handle_event("select", %{"value" => raw_value}, socket) do
     result = Enum.find(socket.assigns.results, &(to_string(&1.value) == raw_value))
-
-    socket =
-      socket
-      |> assign(selected: result, query: display_text(result), open: false)
-      |> notify_selection(result)
-
-    {:noreply, socket}
+    select_result(result, raw_value, socket)
   end
 
   def handle_event("remove_chip", %{"value" => raw_value}, %{assigns: %{multiple: true}} = socket) do
@@ -193,6 +184,37 @@ defmodule Flicker.Components.Select do
     {:noreply, assign(socket, results: [], has_more: false, loading: false, error: true)}
   end
 
+  defp select_result(%Result{meta: %{flicker_facet: true, insert: insert}}, _raw_value, socket) do
+    new_text = FacetSuggest.replace_current_token(socket.assigns.query, insert)
+
+    {:noreply, push_event(apply_query(socket, new_text), "focusElementById", %{id: input_id(socket)})}
+  end
+
+  defp select_result(result, _raw_value, %{assigns: %{multiple: true}} = socket) do
+    socket =
+      if result && addable?(socket) do
+        new_selected = socket.assigns.selected ++ [result]
+
+        socket
+        |> assign(selected: new_selected)
+        |> update_results(&filter_selected(&1, new_selected))
+        |> notify_multi_selection(new_selected)
+      else
+        socket
+      end
+
+    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
+  end
+
+  defp select_result(result, _raw_value, socket) do
+    socket =
+      socket
+      |> assign(selected: result, query: display_text(result), open: false)
+      |> notify_selection(result)
+
+    {:noreply, socket}
+  end
+
   defp apply_query(socket, text) do
     trimmed = String.trim(text)
     socket = assign(socket, query: text, open: true)
@@ -216,7 +238,73 @@ defmodule Flicker.Components.Select do
   # name, the later start_async wins and the previous task's result is
   # ignored" — a slower response for an earlier keystroke can never
   # overwrite a newer one.
-  defp run_search(socket, text) do
+  defp run_search(%{assigns: %{facets: []}} = socket, text), do: run_record_search(socket, text)
+
+  # Classifies off `socket.assigns.query` (the raw, untyped-through text
+  # `apply_query/2` just assigned) rather than the `text` argument here —
+  # the latter is trimmed for the plain-record-search path and trimming
+  # would erase the trailing-space transition out of facet-value position
+  # (`"status:active "` classifying as `:text`, not still `{:value, ...}`).
+  defp run_search(socket, _trimmed_text) do
+    context = FacetSuggest.classify(socket.assigns.query, socket.assigns.facets)
+    socket = assign(socket, facet_context: context)
+    run_faceted_search(socket, context)
+  end
+
+  # Facet-key position (`stat|`) — synchronous, no provider round-trip. A
+  # bare word with no facet key matching it (an ordinary free-text word —
+  # `Flicker.CursorContext` can't yet tell "typing a new facet key" from
+  # "typing free text" until an operator or a non-matching prefix rules the
+  # former out) falls back to an ordinary record search rather than an
+  # empty listbox — free text still has to work while facets are configured.
+  defp run_faceted_search(socket, {:key, prefix}) do
+    case FacetSuggest.key_suggestions(prefix, socket.assigns.facets) do
+      [] ->
+        run_faceted_search(socket, :text)
+
+      suggestions ->
+        assign(socket, results: suggestions, has_more: false, loading: false, error: false)
+    end
+  end
+
+  # Facet-value position for an enum facet — synchronous, closed picklist.
+  defp run_faceted_search(socket, {:value, %{type: :enum} = facet, prefix}) do
+    suggestions = FacetSuggest.enum_value_suggestions(facet, prefix)
+    assign(socket, results: suggestions, has_more: false, loading: false, error: false)
+  end
+
+  # Facet-value position for a relationship facet — nested, actor-scoped
+  # search over the related resource (Spec 003).
+  defp run_faceted_search(socket, {:value, %{related: related} = facet, prefix}) when not is_nil(related) do
+    actor = socket.assigns[:actor]
+    tenant = socket.assigns[:tenant]
+    fetch_limit = socket.assigns.limit + 1
+
+    socket
+    |> assign(loading: true, error: false)
+    |> start_async(:search, fn ->
+      FacetSuggest.related_search(facet, prefix, actor: actor, tenant: tenant, limit: fetch_limit)
+    end)
+  end
+
+  # A facet-value position with no picklist (plain string/numeric/date
+  # facet) — no autocomplete source, keyboard behaviour reverts to "no
+  # suggestions" until the value is complete and the cursor moves on.
+  defp run_faceted_search(socket, {:value, _facet, _prefix}) do
+    assign(socket, results: [], has_more: false, loading: false, error: false)
+  end
+
+  # Free-text position: an ordinary record search, but against the
+  # free-text portion `Flicker.Query.parse/2` extracts — a completed
+  # `status:active` token never leaks into the `ilike` match.
+  defp run_faceted_search(socket, :text) do
+    parsed_text = Query.parse(text_for_facet_parse(socket), socket.assigns.facets).text
+    run_record_search(socket, parsed_text)
+  end
+
+  defp text_for_facet_parse(socket), do: socket.assigns.query
+
+  defp run_record_search(socket, text) do
     provider = socket.assigns.provider
     actor = socket.assigns[:actor]
     tenant = socket.assigns[:tenant]

@@ -23,5 +23,6 @@ defmodule Dev.Router do
     live("/themes", Dev.Live.ThemeShowcase)
     live("/edge-states", Dev.Live.EdgeStates)
     live("/keyboard-activation", Dev.Live.KeyboardActivation)
+    live("/faceted-search", Dev.Live.FacetedSearch)
   end
 end

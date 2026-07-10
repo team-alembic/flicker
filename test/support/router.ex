@@ -20,6 +20,8 @@ defmodule Flicker.Test.Router do
 
     if Code.ensure_loaded?(Ash) do
       live("/ash", Flicker.Test.AshHostLive)
+      live("/facet-search", Flicker.Test.FacetSearchHostLive)
+      live("/facet-select", Flicker.Test.FacetSelectHostLive)
     end
 
     if Code.ensure_loaded?(AshPhoenix.Form) do

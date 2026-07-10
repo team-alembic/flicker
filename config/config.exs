@@ -36,7 +36,9 @@ if config_env() == :test do
 
   # `Flicker.Test.PolicyArtist`'s domain (test/support) — a select-component-
   # level actor-scoping fixture, separate from Spec 004's `Dev.Music` harness.
-  config :flicker, ash_domains: [Dev.Music, Flicker.Test.PolicyDomain]
+  # `Flicker.Test.FacetDomain` (test/support) is the equivalent fixture for
+  # Spec 003's faceted-search components.
+  config :flicker, ash_domains: [Dev.Music, Flicker.Test.PolicyDomain, Flicker.Test.FacetDomain]
 
   config :phoenix_test, :endpoint, Flicker.Test.Endpoint
 end
