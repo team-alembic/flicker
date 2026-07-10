@@ -25,6 +25,14 @@ if Code.ensure_loaded?(Ash) do
         input). Optional.
       * `:filter` — a base filter (any `Ash.Query.filter_input/2` input)
         applied before the search-text match. Optional.
+      * `:facets` — optional list of facet keys for `facets/1` to expand
+        ([Spec 003](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-003-faceted-search.md)).
+        Each entry is either a bare atom (`:status`) naming an attribute,
+        relationship, aggregate, or calculation to derive a
+        `Flicker.Facet.t()` from, or a `{key, overrides}` pair (`status:
+        [type: :enum]`) where `overrides` — any of `:type`, `:path`,
+        `:attribute`, `:aggregate`, `:op`, `:label` — takes precedence over
+        what introspection would derive.
 
     `:actor`, `:tenant`, and `:limit` also arrive per-call, merged in by
     `Flicker.Provider.run_search/3` / `run_fetch/3` — reads are always
@@ -151,5 +159,255 @@ if Code.ensure_loaded?(Ash) do
 
     defp optional_field_value(nil, _record), do: nil
     defp optional_field_value(field_or_fun, record), do: field_value(record, field_or_fun)
+
+    # -- Facet registry ---------------------------------------------------
+    #
+    # The facet registry: expands `opts[:facets]` (bare keys, or `{key,
+    # overrides}` pairs) into `Flicker.Facet.t()` structs by introspecting
+    # `opts[:resource]`'s own type system (Spec 003's type table). This is
+    # an `AshResource`-provider capability, not core (ADR-006) — a pure
+    # `Flicker.Provider` supplies `facets/0` by hand instead.
+
+    @doc """
+    Expands `opts[:facets]` into `[Flicker.Facet.t()]` by introspecting
+    `opts[:resource]` — the facet registry
+    ([Spec 003](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-003-faceted-search.md)).
+
+    Each entry in `opts[:facets]` is a bare atom (`:status`) naming an
+    attribute, relationship, aggregate, or calculation on the resource, or
+    a `{key, overrides}` pair layering `:type`, `:path`, `:attribute`,
+    `:aggregate`, `:op`, or `:label` on top of what introspection would
+    derive. Per the spec's type table:
+
+      * an `Ash.Type.Enum` (or a plain attribute with a `one_of`
+        constraint) derives `type: :enum`, `:eq`-only, `:values`, and
+        `:value_labels` (the enum's own labels, or a humanised fallback);
+        a value outside `:values` is rejected by the parser (degrades to
+        free text) rather than reaching a filter.
+      * `:boolean` derives `type: :boolean`, `:eq`-only.
+      * a date/datetime attribute derives `type: :date`, operators `:eq`
+        `:gte` `:lt` (relative values like `7d` are the parser's concern —
+        see `Flicker.Query`).
+      * `:integer`/`:decimal`/`:float` derive numeric `type`, the full
+        comparison operator set.
+      * a `belongs_to`/`has_*` relationship derives a `:string`-typed
+        facet (the related record's id) with `:related` set to
+        `%{resource: destination}` — the nested-search descriptor a
+        recursive Flicker search would run over — and `:target` resolved
+        to the relationship's own filter path (the source attribute for
+        `belongs_to`, `[name, primary_key]` for `has_*`).
+      * an aggregate or calculation derives from its own resolved Ash type
+        the same way an attribute would (numeric, boolean, ...).
+      * anything else (plain `:string`, or a field introspection can't
+        find) derives `type: :string`, `:contains`-only — free `ilike`,
+        no picklist.
+
+    `overrides[:path]` (a relationship path ending in an attribute, e.g.
+    `[:worker, :full_name]`) and `overrides[:attribute]` /
+    `overrides[:aggregate]` (an explicit field name, when it differs from
+    the facet `key`) redirect which field is introspected;
+    `overrides[:type]` and `overrides[:op]` replace the derived `:type` /
+    `:default_op` outright.
+    """
+    @spec facets(keyword()) :: [Flicker.Facet.t()]
+    def facets(opts) do
+      resource = Keyword.fetch!(opts, :resource)
+
+      opts
+      |> Keyword.get(:facets, [])
+      |> Enum.map(&derive_facet(resource, &1))
+    end
+
+    defp derive_facet(resource, key) when is_atom(key), do: derive_facet(resource, {key, []})
+
+    defp derive_facet(resource, {key, overrides}) when is_atom(key) and is_list(overrides) do
+      resource
+      |> base_facet(key, overrides)
+      |> apply_overrides(overrides)
+    end
+
+    defp base_facet(resource, key, overrides) do
+      cond do
+        Keyword.has_key?(overrides, :path) ->
+          facet_from_path(resource, key, Keyword.fetch!(overrides, :path))
+
+        Keyword.has_key?(overrides, :aggregate) ->
+          facet_from_field(resource, key, Keyword.fetch!(overrides, :aggregate))
+
+        Keyword.has_key?(overrides, :attribute) ->
+          facet_from_field(resource, key, Keyword.fetch!(overrides, :attribute))
+
+        true ->
+          facet_from_field(resource, key, key)
+      end
+    end
+
+    defp facet_from_field(resource, key, field_name) do
+      cond do
+        attribute = Ash.Resource.Info.attribute(resource, field_name) ->
+          field_facet(key, [field_name], attribute.type, attribute.constraints)
+
+        relationship = Ash.Resource.Info.relationship(resource, field_name) ->
+          relationship_facet(key, relationship)
+
+        aggregate = Ash.Resource.Info.aggregate(resource, field_name) ->
+          {:ok, type} = Ash.Resource.Info.aggregate_type(resource, aggregate)
+          field_facet(key, [field_name], type, [])
+
+        calculation = Ash.Resource.Info.calculation(resource, field_name) ->
+          field_facet(key, [field_name], calculation.type, calculation.constraints || [])
+
+        true ->
+          field_facet(key, [field_name], nil, [])
+      end
+    end
+
+    # A relationship path (`overrides[:path]`) ending in an attribute on
+    # the resource it walks to — e.g. `[:worker, :full_name]` walks the
+    # `:worker` relationship, then reads `:full_name` off its destination.
+    defp facet_from_path(resource, key, path) do
+      {relationship_names, [attribute_name]} = Enum.split(path, -1)
+      destination = Enum.reduce(relationship_names, resource, &relationship_destination(&2, &1))
+      attribute = Ash.Resource.Info.attribute(destination, attribute_name)
+
+      case attribute do
+        nil -> field_facet(key, path, nil, [])
+        attribute -> field_facet(key, path, attribute.type, attribute.constraints)
+      end
+    end
+
+    defp relationship_destination(resource, name) do
+      %{destination: destination} = Ash.Resource.Info.relationship(resource, name)
+      destination
+    end
+
+    defp relationship_facet(key, relationship) do
+      %Flicker.Facet{
+        key: key,
+        type: :string,
+        operators: [:eq],
+        default_op: :eq,
+        target: relationship_target(relationship),
+        related: %{resource: relationship.destination}
+      }
+    end
+
+    defp relationship_target(%Ash.Resource.Relationships.BelongsTo{source_attribute: source_attribute}),
+      do: [source_attribute]
+
+    defp relationship_target(relationship) do
+      [primary_key] = Ash.Resource.Info.primary_key(relationship.destination)
+      [relationship.name, primary_key]
+    end
+
+    defp field_facet(key, target, type, constraints) do
+      struct!(
+        Flicker.Facet,
+        [key: key, target: target] ++ Map.to_list(type_fields(type, constraints))
+      )
+    end
+
+    defp type_fields(type, constraints) do
+      cond do
+        enum_type?(type) ->
+          values = type.values()
+
+          %{
+            type: :enum,
+            operators: [:eq],
+            default_op: :eq,
+            values: values,
+            value_labels: enum_labels(type, values)
+          }
+
+        one_of = Keyword.get(constraints, :one_of) ->
+          %{
+            type: :enum,
+            operators: [:eq],
+            default_op: :eq,
+            values: one_of,
+            value_labels: humanized_labels(one_of)
+          }
+
+        type == Ash.Type.Boolean ->
+          %{type: :boolean, operators: [:eq], default_op: :eq}
+
+        type in [
+          Ash.Type.Date,
+          Ash.Type.UtcDatetime,
+          Ash.Type.UtcDatetimeUsec,
+          Ash.Type.NaiveDatetime
+        ] ->
+          %{type: :date, operators: [:eq, :gte, :lt], default_op: :eq}
+
+        type == Ash.Type.Integer ->
+          %{type: :integer, operators: [:eq, :neq, :gt, :gte, :lt, :lte], default_op: :eq}
+
+        type in [Ash.Type.Decimal, Ash.Type.Float] ->
+          %{type: :float, operators: [:eq, :neq, :gt, :gte, :lt, :lte], default_op: :eq}
+
+        true ->
+          %{type: :string, operators: [:contains], default_op: :contains}
+      end
+    end
+
+    defp enum_type?(type) do
+      is_atom(type) and type not in [nil] and Code.ensure_loaded?(type) and
+        function_exported?(type, :values, 0) and function_exported?(type, :label, 1)
+    end
+
+    defp enum_labels(type, values), do: Map.new(values, &{&1, type.label(&1)})
+
+    defp humanized_labels(values), do: Map.new(values, &{&1, humanize(&1)})
+
+    defp humanize(value) do
+      value
+      |> to_string()
+      |> String.split("_")
+      |> Enum.map_join(" ", &String.capitalize/1)
+    end
+
+    defp apply_overrides(facet, overrides) do
+      facet
+      |> apply_label_override(Keyword.get(overrides, :label))
+      |> apply_type_override(Keyword.get(overrides, :type))
+      |> apply_op_override(Keyword.get(overrides, :op))
+    end
+
+    defp apply_label_override(facet, nil), do: facet
+    defp apply_label_override(facet, label), do: %{facet | label: label}
+
+    defp apply_type_override(facet, nil), do: facet
+
+    defp apply_type_override(facet, type) do
+      {operators, default_op} = type_default_ops(type)
+      %{facet | type: type, operators: operators, default_op: default_op}
+    end
+
+    defp type_default_ops(:enum), do: {[:eq], :eq}
+    defp type_default_ops(:boolean), do: {[:eq], :eq}
+    defp type_default_ops(:date), do: {[:eq, :gte, :lt], :eq}
+
+    defp type_default_ops(type) when type in [:integer, :float], do: {[:eq, :neq, :gt, :gte, :lt, :lte], :eq}
+
+    defp type_default_ops(:string), do: {[:contains], :contains}
+
+    defp apply_op_override(facet, nil), do: facet
+
+    defp apply_op_override(facet, op) do
+      op = normalize_op(op)
+      %{facet | default_op: op, operators: Enum.uniq([op | facet.operators])}
+    end
+
+    # `overrides[:op]` accepts the operator's canonical name (`:gte`) or the
+    # symbol form the spec's registry example writes (`:>=`) — either
+    # reads naturally in config.
+    defp normalize_op(:>=), do: :gte
+    defp normalize_op(:<=), do: :lte
+    defp normalize_op(:!=), do: :neq
+    defp normalize_op(:>), do: :gt
+    defp normalize_op(:<), do: :lt
+    defp normalize_op(:==), do: :eq
+    defp normalize_op(op), do: op
   end
 end

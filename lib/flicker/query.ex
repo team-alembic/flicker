@@ -290,10 +290,12 @@ defmodule Flicker.Query do
     `Ash.Query.filter_input/2` to consume — e.g.
     `Ash.Query.filter_input(query, Flicker.Query.to_filter(parsed))`.
 
-    Each facet's key is used as the attribute name directly. Relationship
-    paths, aggregates, and expression-calc targets aren't resolved yet —
-    that's a later Spec 003 stage (the facet registry described in the
-    spec's "Scope" section).
+    `facets` (a list of `Flicker.Facet.t()`, typically the facet registry
+    passed to `parse/2`) resolves each matched key to its
+    `Flicker.Facet.target/1` — a relationship path, aggregate, or
+    expression-calc name builds a nested filter map instead of a flat
+    attribute clause. A key with no matching facet (or the default `[]`)
+    falls back to using the key as the attribute name directly.
 
     ## Examples
 
@@ -308,25 +310,39 @@ defmodule Flicker.Query do
         ...>
         ...> Flicker.Query.to_filter(query)
         %{"or" => [%{"city" => %{"eq" => "Melbourne"}}, %{"city" => %{"eq" => "Sydney"}}]}
+
+        iex> query = %Flicker.Query{text: "", facets: [{:worker, :eq, "id-123"}]}
+        ...> facets = [%Flicker.Facet{key: :worker, target: [:worker, :full_name]}]
+        ...> Flicker.Query.to_filter(query, facets)
+        %{"worker" => %{"full_name" => %{"eq" => "id-123"}}}
     """
-    @spec to_filter(t()) :: map()
-    def to_filter(%__MODULE__{facets: facets}) do
+    @spec to_filter(t(), [Facet.t()]) :: map()
+    def to_filter(%__MODULE__{facets: facets}, facet_defs \\ []) do
+      target_index = Map.new(facet_defs, &{&1.key, Facet.target(&1)})
+
       facets
       |> Enum.group_by(fn {key, _op, _value} -> key end)
-      |> Enum.map(fn {key, matches} -> facet_clause(key, matches) end)
+      |> Enum.map(fn {key, matches} -> facet_clause(key, matches, target_index) end)
       |> combine_and()
     end
 
-    defp facet_clause(key, [{_key, op, value}]), do: %{to_string(key) => %{op_string(op) => value}}
+    defp facet_clause(key, [{_key, op, value}], target_index) do
+      nested_clause(Map.get(target_index, key, [key]), %{op_string(op) => value})
+    end
 
-    defp facet_clause(key, matches) do
+    defp facet_clause(key, matches, target_index) do
+      target = Map.get(target_index, key, [key])
+
       %{
         "or" =>
           Enum.map(matches, fn {_key, op, value} ->
-            %{to_string(key) => %{op_string(op) => value}}
+            nested_clause(target, %{op_string(op) => value})
           end)
       }
     end
+
+    defp nested_clause([last], inner), do: %{to_string(last) => inner}
+    defp nested_clause([step | rest], inner), do: %{to_string(step) => nested_clause(rest, inner)}
 
     defp combine_and([]), do: %{}
     defp combine_and([single]), do: single
@@ -338,5 +354,6 @@ defmodule Flicker.Query do
     defp op_string(:gte), do: "gte"
     defp op_string(:lt), do: "lt"
     defp op_string(:lte), do: "lte"
+    defp op_string(:contains), do: "contains"
   end
 end

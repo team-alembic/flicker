@@ -48,6 +48,12 @@ defmodule Dev.Music.Artist do
     attribute :label, :string do
       public?(true)
     end
+
+    attribute :tier, Dev.Music.ArtistTier do
+      public?(true)
+      default(:emerging)
+      allow_nil?(false)
+    end
   end
 
   relationships do
@@ -59,12 +65,20 @@ defmodule Dev.Music.Artist do
     has_many(:albums, Dev.Music.Album)
   end
 
+  aggregates do
+    count(:albums_count, :albums)
+  end
+
+  calculations do
+    calculate(:veteran?, :boolean, expr(monthly_listeners > 100_000))
+  end
+
   actions do
     defaults([:read])
 
     create :create do
       primary?(true)
-      accept([:name, :status, :formed_on, :monthly_listeners, :label, :genre_id])
+      accept([:name, :status, :formed_on, :monthly_listeners, :label, :tier, :genre_id])
     end
   end
 

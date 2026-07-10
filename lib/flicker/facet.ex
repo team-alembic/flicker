@@ -26,17 +26,36 @@ defmodule Flicker.Facet do
     * `:values` — for `:type: :enum`, the closed list of atoms a value may
       cast to. A value not in this list degrades to free text. Ignored for
       other types.
+    * `:value_labels` — for `:type: :enum`, a map of value atom to its
+      user-facing label (an `Ash.Type.Enum`'s own `label/1`, or a humanised
+      fallback for a plain `one_of`-constrained attribute). `nil` for other
+      types.
+    * `:target` — the Ash filter path this facet resolves to: a list of
+      atoms (an attribute name, an aggregate/calculation name, or a
+      relationship path ending in an attribute, e.g. `[:worker,
+      :full_name]`). `nil` means `[key]`. Filled in by
+      `Flicker.Providers.AshResource.facets/1` (the facet registry,
+      [Spec 003](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-003-faceted-search.md));
+      hand-built facets can set it directly.
+    * `:related` — for a `belongs_to`/`has_*` facet, `%{resource: module}`
+      describing the related resource a nested search over this facet's
+      values would run against. `nil` for non-relationship facets.
 
-  Type-derived defaults (deriving these fields from an Ash attribute's own
-  type, per the spec's type table) are a later Spec 003 stage — this
-  struct is filled in by hand for now.
+  Hand-build a `Flicker.Facet` directly, or — for an Ash resource — derive
+  it from `facets: [:status, :worker, ...]` via
+  `Flicker.Providers.AshResource.facets/1`, which introspects the
+  resource's own type system per the spec's type table and lets an
+  explicit `[type:, path:, attribute:, op:]` override any derived field.
   """
 
   @typedoc "How a facet value is cast."
   @type type :: :string | :integer | :float | :boolean | :date | :enum
 
   @typedoc "A comparison operator a facet value can be compared with."
-  @type operator :: :eq | :neq | :gt | :gte | :lt | :lte
+  @type operator :: :eq | :neq | :gt | :gte | :lt | :lte | :contains
+
+  @typedoc "The related resource a `belongs_to`/`has_*` facet searches over."
+  @type related :: %{resource: module()}
 
   @typedoc "A facet definition."
   @type t :: %__MODULE__{
@@ -45,9 +64,36 @@ defmodule Flicker.Facet do
           type: type(),
           operators: [operator()],
           default_op: operator(),
-          values: [atom()] | nil
+          values: [atom()] | nil,
+          value_labels: %{atom() => String.t()} | nil,
+          target: [atom()] | nil,
+          related: related() | nil
         }
 
   @enforce_keys [:key]
-  defstruct key: nil, label: nil, type: :string, operators: [:eq], default_op: :eq, values: nil
+  defstruct key: nil,
+            label: nil,
+            type: :string,
+            operators: [:eq],
+            default_op: :eq,
+            values: nil,
+            value_labels: nil,
+            target: nil,
+            related: nil
+
+  @doc """
+  The Ash filter path this facet resolves to: `facet.target`, or `[facet.key]`
+  when `:target` is `nil`.
+
+  ## Examples
+
+      iex> Flicker.Facet.target(%Flicker.Facet{key: :status})
+      [:status]
+
+      iex> Flicker.Facet.target(%Flicker.Facet{key: :worker, target: [:worker, :full_name]})
+      [:worker, :full_name]
+  """
+  @spec target(t()) :: [atom()]
+  def target(%__MODULE__{target: nil, key: key}), do: [key]
+  def target(%__MODULE__{target: target}), do: target
 end

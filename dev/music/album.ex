@@ -28,6 +28,12 @@ defmodule Dev.Music.Album do
       public?(true)
       default(0)
     end
+
+    attribute :explicit?, :boolean do
+      public?(true)
+      default(false)
+      allow_nil?(false)
+    end
   end
 
   relationships do
@@ -42,7 +48,7 @@ defmodule Dev.Music.Album do
 
     create :create do
       primary?(true)
-      accept([:title, :release_date, :track_count, :artist_id])
+      accept([:title, :release_date, :track_count, :explicit?, :artist_id])
     end
   end
 end
