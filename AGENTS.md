@@ -5,10 +5,41 @@ this repository. This file is the source of truth; `CLAUDE.md` forwards to it.
 
 ## Project
 
-<!-- TODO: Replace with a one-paragraph description of this package. -->
+`flicker` is an Ash-native searchable select / combobox / faceted-search
+component for Phoenix LiveView — what Cinder is for tables, Flicker is for
+searching, filtering, and selecting records. It reads directly off Ash
+resources (no options plumbing), authorises via `actor:` + policies, derives
+facet behaviour from the Ash type system, and installs via Igniter.
 
-`flicker` is an Elixir library distributed via Hex. Keep the public API
-small, documented, and backwards-compatible between minor releases.
+It is an Elixir library distributed via Hex. Keep the public API small,
+documented, and backwards-compatible between minor releases.
+
+## Documentation map
+
+Contributor/agent-facing docs live in `docs/` (not shipped to hexdocs);
+`guides/` is the user-facing hexdocs surface.
+
+- [`docs/DESIGN.md`](./docs/DESIGN.md) — north star: what Flicker is, why,
+  build sequencing, cross-cutting open questions.
+- [`docs/specs/`](./docs/specs/README.md) — feature specs, numbered, each
+  implementable from the spec alone. The index README lists every spec with
+  status (`draft`/`ready`/`in-progress`/`shipped`).
+- [`docs/adrs/`](./docs/adrs/README.md) — architecture decision records,
+  numbered, append-only. The index README lists every ADR with status.
+
+### Doc lifecycle rules
+
+- **Before implementing a feature**: read its spec (check the specs index).
+  If no spec exists, write one from `docs/specs/TEMPLATE.md` first — or flag
+  that one is needed — rather than implementing from a vague prompt.
+- **Starting / finishing spec work**: flip its status to `in-progress` /
+  `shipped` in the frontmatter **and** the index row.
+- **Making a structural or public-API decision** not covered by an existing
+  ADR: add one from `docs/adrs/TEMPLATE.md` in the same PR, and index it.
+- **ADRs are append-only**: never edit an accepted decision — write a
+  superseding ADR and update both status lines and the index.
+- **Cross-link**: specs list the ADRs they build on (`depends_on`
+  frontmatter + inline links); ADRs link back to motivating specs.
 
 ## Stack
 
@@ -60,11 +91,13 @@ mix usage_rules.sync           # regenerate .claude/skills/ from deps
 ## Rules
 
 ### Before writing code
-1. Check for a relevant generated skill in `.claude/skills/` or invoke one of
+1. Read the relevant spec in `docs/specs/` and the ADRs it links (see
+   [Documentation map](#documentation-map) above).
+2. Check for a relevant generated skill in `.claude/skills/` or invoke one of
    the `alembic-elixir-ash` plugin skills (`ash-framework`, `elixir-style`,
    `phoenix-liveview`, `postgres-patterns`).
-2. Prefer editing existing modules over creating new ones.
-3. Search `deps/*/usage-rules.md` with `mix usage_rules.search_docs` for
+3. Prefer editing existing modules over creating new ones.
+4. Search `deps/*/usage-rules.md` with `mix usage_rules.search_docs` for
    package-specific guidance that isn't in a skill yet.
 
 ### While writing code

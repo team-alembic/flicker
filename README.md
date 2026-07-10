@@ -5,7 +5,10 @@
 [![Hexdocs badge](https://img.shields.io/badge/docs-hexdocs-purple)](https://hexdocs.pm/flicker)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-> TODO: Replace this line with a one-sentence description of the package.
+Ash-native searchable select, multi-select, and faceted search for Phoenix
+LiveView — what [Cinder](https://hex.pm/packages/cinder) is for tables,
+Flicker is for finding and picking records. See
+[docs/DESIGN.md](./docs/DESIGN.md) for the design overview.
 
 ## Installation
 

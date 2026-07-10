@@ -1,0 +1,14 @@
+# Architecture Decision Records
+
+Code-level decisions and their rationale. ADRs are append-only: once
+`accepted`, never edit the decision — write a superseding ADR and update both
+status lines and this index. Copy [TEMPLATE.md](./TEMPLATE.md) to start one;
+number sequentially.
+
+| ADR | Decision | Status |
+|---|---|---|
+| [001](./adr-001-two-tier-provider-architecture.md) | Declarative resource config by default; `Flicker.Provider` behaviour as escape hatch | accepted |
+| [002](./adr-002-rendering-via-slots-and-theme-map.md) | Rendering via slots + `Flicker.Theme` class-map; no hardcoded CSS framework | accepted |
+| [003](./adr-003-fetch-takes-a-list.md) | `Provider.fetch/2` resolves a list of values in one query | accepted |
+| [004](./adr-004-authorization-via-actor-and-policies.md) | Authorisation via `actor:`-scoped reads + policies; no bespoke gate | accepted |
+| [005](./adr-005-form-field-mode-owns-hidden-inputs.md) | Form-field mode owns hidden inputs + `_unused_` marker; controlled mode separate | accepted |
