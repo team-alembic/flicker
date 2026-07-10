@@ -300,7 +300,7 @@ defmodule Flicker.Components.Select do
   # name, the later start_async wins and the previous task's result is
   # ignored" — a slower response for an earlier keystroke can never
   # overwrite a newer one.
-  defp run_search(%{assigns: %{facets: []}} = socket, text), do: run_record_search(socket, text)
+  defp run_search(%{assigns: %{facets: []}} = socket, text), do: run_record_search(socket, %Query{text: text})
 
   # Classifies off `socket.assigns.query` (the raw, untyped-through text
   # `apply_query/2` just assigned) rather than the `text` argument here —
@@ -331,8 +331,9 @@ defmodule Flicker.Components.Select do
     end
   end
 
-  # Facet-value position for an enum facet — synchronous, closed picklist.
-  defp run_faceted_search(socket, {:value, %{type: :enum} = facet, prefix}) do
+  # Facet-value position for a facet with a closed picklist (`:enum` or
+  # `:boolean`, Spec 003's type table) — synchronous, no provider round-trip.
+  defp run_faceted_search(socket, {:value, %{type: type} = facet, prefix}) when type in [:enum, :boolean] do
     suggestions = FacetSuggest.enum_value_suggestions(facet, prefix)
 
     socket
@@ -374,17 +375,22 @@ defmodule Flicker.Components.Select do
     |> assign(results: [], has_more: false, loading: false, error: false)
   end
 
-  # Free-text position: an ordinary record search, but against the
-  # free-text portion `Flicker.Query.parse/2` extracts — a completed
-  # `status:active` token never leaks into the `ilike` match.
+  # Free-text position: an ordinary record search against the full parsed
+  # query — free text hits the provider's own text match (a completed
+  # `status:active` token never leaks into the `ilike` match) *and* the
+  # parsed facet tokens are passed through so the provider can scope which
+  # records are offered before the text match runs (guides/faceted-search.md);
+  # `Flicker.Providers.AshResource.search/2` composes `Flicker.Query.to_filter/2`
+  # into its Ash query for this, `Flicker.Providers.Static` ignores `.facets`
+  # (documented on each provider).
   defp run_faceted_search(socket, :text) do
-    parsed_text = Query.parse(text_for_facet_parse(socket), socket.assigns.facets).text
-    run_record_search(socket, parsed_text)
+    parsed_query = Query.parse(text_for_facet_parse(socket), socket.assigns.facets)
+    run_record_search(socket, parsed_query)
   end
 
   defp text_for_facet_parse(socket), do: socket.assigns.query
 
-  defp run_record_search(socket, text) do
+  defp run_record_search(socket, query) do
     provider = socket.assigns.provider
     actor = socket.assigns[:actor]
     tenant = socket.assigns[:tenant]
@@ -395,7 +401,7 @@ defmodule Flicker.Components.Select do
     socket
     |> assign(loading: true, error: false)
     |> start_async(:search, fn ->
-      Provider.run_search(provider, %Query{text: text},
+      Provider.run_search(provider, query,
         actor: actor,
         tenant: tenant,
         limit: fetch_limit

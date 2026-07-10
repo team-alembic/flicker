@@ -114,6 +114,53 @@ if Code.ensure_loaded?(Ash) do
       end
     end
 
+    describe "search/2 with facets" do
+      # Regression (Spec 003 v1 scope cut, now lifted): `query.facets` must
+      # narrow the candidate set *before* `query.text` runs, not be ignored.
+      test "composes query.facets into the Ash query alongside the text match" do
+        assert {:ok, results} =
+                 AshResource.search(
+                   %Query{text: "", facets: [{:status, :eq, :active}]},
+                   base_opts(limit: 50, facets: [:status])
+                 )
+
+        assert results != []
+
+        assert Enum.all?(results, fn %Flicker.Result{value: id} ->
+                 Ash.get!(Dev.Music.Artist, id, authorize?: false).status == :active
+               end)
+      end
+
+      test "an unmatched facet value narrows results to none, rather than being ignored" do
+        assert {:ok, []} =
+                 AshResource.search(
+                   %Query{text: "", facets: [{:status, :eq, :active}, {:status, :eq, :inactive}]},
+                   base_opts(limit: 50, facets: [:status], filter: %{"status" => %{"eq" => "on_hiatus"}})
+                 )
+      end
+
+      test "distinct facet keys AND, repeated instances of the same key OR" do
+        genre = Ash.create!(Dev.Music.Genre, %{name: "Indie Rock"}, authorize?: false)
+
+        Ash.create!(
+          Dev.Music.Artist,
+          %{name: "Facet Match", status: :active, genre_id: genre.id},
+          authorize?: false
+        )
+
+        assert {:ok, results} =
+                 AshResource.search(
+                   %Query{
+                     text: "Facet Match",
+                     facets: [{:status, :eq, :active}, {:status, :eq, :inactive}]
+                   },
+                   base_opts(limit: 50, facets: [:status])
+                 )
+
+        assert [%Flicker.Result{label: "Facet Match"}] = results
+      end
+    end
+
     describe "search/2 with a tenant-scoped resource" do
       defmodule TenantedNote do
         @moduledoc false

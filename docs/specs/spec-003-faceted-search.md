@@ -132,9 +132,9 @@ cannot drift from form rendering elsewhere in the host app.
 Both deliverables ship on the shared parser/registry/cursor-context
 machinery above (`Flicker.Query`, `Flicker.Facet`,
 `Flicker.Providers.AshResource.facets/1`, `Flicker.CursorContext`,
-`Flicker.FacetSuggest`). Two scope cuts were made to ship v1 without
-growing this spec into its own multi-phase project — both are cheap to
-lift later, and don't change any public struct shape:
+`Flicker.FacetSuggest`). One scope cut remains from v1; a second, initially
+made to ship without growing this spec into its own multi-phase project,
+has since been lifted:
 
 - **Cursor tracking assumes the caret sits at the end of the typed text.**
   Flicker wires plain `phx-keyup` payloads (value only, no
@@ -146,18 +146,21 @@ lift later, and don't change any public struct shape:
   machine. Mid-token editing (moving the caret back into an already-typed
   token) types "at the end" instead of resuming in place. A follow-up: a
   colocated hook reporting `selectionStart` on every keystroke.
-- **`facets` on `Flicker.select/1` narrows the autocomplete UX and the
-  free-text portion of the search, but does not yet AND the parsed facet
-  filter into the provider's own record query.** While the cursor is in
-  facet-key/value position the listbox shows key/value suggestions instead
-  of records (picking one edits the typed text); once back in free-text
-  position, the listbox reverts to an ordinary record search run against
-  `Flicker.Query.parse/2`'s `.text` (so a completed `status:active` token
-  never leaks into the `ilike` match) — but that search doesn't also apply
-  `Flicker.Query.to_filter/2`'s facet clauses to narrow *which records* are
-  offered. `Flicker.search/1` has no such gap — it never lists records
-  itself, it only emits the filter for the host to apply. Composing the two
-  for `facets`-on-`Flicker.select` is a follow-up.
+- **Resolved:** `facets` on `Flicker.select/1` now ANDs the parsed facet
+  filter into the provider's own record query, not just the autocomplete UX
+  and the free-text portion of the search. While the cursor is in
+  facet-key/value position the listbox still shows key/value suggestions
+  instead of records (picking one edits the typed text); once back in
+  free-text position, `Flicker.Components.Select` passes the *full* parsed
+  `Flicker.Query` (`.text` *and* `.facets`) to `Provider.run_search/3` —
+  `Flicker.Providers.AshResource.search/2` composes `Flicker.Query.to_filter/2`
+  into its Ash query alongside the free-text match, scoping *which records*
+  are offered before that match runs. A provider decides for itself how to
+  honour `query.facets` (`c:Flicker.Provider.search/2`'s doc): `AshResource`
+  filters by them; `Flicker.Providers.Static` has no type system to derive
+  facet filtering from and documents that it matches text only, ignoring
+  `query.facets` entirely. `Flicker.search/1` never had this gap — it never
+  lists records itself, it only emits the filter for the host to apply.
 
 Acceptance criteria coverage: each type-table row has an end-to-end test
 against `Dev.Music`/a purpose-built fixture (`Flicker.Providers.AshResourceFacetsTest`,

@@ -95,7 +95,19 @@ defmodule Flicker.Test.HostLive do
 
   defp form_errors(_params), do: []
 
+  # Deliberately misconfigured: `field` and `on_select` together, to exercise
+  # `Flicker.select/1`'s `validate_mode!/1` rejecting the ambiguous case at
+  # render time (exactly one of the two is required, not both — see
+  # `FlickerTest` for the regression).
   @impl true
+  def render(%{mode: "both"} = assigns) do
+    ~H"""
+    <.form for={@form} id="host-form">
+      <Flicker.select id="picker" field={@form[:client_id]} source={@provider} on_select={:client_selected} />
+    </.form>
+    """
+  end
+
   def render(%{mode: "form"} = assigns) do
     ~H"""
     <.form for={@form} id="host-form" phx-change="validate" phx-submit="submit">

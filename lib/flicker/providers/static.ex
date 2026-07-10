@@ -29,6 +29,15 @@ defmodule Flicker.Providers.Static do
   one pass, silently omitting any that aren't present in `:results` — the
   same "partial results are normal" behaviour ADR-003 requires of every
   provider.
+
+  `search/2` matches text only and **ignores `query.facets` entirely** — a
+  fixed in-memory list has no type system for `Flicker.Providers.AshResource`-style
+  facet derivation to introspect, so faceted filtering isn't something this
+  provider can meaningfully support. A `facets:`-configured `Flicker.select/1`
+  backed by `Static` still gets facet-key/value autocomplete over a
+  hand-built `Flicker.Facet` registry (Spec 003), it just won't narrow
+  `:results` by them — write a custom provider (or use `AshResource`) if
+  that's needed.
   """
 
   @behaviour Flicker.Provider

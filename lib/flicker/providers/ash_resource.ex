@@ -26,13 +26,18 @@ if Code.ensure_loaded?(Ash) do
       * `:filter` — a base filter (any `Ash.Query.filter_input/2` input)
         applied before the search-text match. Optional.
       * `:facets` — optional list of facet keys for `facets/1` to expand
-        ([Spec 003](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-003-faceted-search.md)).
-        Each entry is either a bare atom (`:status`) naming an attribute,
-        relationship, aggregate, or calculation to derive a
-        `Flicker.Facet.t()` from, or a `{key, overrides}` pair (`status:
+        ([Spec 003](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-003-faceted-search.md)),
+        and the registry `search/2` composes `Flicker.Query.to_filter/2`
+        against to scope candidates by `query.facets` before the free-text
+        match runs. Each entry is either a bare atom (`:status`) naming an
+        attribute, relationship, aggregate, or calculation to derive a
+        `Flicker.Facet.t()` from, a `{key, overrides}` pair (`status:
         [type: :enum]`) where `overrides` — any of `:type`, `:path`,
         `:attribute`, `:aggregate`, `:op`, `:label` — takes precedence over
-        what introspection would derive.
+        what introspection would derive, or an already-built `Flicker.Facet.t()`
+        (passed through unchanged — how `Flicker.select/1`'s `facets:` attr
+        wires this in, since it resolves to `Flicker.Facet` structs before
+        reaching the provider).
 
     `:actor`, `:tenant`, and `:limit` also arrive per-call, merged in by
     `Flicker.Provider.run_search/3` / `run_fetch/3` — reads are always
@@ -61,30 +66,35 @@ if Code.ensure_loaded?(Ash) do
     @impl true
     @doc """
     Runs `opts[:read_action]` on `opts[:resource]`, filtering by
-    `opts[:filter]` (if any) and then `query.text` (case-insensitive
-    substring match over `opts[:search]`), sorted by `opts[:sort]` (if any),
-    limited to `opts[:limit]`. Always actor/tenant-scoped (ADR-004).
+    `opts[:filter]` (if any), then `query.facets` (Spec 003 — distinct facet
+    keys AND, repeated instances of the same key OR, composed via
+    `Flicker.Query.to_filter/2` against this provider's own facet registry
+    so the candidates are scoped *before* the text match runs), then
+    `query.text` (case-insensitive substring match over `opts[:search]`),
+    sorted by `opts[:sort]` (if any), limited to `opts[:limit]`. Always
+    actor/tenant-scoped (ADR-004).
     """
     @spec search(Query.t(), keyword()) :: {:ok, [Result.t()]} | {:error, term()}
-    def search(%Query{text: text}, opts) do
+    def search(%Query{text: text} = query, opts) do
       resource = Keyword.fetch!(opts, :resource)
       search_fields = Keyword.fetch!(opts, :search)
       actor = Keyword.get(opts, :actor)
       tenant = Keyword.get(opts, :tenant)
       limit = Keyword.get(opts, :limit, @default_limit)
 
-      query =
+      ash_query =
         resource
         |> Ash.Query.for_read(Keyword.get(opts, :read_action, @default_read_action), %{},
           actor: actor,
           tenant: tenant
         )
         |> apply_base_filter(Keyword.get(opts, :filter))
+        |> apply_facet_filter(query, opts)
         |> apply_search_filter(search_fields, text)
         |> apply_sort(Keyword.get(opts, :sort))
         |> Ash.Query.limit(limit)
 
-      with {:ok, records} <- Ash.read(query, actor: actor, tenant: tenant) do
+      with {:ok, records} <- Ash.read(ash_query, actor: actor, tenant: tenant) do
         {:ok, Enum.map(records, &to_result(&1, opts))}
       end
     end
@@ -119,6 +129,17 @@ if Code.ensure_loaded?(Ash) do
 
     defp apply_base_filter(query, nil), do: query
     defp apply_base_filter(query, filter), do: Ash.Query.filter_input(query, filter)
+
+    defp apply_facet_filter(ash_query, %Query{facets: []}, _opts), do: ash_query
+
+    # `facets(opts)` re-derives the same `Flicker.Facet.t()` registry
+    # `Flicker.Query.parse/2` was run against — `Flicker.Query.to_filter/2`
+    # needs each matched key's own `:target` (a relationship path, an
+    # aggregate/calc name, or a plain attribute) to build the right nested
+    # filter clause, not just the bare key.
+    defp apply_facet_filter(ash_query, %Query{} = query, opts) do
+      Ash.Query.filter_input(ash_query, Query.to_filter(query, facets(opts)))
+    end
 
     defp apply_search_filter(query, _search_fields, text) when text in [nil, ""], do: query
 
@@ -217,6 +238,13 @@ if Code.ensure_loaded?(Ash) do
       |> Keyword.get(:facets, [])
       |> Enum.map(&derive_facet(resource, &1))
     end
+
+    # An already-built `%Flicker.Facet{}` entry (e.g. `facets:` mixing
+    # `resource:` Tier 1 derivation with a hand-built facet, see
+    # `Flicker.FacetSuggest.resolve_facets/1`) passes through unchanged —
+    # it's already what this function would otherwise produce, and feeding
+    # a struct through `derive_facet/2`'s atom/tuple clauses would raise.
+    defp derive_facet(_resource, %Flicker.Facet{} = facet), do: facet
 
     defp derive_facet(resource, key) when is_atom(key), do: derive_facet(resource, {key, []})
 

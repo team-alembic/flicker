@@ -586,6 +586,13 @@ defmodule Flicker do
     """
   end
 
+  defp validate_mode!(%{field: field, on_select: on_select}) when not is_nil(field) and not is_nil(on_select) do
+    raise ArgumentError, """
+    Flicker.select/1 requires exactly one of `field` (form-field mode) or `on_select` \
+    (controlled mode), not both.
+    """
+  end
+
   defp validate_mode!(_assigns), do: :ok
 
   # Fails loudly at the call site (Spec 006) rather than the hook silently
@@ -605,7 +612,13 @@ defmodule Flicker do
         option_sublabel: assigns[:option_sublabel],
         read_action: assigns[:read_action],
         sort: assigns[:sort],
-        filter: assigns[:filter]
+        filter: assigns[:filter],
+        # The same `facets:` attr `FacetSuggest.resolve_facets/1` expands for
+        # autocomplete — carried through so `AshResource.search/2` can compose
+        # `Flicker.Query.to_filter/2` against the *same* facet registry that
+        # parsed the query's facet tokens, scoping candidates by facet before
+        # the free-text match runs (Spec 003).
+        facets: assigns[:facets] || []
       ]
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
 

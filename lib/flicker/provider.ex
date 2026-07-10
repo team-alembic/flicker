@@ -76,6 +76,14 @@ defmodule Flicker.Provider do
 
   `opts` carries `:actor`, `:tenant`, `:limit`, and provider-specific
   configuration.
+
+  A provider decides for itself how to honour `query.facets` (Spec 003):
+  `Flicker.Providers.AshResource` composes `Flicker.Query.to_filter/2` into
+  its Ash query, scoping the candidates before `query.text`'s match runs;
+  `Flicker.Providers.Static` matches `query.text` only and ignores
+  `query.facets` entirely (see its moduledoc). A hand-written provider that
+  doesn't support facets is free to do the same — `query.facets` being
+  non-empty is never an error.
   """
   @callback search(query :: Query.t(), opts :: keyword()) ::
               {:ok, [Result.t()]} | {:error, term()}

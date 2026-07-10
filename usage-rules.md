@@ -51,9 +51,15 @@ implementation details.
   `Flicker.search/1`) — Datadog-style `status:active worker:"Casey Nguyen"
   after:7d free text`. Pass bare facet keys/overrides (Tier 1, expanded by
   introspecting the resource's own type system) or a hand-built list of
-  `Flicker.Facet` structs. An enum attribute gets a value picklist; a
-  `belongs_to`/`has_*` facet opens a nested, actor-scoped record search
-  over the related resource. `Flicker.search/1` emits
+  `Flicker.Facet` structs. An enum or boolean attribute gets a value
+  picklist; a `belongs_to`/`has_*` facet opens a nested, actor-scoped
+  record search over the related resource. A completed facet token also
+  scopes *which records* `Flicker.select/1` offers — `status:active jo`
+  only matches artists that are both active and match `jo`, not just the
+  free-text portion — via `c:Flicker.Provider.search/2`, which every
+  provider decides for itself how to honour (`Flicker.Providers.AshResource`
+  filters by it; a custom provider is free to ignore `query.facets`, as
+  `Flicker.Providers.Static` does). `Flicker.search/1` emits
   `{on_change, %Flicker.Query{}, filter}` — no selection semantics, you
   feed `filter` to your own table/stream/list.
 
