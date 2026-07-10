@@ -1,0 +1,76 @@
+defmodule Dev.Music.Artist do
+  @moduledoc """
+  A music artist — the policy-bearing resource in the seeded `Dev.Music`
+  demo domain (Spec 004's test harness, Spec 005's playground).
+
+  Visibility of `:label`-carrying artists depends on the reading actor: an
+  artist with `label: nil` is public, one with a label is only visible to
+  an actor whose own `:label` matches. Actors are plain maps, e.g.
+  `%{label: "indie"}`. This makes actor-scoping assertions first-class
+  rather than bolted on (Spec 004's test harness, ADR-004).
+  """
+
+  use Ash.Resource,
+    domain: Dev.Music,
+    data_layer: Ash.DataLayer.Ets,
+    authorizers: [Ash.Policy.Authorizer]
+
+  ets do
+    private?(true)
+  end
+
+  attributes do
+    uuid_primary_key(:id)
+
+    attribute :name, :string do
+      public?(true)
+      allow_nil?(false)
+    end
+
+    attribute :status, :atom do
+      public?(true)
+      constraints(one_of: [:active, :inactive, :on_hiatus])
+      default(:active)
+      allow_nil?(false)
+    end
+
+    attribute :formed_on, :date do
+      public?(true)
+    end
+
+    attribute :monthly_listeners, :integer do
+      public?(true)
+      default(0)
+    end
+
+    # `nil` means public (visible to every actor); otherwise only an actor
+    # whose own `:label` matches this value can see the artist.
+    attribute :label, :string do
+      public?(true)
+    end
+  end
+
+  relationships do
+    belongs_to :genre, Dev.Music.Genre do
+      public?(true)
+      allow_nil?(true)
+    end
+
+    has_many(:albums, Dev.Music.Album)
+  end
+
+  actions do
+    defaults([:read])
+
+    create :create do
+      primary?(true)
+      accept([:name, :status, :formed_on, :monthly_listeners, :label, :genre_id])
+    end
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if(expr(is_nil(label) or label == ^actor(:label)))
+    end
+  end
+end

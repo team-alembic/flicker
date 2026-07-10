@@ -1,5 +1,5 @@
 ---
-status: ready
+status: shipped
 date: 2026-07-10
 depends_on: [adr-001, adr-003, adr-004, adr-006]
 ---
