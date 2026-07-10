@@ -175,6 +175,31 @@ def handle_info({:artist_query_changed, _query, filter}, socket) do
 end
 ```
 
+### Command palette (⌘K overlay)
+
+```heex
+<Flicker.palette
+  id="cmdk"
+  source={MyApp.Search.Global}
+  actor={@current_user}
+  open={@palette_open}
+  on_close={:palette_closed}
+  on_select={:palette_selected}
+/>
+```
+
+```elixir
+def handle_info(:palette_closed, socket), do: {:noreply, assign(socket, :palette_open, false)}
+def handle_info({:palette_selected, _result}, socket), do: {:noreply, assign(socket, :palette_open, false)}
+```
+
+Wraps the same core as `Flicker.select/1` in a modal overlay: `mod+k`
+opens/closes it self-contained; `open`/`on_close` additionally lets a
+navbar button trigger it. A provider whose `Flicker.Result`s carry
+`:group` gets contiguous group headers for free; a result whose
+`meta.href` is set additionally navigates (`push_navigate/2`) on
+selection — the raw `on_select` message still fires either way.
+
 ### Testing a select
 
 ```elixir

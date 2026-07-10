@@ -12,6 +12,9 @@ defmodule Flicker do
 
     * `Flicker.select/1` — the function component: a type-to-search,
       pick-one combobox over an Ash resource (or any `Flicker.Provider`).
+    * `Flicker.palette/1` — a ⌘K command-palette overlay wrapping the same
+      core as `Flicker.select/1`: federated search across resources,
+      grouped results, navigate-on-select (Spec 008).
     * `Flicker.Provider` — the behaviour every data source implements
       (`search/2`, `fetch/2`), and the internal invocation boundary
       (`run_search/3`, `run_fetch/3`) core code calls through.
@@ -35,6 +38,7 @@ defmodule Flicker do
 
   use Phoenix.Component
 
+  alias Flicker.Components.Palette, as: PaletteComponent
   alias Flicker.Components.Search, as: SearchComponent
   alias Flicker.Components.Select, as: SelectComponent
   alias Flicker.{FacetSuggest, Theme}
@@ -375,6 +379,203 @@ defmodule Flicker do
       debounce={@debounce}
       theme={@theme}
       messages={@messages}
+    />
+    """
+  end
+
+  @doc """
+  Renders a ⌘K command-palette overlay: backdrop, centred panel, large
+  search input, grouped result list, footer kbd hints
+  (↑↓ navigate · ↵ select · esc close).
+
+  Wraps the exact same core `Flicker.select/1` runs on top of — same
+  provider tiers, same `Flicker.Result`/`Flicker.Provider` contract — as a
+  modal overlay instead of an inline combobox. Nothing here is special
+  machinery: it's `activate_with_keyboard` (Spec 006) + a federated
+  provider (ADR-001) + theme parts (ADR-002) arranged into one component.
+
+      <Flicker.palette
+        id="cmdk"
+        source={MyApp.Search.Global}
+        actor={\@current_user}
+        open={\@palette_open}
+        on_close={:palette_closed}
+        on_select={:palette_selected}
+      />
+
+      def handle_info(:palette_closed, socket), do: {:noreply, assign(socket, :palette_open, false)}
+      def handle_info({:palette_selected, result}, socket), do: {:noreply, assign(socket, :palette_open, false)}
+
+  ## Opening
+
+  Two independent ways to open it, usable together:
+
+    * `activate_with_keyboard` (default `"mod+k"`) — self-contained,
+      needs no host state: the chord opens/closes the overlay entirely
+      client-side-triggered/server-confirmed, the same activation pattern
+      Spec 006 gives `Flicker.select/1`.
+    * The `open`/`on_close` controlled pair — for a navbar button or any
+      other host-driven trigger. `open` is adopted whenever it *changes*
+      between renders (a rising edge opens it, a falling edge closes it);
+      in between, the component is free to open/close itself (chord,
+      `Escape`, backdrop click) and always fires `on_close` so host state
+      never drifts out of sync. `on_close` is sent as a bare message —
+      `send(self(), on_close)` — exactly like `on_select`'s convention,
+      just with no payload.
+
+  ## Grouped results and navigate-on-select
+
+  A provider whose `Flicker.Result`s carry `:group` gets contiguous group
+  headers for free (Spec 008) — a federated provider searching several Ash
+  resources typically tags each with its resource name
+  (`group: "Artists"`, `group: "Albums"`, ...). A result whose `meta.href`
+  is set additionally navigates (`push_navigate/2`) on selection; the raw
+  `on_select` message still fires either way, so a host doing something
+  other than navigating (closing the palette, logging, a custom action)
+  always can.
+
+  ## Modes
+
+  Controlled mode only — there is no form-field mode, a modal ⌘K overlay
+  isn't a form control. `on_select` is required.
+  """
+  attr(:id, :string, required: true, doc: "DOM id for the component.")
+
+  attr(:resource, :atom,
+    default: nil,
+    doc: "Tier 1: the Ash resource to read. Requires `option_label`."
+  )
+
+  attr(:source, :any,
+    default: nil,
+    doc: "Tier 2: a `Flicker.Provider` module, or `{module, opts}` — typically a federated provider."
+  )
+
+  attr(:search, :list,
+    default: [],
+    doc: "Tier 1: attribute names `search/2`'s text match runs over."
+  )
+
+  attr(:option_label, :any,
+    default: nil,
+    doc: "Tier 1: an attribute name, or `fun(record) :: String.t()`."
+  )
+
+  attr(:option_sublabel, :any,
+    default: nil,
+    doc: "Tier 1: an attribute name, or `fun(record) :: String.t() | nil`."
+  )
+
+  attr(:read_action, :atom,
+    default: nil,
+    doc: "Tier 1: the read action to run. Defaults to `:read`."
+  )
+
+  attr(:sort, :any, default: nil, doc: "Tier 1: sort applied to search results.")
+
+  attr(:filter, :any,
+    default: nil,
+    doc: "Tier 1: a base filter applied before the search-text match."
+  )
+
+  attr(:actor, :any,
+    default: nil,
+    doc: "The reading actor — passed through to the provider unmodified (ADR-004)."
+  )
+
+  attr(:tenant, :any,
+    default: nil,
+    doc: "The tenant — passed through to the provider unmodified."
+  )
+
+  attr(:open, :boolean,
+    default: false,
+    doc: "Controlled: whether the overlay is open. See moduledoc."
+  )
+
+  attr(:on_close, :atom,
+    required: true,
+    doc: "The host receives a bare `on_close` message whenever the overlay closes. See moduledoc."
+  )
+
+  attr(:on_select, :atom,
+    required: true,
+    doc: "The host receives `{on_select, %Flicker.Result{}}` on selection. See moduledoc."
+  )
+
+  attr(:limit, :integer,
+    default: nil,
+    doc: "Max results shown. Defaults to `config :flicker, :default_limit` (25)."
+  )
+
+  attr(:min_chars, :integer, default: 0, doc: "Minimum typed characters before a search runs.")
+
+  attr(:debounce, :integer,
+    default: nil,
+    doc: "Input debounce (ms). Defaults to `config :flicker, :default_debounce` (150)."
+  )
+
+  attr(:theme, :any,
+    default: nil,
+    doc:
+      "A `Flicker.Theme` override — a full struct or a partial map. `:backdrop`, `:panel`, " <>
+        "`:palette_input`, `:group_header`, and `:footer` are the overlay-specific parts. See `Flicker.Theme`."
+  )
+
+  attr(:messages, :atom,
+    default: nil,
+    doc: "A `Flicker.Messages` override module. See `Flicker.Messages`."
+  )
+
+  attr(:activate_with_keyboard, :string,
+    default: "mod+k",
+    doc: "A chord string that opens/closes the overlay from anywhere on the page. See moduledoc."
+  )
+
+  attr(:facets, :list,
+    default: [],
+    doc: "Faceted key/value autocomplete over the search input (Spec 003) — see `Flicker.select/1`."
+  )
+
+  slot(:option, doc: "Custom option rendering, given the `Flicker.Result` as the slot argument.")
+
+  @spec palette(map()) :: Phoenix.LiveView.Rendered.t()
+  def palette(assigns) do
+    provider = resolve_provider(assigns)
+    validate_chord!(assigns)
+
+    assigns =
+      assigns
+      |> assign(:provider, provider)
+      |> assign(:resolved_facets, FacetSuggest.resolve_facets(assigns))
+      |> assign(
+        :limit,
+        assigns[:limit] || Application.get_env(:flicker, :default_limit, @default_limit)
+      )
+      |> assign(
+        :debounce,
+        assigns[:debounce] || Application.get_env(:flicker, :default_debounce, @default_debounce)
+      )
+      |> assign(:theme, Theme.resolve(assigns[:theme]))
+
+    ~H"""
+    <.live_component
+      module={PaletteComponent}
+      id={@id}
+      provider={@provider}
+      open={@open}
+      on_close={@on_close}
+      on_select={@on_select}
+      actor={@actor}
+      tenant={@tenant}
+      limit={@limit}
+      min_chars={@min_chars}
+      debounce={@debounce}
+      theme={@theme}
+      messages={@messages}
+      activate_with_keyboard={@activate_with_keyboard}
+      facets={@resolved_facets}
+      option={@option}
     />
     """
   end

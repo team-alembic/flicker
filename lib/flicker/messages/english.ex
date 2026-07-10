@@ -57,6 +57,16 @@ defmodule Flicker.Messages.English do
       search) update.
     * `:facet_search_placeholder` — placeholder text for `Flicker.search/1`'s
       input.
+    * `:palette_label` — `aria-label` for `Flicker.palette/1`'s dialog
+      (`role="dialog"`).
+    * `:close_palette` — visible text and `aria-label` for the palette's
+      close button.
+    * `:footer_navigate_hint` — the palette footer's "navigate" kbd hint
+      label (next to the ↑↓ keys).
+    * `:footer_select_hint` — the palette footer's "select" kbd hint label
+      (next to the ↵ key).
+    * `:footer_close_hint` — the palette footer's "close" kbd hint label
+      (next to the esc key).
   """
   @spec message(atom(), map()) :: String.t()
   def message(:search_placeholder, _bindings), do: "Search..."
@@ -90,4 +100,9 @@ defmodule Flicker.Messages.English do
   def message(:facet_value_suggestions_count, %{count: 1}), do: "1 matching value"
   def message(:facet_value_suggestions_count, %{count: count}), do: "#{count} matching values"
   def message(:facet_search_placeholder, _bindings), do: "Filter... (try status:active)"
+  def message(:palette_label, _bindings), do: "Command palette"
+  def message(:close_palette, _bindings), do: "Close"
+  def message(:footer_navigate_hint, _bindings), do: "navigate"
+  def message(:footer_select_hint, _bindings), do: "select"
+  def message(:footer_close_hint, _bindings), do: "close"
 end

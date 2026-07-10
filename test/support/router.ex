@@ -17,6 +17,7 @@ defmodule Flicker.Test.Router do
 
     live("/", Flicker.Test.HostLive)
     live("/multi", Flicker.Test.MultiHostLive)
+    live("/palette", Flicker.Test.PaletteHostLive)
 
     if Code.ensure_loaded?(Ash) do
       live("/ash", Flicker.Test.AshHostLive)

@@ -34,7 +34,18 @@ defmodule Flicker.Theme do
     * `:chip` — multi-select: a single selected-value chip.
     * `:chip_remove` — multi-select: the per-chip remove button.
     * `:kbd_hint` — the `<kbd>` discoverability hint rendered when
-      `activate_with_keyboard` is set (Spec 006).
+      `activate_with_keyboard` is set (Spec 006); also used for the
+      footer's ↑↓/↵/esc hints in `Flicker.palette/1` (Spec 008).
+    * `:backdrop` — `Flicker.palette/1`: the full-viewport overlay backdrop
+      behind the panel (Spec 008).
+    * `:panel` — `Flicker.palette/1`: the centred dialog panel.
+    * `:palette_input` — `Flicker.palette/1`: the large search input (in
+      place of `:search_input`, which the plain select still uses).
+    * `:group_header` — a non-interactive row rendered before the first
+      result of each new `result.group` (Spec 008); unused when no result
+      in the list carries a `:group`.
+    * `:footer` — `Flicker.palette/1`: the panel's footer row of keyboard
+      hints.
 
   ## Resolution
 
@@ -65,7 +76,12 @@ defmodule Flicker.Theme do
           chip_list: String.t(),
           chip: String.t(),
           chip_remove: String.t(),
-          kbd_hint: String.t()
+          kbd_hint: String.t(),
+          backdrop: String.t(),
+          panel: String.t(),
+          palette_input: String.t(),
+          group_header: String.t(),
+          footer: String.t()
         }
 
   @typedoc "An override: a full theme, or a partial map/keyword list of parts."
@@ -84,7 +100,12 @@ defmodule Flicker.Theme do
             chip_list: "flicker-chip-list",
             chip: "flicker-chip",
             chip_remove: "flicker-chip-remove",
-            kbd_hint: "flicker-kbd-hint"
+            kbd_hint: "flicker-kbd-hint",
+            backdrop: "flicker-backdrop",
+            panel: "flicker-panel",
+            palette_input: "flicker-palette-input",
+            group_header: "flicker-group-header",
+            footer: "flicker-footer"
 
   @doc "The default preset: plain, framework-free `flicker-*` class names."
   @spec vanilla() :: t()
@@ -116,7 +137,13 @@ defmodule Flicker.Theme do
       chip: "inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-xs text-indigo-700",
       chip_remove: "text-indigo-400 hover:text-indigo-700",
       kbd_hint:
-        "pointer-events-none absolute inset-y-0 right-2 flex items-center rounded border border-gray-300 px-1.5 text-xs text-gray-400"
+        "pointer-events-none absolute inset-y-0 right-2 flex items-center rounded border border-gray-300 px-1.5 text-xs text-gray-400",
+      backdrop: "fixed inset-0 z-40 bg-gray-900/50",
+      panel:
+        "fixed left-1/2 top-24 z-50 w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-lg bg-white shadow-2xl",
+      palette_input: "w-full border-0 border-b border-gray-200 px-4 py-3 text-base focus:outline-none",
+      group_header: "px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400",
+      footer: "flex items-center gap-4 border-t border-gray-100 px-4 py-2 text-xs text-gray-400"
     }
   end
 
@@ -144,7 +171,12 @@ defmodule Flicker.Theme do
       chip_list: "flex flex-wrap gap-1",
       chip: "badge badge-primary gap-1",
       chip_remove: "cursor-pointer",
-      kbd_hint: "kbd kbd-sm pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+      kbd_hint: "kbd kbd-sm pointer-events-none absolute right-2 top-1/2 -translate-y-1/2",
+      backdrop: "fixed inset-0 z-40 bg-black/40",
+      panel: "modal-box fixed left-1/2 top-24 z-50 w-full max-w-xl -translate-x-1/2 p-0",
+      palette_input: "input input-ghost w-full border-0 border-b border-base-200 text-base focus:outline-none",
+      group_header: "px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/50",
+      footer: "flex items-center gap-4 border-t border-base-200 px-4 py-2 text-xs text-base-content/50"
     }
   end
 

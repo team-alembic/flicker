@@ -21,6 +21,23 @@ defmodule Flicker.Components.Select do
   runs exactly once, resolving every preselected value in one call
   (ADR-003) regardless of how many are set.
 
+  `group` (Spec 008): when any `Flicker.Result` in `results` carries a
+  `:group`, the listbox renders a contiguous, non-interactive
+  `theme.group_header` row before the first result of each new group —
+  ordering is whatever the provider returned, never re-sorted here. A
+  groupless result list (every `:group` is `nil`, the default) renders
+  exactly as it always has; `Flicker.select/1` never sets `:group` itself,
+  it only renders it when a provider does — `Flicker.palette/1` is the
+  only caller that has any special interest in it, and even that interest
+  lives entirely in provider data, not a branch here.
+
+  `navigate_on_select` (Spec 008, internal-only assign — not part of
+  `Flicker.select/1`'s public attrs) additionally issues a `push_navigate/2`
+  to `result.meta.href` on selection, when set. This is `Flicker.palette/1`'s
+  navigate-on-select convention; it is plain assign-driven behaviour, not a
+  branch on "am I a palette" — `Flicker.select/1` simply never sets the
+  assign, so its own selections never navigate.
+
   `facets` (Spec 003) drives the same `Flicker.CursorContext`/
   `Flicker.FacetSuggest` machinery `Flicker.Components.Search` does: while
   the cursor sits in facet-key or facet-value position, the listbox shows
@@ -60,6 +77,7 @@ defmodule Flicker.Components.Select do
       |> assign_new(:activate_with_keyboard, fn -> nil end)
       |> assign_new(:facets, fn -> [] end)
       |> assign_new(:facet_context, fn -> :text end)
+      |> assign_new(:navigate_on_select, fn -> false end)
 
     socket =
       socket
@@ -211,9 +229,21 @@ defmodule Flicker.Components.Select do
       socket
       |> assign(selected: result, query: display_text(result), open: false)
       |> notify_selection(result)
+      |> maybe_navigate(result)
 
     {:noreply, socket}
   end
+
+  # Spec 008's navigate-on-select convention: `meta.href` is generic
+  # `Flicker.Result` data, and `navigate_on_select` is a generic assign
+  # `Flicker.select/1` never sets — `Flicker.palette/1` is the only caller
+  # that turns it on, but this code has no idea a palette exists.
+  defp maybe_navigate(%{assigns: %{navigate_on_select: true}} = socket, %Result{meta: %{href: href}})
+       when is_binary(href) do
+    push_navigate(socket, to: href)
+  end
+
+  defp maybe_navigate(socket, _result), do: socket
 
   defp apply_query(socket, text) do
     trimmed = String.trim(text)
@@ -501,6 +531,29 @@ defmodule Flicker.Components.Select do
 
   defp chord_aria_keyshortcuts(chord), do: chord |> Keyboard.validate!() |> Keyboard.aria_keyshortcuts()
 
+  # Flattens `results` into render rows, inserting a `{:header, label}` row
+  # before the first result of each new contiguous `result.group` (Spec
+  # 008). Every result's group is `nil` for a groupless provider, so this
+  # always returns exactly `[{:option, result, index}, ...]` in that case —
+  # bit-for-bit the rows the pre-Spec-008 markup rendered.
+  defp rows_with_group_headers(results) do
+    {rows, _last_group} =
+      results
+      |> Enum.with_index()
+      |> Enum.flat_map_reduce(nil, fn {result, index}, last_group ->
+        rows =
+          if result.group && result.group != last_group do
+            [{:header, result.group}, {:option, result, index}]
+          else
+            [{:option, result, index}]
+          end
+
+        {rows, result.group}
+      end)
+
+    rows
+  end
+
   # Bulletproof visually-hidden CSS inlined directly on the element: Flicker
   # ships no stylesheet (ADR-002 keeps it framework-free), so a bare
   # `flicker-sr-only` class name would render visibly in every host app that
@@ -516,6 +569,7 @@ defmodule Flicker.Components.Select do
       |> assign(:listbox_id, listbox_id_for(assigns.id))
       |> assign(:below_min_chars, below_min_chars?(assigns))
       |> assign(:at_max, at_max?(assigns))
+      |> assign(:rows, rows_with_group_headers(assigns.results))
       |> assign(:sr_only_style, @sr_only_style)
       |> assign(
         :aria_keyshortcuts,
@@ -624,28 +678,29 @@ defmodule Flicker.Components.Select do
           {message(assigns, :no_results)}
         </li>
         <%= if !@at_max do %>
-          <li
-            :for={{result, index} <- Enum.with_index(@results)}
-            id={option_id(assigns, index)}
-            role="option"
-            aria-selected="false"
-            class={@theme.option}
-          >
-            <button
-              type="button"
-              tabindex="-1"
-              phx-click="select"
-              phx-value-value={to_string(result.value)}
-              phx-target={@myself}
-              disabled={!@connected?}
-            >
-              <%= if @option != [] do %>
-                {render_slot(@option, result)}
-              <% else %>
-                <span>{result.label}</span> <span :if={result.sublabel}>{result.sublabel}</span>
-              <% end %>
-            </button>
-          </li>
+          <%= for row <- @rows do %>
+            <%= case row do %>
+              <% {:header, label} -> %>
+                <li role="presentation" class={@theme.group_header}>{label}</li>
+              <% {:option, result, index} -> %>
+                <li id={option_id(assigns, index)} role="option" aria-selected="false" class={@theme.option}>
+                  <button
+                    type="button"
+                    tabindex="-1"
+                    phx-click="select"
+                    phx-value-value={to_string(result.value)}
+                    phx-target={@myself}
+                    disabled={!@connected?}
+                  >
+                    <%= if @option != [] do %>
+                      {render_slot(@option, result)}
+                    <% else %>
+                      <span>{result.label}</span> <span :if={result.sublabel}>{result.sublabel}</span>
+                    <% end %>
+                  </button>
+                </li>
+            <% end %>
+          <% end %>
           <li :if={@has_more} class={@theme.hint}>{message(assigns, :keep_typing)}</li>
         <% end %>
       </ul>

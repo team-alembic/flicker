@@ -1,5 +1,5 @@
 ---
-status: draft
+status: shipped
 date: 2026-07-10
 depends_on: [spec-001, spec-006, adr-001, adr-002]
 ---
@@ -76,7 +76,23 @@ the wrapper.
 Group ordering follows the provider's result order (providers own ranking;
 the palette never re-sorts).
 
-## Acceptance criteria (draft)
+**As implemented:** `Flicker.palette/1` is a thin function component (no
+form-field mode — controlled only) delegating to a new internal
+`Flicker.Components.Palette` LiveComponent, which owns the overlay's
+open/closed state and nests `Flicker.Components.Select` — the exact same
+core `Flicker.select/1` runs — in controlled mode with an internal
+`navigate_on_select: true` assign. Two additive, non-branching seams
+landed in the core to make that possible without any "am I a palette"
+conditionals: `Flicker.Result.group` (contiguous group-header rendering,
+data-driven) and the `navigate_on_select` assign (`meta.href` +
+`push_navigate/2`, also data/assign-driven — `Flicker.select/1` never
+sets it). `open`/`on_close` reconcile with the host via edge-detection: a
+change in the host's `open` value is adopted on the next render either
+direction, while the component is otherwise free to open/close itself
+(the `mod+k` chord, `Escape`, backdrop click) and always fires `on_close`
+so host-side state never drifts.
+
+## Acceptance criteria
 
 - A host adds a working ⌘K site search with one component tag plus a
   federated provider module — nothing else.
@@ -91,12 +107,25 @@ the palette never re-sorts).
 - Works with both an Ash federated provider and a pure-Elixir provider
   ([ADR-006](../adrs/adr-006-core-depends-only-on-provider.md)).
 
+## Resolved questions
+
+- **`group`: a `Result` field, not a provider callback.** A field keeps
+  the shape uniform with `:value`/`:label`/`:sublabel`/`:meta` — no
+  extra behaviour callback for the common case, and a provider that
+  wants computed group labels can already do that in its own `search/2`
+  before building each `Result`. `Flicker.Result.t()`'s `:group` defaults
+  to `nil`, so this is additive: a groupless provider's rendering is
+  untouched (covered by `Flicker.SelectGroupTest` and
+  `Flicker.PaletteTest`).
+
 ## Open questions
 
 - Recent searches / empty-state content (DocSearch shows recents before
   you type): ship a `:empty_state` slot only, or an optional recents
   mechanism (needs client-side storage — localStorage via the hook)?
-- Should `group` come from a provider callback (`group_label/1`) instead
-  of a `Result` field, keeping `Result` minimal?
+  Not implemented in this pass — the palette accepts no `:empty_state`
+  slot yet, it falls back to the core's existing `:no_results` message.
 - Facet syntax (Spec 003) inside the palette from day one, or after both
-  ship?
+  ship? Not implemented in this pass — `Flicker.palette/1` accepts and
+  forwards `facets`, so it works today, but it hasn't been exercised
+  end-to-end in the playground.

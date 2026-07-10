@@ -17,7 +17,11 @@ defmodule Dev.Live.Home do
     {"/keyboard-activation", "Keyboard activation",
      "mod+k focuses and opens a search from anywhere on the page, plus the duplicate-chord warning"},
     {"/faceted-search", "Faceted search",
-     "Flicker.search filtering a live list of Dev.Music artists — key/value facet autocomplete, no selection semantics"}
+     "Flicker.search filtering a live list of Dev.Music artists — key/value facet autocomplete, no selection semantics"},
+    {"/palette", "Command palette",
+     "Flicker.palette federated over the whole Dev.Music domain — grouped Artists/Albums/Genres, mod+k, navigate-on-select"},
+    {"/palette-themed", "Command palette — themed",
+     "The same palette + federated provider, restyled fullscreen and on-brand via a theme override only"}
   ]
 
   @impl true
