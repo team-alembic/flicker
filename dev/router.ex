@@ -18,6 +18,7 @@ defmodule Dev.Router do
 
     live("/", Dev.Live.Home)
     live("/single-select", Dev.Live.SingleSelect)
+    live("/multi-select", Dev.Live.MultiSelect)
     live("/static-provider", Dev.Live.StaticProvider)
     live("/themes", Dev.Live.ThemeShowcase)
     live("/edge-states", Dev.Live.EdgeStates)

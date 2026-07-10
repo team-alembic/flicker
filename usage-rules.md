@@ -35,6 +35,11 @@ backing `Phoenix.LiveComponent` is a private implementation detail.
 - **`Flicker.Messages`** — every visible string and every screen-reader
   announcement routes through this behaviour. Override globally via
   `config :flicker, messages:` or per-component via the `messages` attr.
+- **`multiple`** — switches the value model to a list: selections render
+  as removable chips, form-field mode emits `name[]` array inputs, and
+  controlled mode's `on_select` carries the full selection list on every
+  change. `max_selections` caps how many can be picked. Same component,
+  no separate multi-select module.
 
 ## Basic usage
 
@@ -67,6 +72,24 @@ def handle_info({:result_selected, result}, socket) do
   {:noreply, assign(socket, :selected, result)}
 end
 ```
+
+### Multi-select with chips
+
+```heex
+<Flicker.select
+  id="worker-select"
+  field={@form[:worker_ids]}
+  multiple
+  resource={MyApp.Worker}
+  actor={@current_user}
+  search={[:name]}
+  option_label={:name}
+  max_selections={5}
+/>
+```
+
+An edit form opening with `worker_ids` already set resolves every
+preselected value in one `fetch/2` call, regardless of how many there are.
 
 ### Overriding a message
 
