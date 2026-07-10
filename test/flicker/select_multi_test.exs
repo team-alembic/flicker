@@ -126,6 +126,23 @@ defmodule Flicker.SelectMultiTest do
       html = LiveViewTest.render(session.view)
       refute html =~ ~s(name="form[_unused_worker_ids]")
     end
+
+    test "clearing every chip and submitting sends an explicit empty param, not no param at all", %{conn: conn} do
+      session = visit_mode(conn, %{"mode" => "form", "initial_values" => ["1"]})
+
+      # "Clear all" empties `@selected` from a previously non-empty
+      # selection — distinct from a fresh form that was never touched.
+      session.view
+      |> LiveViewTest.element("#picker")
+      |> LiveViewTest.render_hook("clear", %{})
+
+      html = LiveViewTest.render(session.view)
+      assert html =~ ~s(name="form[worker_ids][]" value="")
+
+      session = click_button(session, "Submit")
+
+      assert_has(session, "#submitted", text: ~s("worker_ids" => [""]))
+    end
   end
 
   describe "controlled mode" do

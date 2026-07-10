@@ -797,6 +797,15 @@ defmodule Flicker.Components.Select do
           name={"#{@field.name}[]"}
           value={to_string(result.value)}
         />
+        <%!--
+          An empty `selected` needs its own sentinel: with no `[]` inputs at
+          all, a raw form submit sends no param for this field, so the host
+          can't tell "intentionally cleared" from "field never rendered" —
+          the stored value would silently survive the submit. The blank-
+          value `[]` input keeps the key present (`worker_ids => [""]`,
+          filtered downstream) even though nothing is selected.
+        --%>
+        <input :if={@selected == []} type="hidden" name={"#{@field.name}[]"} value="" />
         <input :if={@selected == []} type="hidden" name={unused_marker_name(@field)} value="" />
       <% end %>
       <%= if @field && !@multiple do %>
