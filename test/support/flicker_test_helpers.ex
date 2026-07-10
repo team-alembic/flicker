@@ -13,6 +13,16 @@ defmodule Flicker.Test.Helpers do
 
   import Phoenix.LiveViewTest
 
+  # `render_async/2`'s default timeout is `ExUnit`'s `assert_receive_timeout`
+  # (100ms) — plenty when a search task is pure in-memory work, but the
+  # Ash-backed suites route it through `Ash.Policy.Authorizer` over a real
+  # (shared, non-private) ETS table, and under `mix test`'s full parallel
+  # load that authorization + read can take longer than 100ms. A generous
+  # fixed timeout here keeps the wait tied to actual task completion (still
+  # a `Process` `:DOWN` await, not a blind sleep) without weakening
+  # `assert_receive_timeout` for every other assertion in the suite.
+  @search_timeout 2_000
+
   @doc """
   Types `text` into the Flicker search input identified by `input_id` (e.g.
   `"picker-input"`), then awaits the resulting search's `start_async` task
@@ -26,7 +36,7 @@ defmodule Flicker.Test.Helpers do
     |> element("##{input_id}")
     |> render_keyup(%{"value" => text})
 
-    render_async(session.view)
+    render_async(session.view, @search_timeout)
 
     session
   end
