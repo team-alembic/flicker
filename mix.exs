@@ -37,11 +37,20 @@ defmodule Flicker.MixProject do
     [extra_applications: [:logger]]
   end
 
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  # `dev/` holds the seeded Ash demo domain (Spec 004's test harness, and
+  # Spec 005's playground). It's Ash-dependent, so it's only added to the
+  # test path when `ash` is actually in this build's deps — the same
+  # `FLICKER_NO_ASH` switch `ash_deps/0` uses, so the no-ash CI leg never
+  # compiles it. (Deps aren't compiled yet when `elixirc_paths/1` runs, so
+  # `Code.ensure_loaded?/1` can't be used to detect this here.)
+  defp elixirc_paths(:test) do
+    if System.get_env("FLICKER_NO_ASH"), do: ["lib", "test/support"], else: ["lib", "test/support", "dev"]
+  end
+
   defp elixirc_paths(_), do: ["lib"]
 
   defp description do
-    "TODO: Replace with a one-sentence description of this package."
+    "An Ash-native searchable select / combobox / faceted-search component for Phoenix LiveView."
   end
 
   defp package do
@@ -60,8 +69,41 @@ defmodule Flicker.MixProject do
 
   defp deps do
     [
+      # Core — the only hard runtime dependency (ADR-006, ADR-008).
+      {:phoenix_live_view, "~> 1.1"}
+    ] ++ ash_deps() ++ tooling_deps()
+  end
+
+  # `ash`/`ash_phoenix` are optional runtime deps (ADR-006, ADR-008): the
+  # built-in `Flicker.Providers.AshResource` needs them, core does not.
+  # Excluded entirely with `FLICKER_NO_ASH` set — the no-ash CI leg runs
+  # `mix deps.get` with that set so `ash` never lands in its lock file,
+  # forcing the `Code.ensure_loaded?/1` compile boundary to hold for real.
+  defp ash_deps do
+    if System.get_env("FLICKER_NO_ASH") do
+      []
+    else
+      [
+        {:ash, "~> 3.0", optional: true},
+        {:ash_phoenix, "~> 2.0", optional: true},
+        # SAT solver `Ash.Policy.Authorizer` needs — only our own dev/test
+        # harness (the policy-bearing `Dev.Music.Artist`) uses policies, so
+        # this is dev/test-only, not part of the published optional deps.
+        {:picosat_elixir, "~> 0.2", only: [:dev, :test], runtime: false}
+      ]
+    end
+  end
+
+  defp tooling_deps do
+    [
       # Docs
       {:ex_doc, "~> 0.34", only: [:dev, :test], runtime: false},
+
+      # Test support
+      {:phoenix_test, "~> 0.11", only: [:dev, :test], runtime: false},
+      # `mix_audit`'s `req` and `phoenix_test`'s `plug` want `mime` in
+      # different envs; pin it ourselves so the two don't diverge.
+      {:mime, "~> 2.0", only: [:dev, :test], override: true},
 
       # Quality
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
@@ -89,8 +131,9 @@ defmodule Flicker.MixProject do
       # Syncs usage-rules.md from deps into AGENTS.md or agent skills.
       {:usage_rules, "~> 1.1", only: [:dev], runtime: false},
 
-      # Needed by mix igniter.install and mix usage_rules.sync.
-      {:igniter, "~> 0.6", only: [:dev], runtime: false}
+      # Needed by `mix igniter.install` (the installer, downstream) and by
+      # our own `mix usage_rules.sync` — optional, not a hard runtime dep.
+      {:igniter, "~> 0.6", optional: true, only: [:dev], runtime: false}
     ]
   end
 
