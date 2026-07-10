@@ -866,7 +866,13 @@ defmodule Flicker.Components.Select do
             // focused input to here anyway.
             this.onKeydown = e => this.handleKeydown(e)
             this.el.addEventListener("keydown", this.onKeydown)
-            this.input()?.focus()
+            // No autofocus-on-mount here: an inline `Flicker.select/1` must
+            // not steal page focus (or fire `phx-focus`, which would open
+            // the listbox and run a search with no user interaction) just
+            // because its LiveSocket connected. `Flicker.palette/1`'s
+            // nested select is the one case that wants focus on mount, and
+            // its own `.Palette` hook's `onOpen()` already focuses it
+            // directly — this hook has no idea a palette exists.
             this.chordSignature = null
             const chord = this.el.dataset.activateWithKeyboard
             if (chord) this.registerChord(chord)
