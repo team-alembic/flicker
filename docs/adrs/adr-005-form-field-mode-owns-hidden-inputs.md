@@ -8,8 +8,8 @@ date: 2026-07-10
 ## Context
 
 Integrating a custom select with `<.form>` has two hard-won subtleties from
-the origin implementation (mechanics preserved in the
-[extraction notes](../reference/extraction-notes.md)):
+the origin implementation (mechanics ported into `Flicker.Components.Select`
+and its test suite once Spec 001 shipped):
 
 1. The component must emit the hidden input(s) carrying the selected
    value(s), plus the `_unused_<field>` marker, so the required-field error

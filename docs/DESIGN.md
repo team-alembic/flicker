@@ -11,10 +11,10 @@ lives in [specs](./specs/README.md) — this file links rather than restates.
 
 **Origin:** extracted from a searchable-select component and search
 behaviour proven in a production Ash/LiveView application ("the origin
-app"); the implementation knowledge is carried in
-[extraction notes](./reference/extraction-notes.md) so this repo is
-self-contained. The origin app becomes Flicker's first consumer and
-proving ground.
+app"). The extraction knowledge that carried Specs 004/001 across (now
+shipped, see the specs index) lived in a reference doc deleted once the
+library's own code and tests became the reference. The origin app becomes
+Flicker's first consumer and proving ground.
 
 ## What it is
 
@@ -94,10 +94,9 @@ done.
 
 1. ~~Stand up the new repo with standard Ash-lib scaffolding~~ (done — this
    repo).
-2. Rebuild the origin component + search behaviour + JS hook + PhoenixTest
-   helper as `Flicker.*`, severing all host-app/CSS-framework couplings
-   (= Specs 004 + 001, guided by the
-   [extraction notes](./reference/extraction-notes.md)).
+2. ~~Rebuild the origin component + search behaviour + JS hook +
+   PhoenixTest helper as `Flicker.*`, severing all host-app/CSS-framework
+   couplings~~ (done — Specs 004 + 001, both shipped).
 3. Add Flicker as a dep back into the origin app and reimplement its
    pickers on top of it.
 
