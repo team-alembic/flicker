@@ -67,5 +67,58 @@ defmodule Flicker.SelectTest do
 
       assert_has(session, "[role='option']", text: "Casey Cassidy")
     end
+
+    test "the min_chars hint is shown instead of 'no results' while below the minimum", %{conn: conn} do
+      session =
+        conn
+        |> visit_mode(%{"mode" => "controlled", "min_chars" => 3})
+        |> type_search("picker-input", "ca")
+
+      assert_has(session, "li", text: "Type at least 3 characters to search")
+      refute_has(session, "li", text: "No results found")
+    end
+  end
+
+  describe "click/focus outside" do
+    test "the listbox closes without selecting", %{conn: conn} do
+      session =
+        conn
+        |> visit_mode(%{"mode" => "controlled"})
+        |> type_search("picker-input", "cas")
+
+      assert_has(session, "#picker-listbox")
+
+      html =
+        session.view
+        |> Phoenix.LiveViewTest.element("#picker")
+        |> Phoenix.LiveViewTest.render_hook("close", %{})
+
+      refute html =~ "<ul"
+    end
+
+    test "the wrapper binds phx-click-away to close the listbox", %{conn: conn} do
+      session = visit_mode(conn, %{"mode" => "controlled"})
+
+      assert_has(session, "#picker[phx-click-away='close']")
+    end
+  end
+
+  describe "refocusing the input" do
+    test "does not discard already-typed text", %{conn: conn} do
+      session =
+        conn
+        |> visit_mode(%{"mode" => "controlled"})
+        |> type_search("picker-input", "cas")
+
+      html =
+        session.view
+        |> Phoenix.LiveViewTest.element("#picker-input")
+        |> Phoenix.LiveViewTest.render_focus()
+
+      Phoenix.LiveViewTest.render_async(session.view)
+
+      assert html =~ ~s(value="cas")
+      assert_has(session, "[role='option']", text: "Casey Cassidy")
+    end
   end
 end
