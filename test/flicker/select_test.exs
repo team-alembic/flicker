@@ -121,4 +121,41 @@ defmodule Flicker.SelectTest do
       assert_has(session, "[role='option']", text: "Casey Cassidy")
     end
   end
+
+  describe "a stale click" do
+    test "a click on a value no longer in @results is a no-op, not a clear", %{conn: conn} do
+      session =
+        conn
+        |> visit_mode(%{"mode" => "controlled"})
+        |> type_search("picker-input", "cas")
+
+      session = click_button(session, "Casey Cassidy")
+      assert_has(session, "#selection", text: "Casey Cassidy")
+
+      # Simulate results having moved on since the last render (an async
+      # response landed, or the facet context flipped) by pushing a "select"
+      # for a value that no longer matches anything in @results.
+      session.view
+      |> Phoenix.LiveViewTest.element("#picker")
+      |> Phoenix.LiveViewTest.render_hook("select", %{"value" => "does-not-exist"})
+
+      assert_has(session, "#selection", text: "Casey Cassidy")
+    end
+  end
+
+  describe "editing the query after selecting" do
+    test "clears the stale selection instead of leaving it behind", %{conn: conn} do
+      session =
+        conn
+        |> visit_mode(%{"mode" => "form"})
+        |> type_search("picker-input", "cas")
+
+      session = click_button(session, "Casey Cassidy")
+      assert_has(session, "#picker-input[value='Casey Cassidy']")
+
+      session = type_search(session, "picker-input", "Casey Cass")
+
+      refute_has(session, "input[name='client_id'][value='1']")
+    end
+  end
 end

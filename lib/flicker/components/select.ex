@@ -110,7 +110,7 @@ defmodule Flicker.Components.Select do
     if text == socket.assigns.query do
       {:noreply, socket}
     else
-      {:noreply, apply_query(socket, text)}
+      {:noreply, socket |> clear_stale_selection(text) |> apply_query(text)}
     end
   end
 
@@ -224,6 +224,13 @@ defmodule Flicker.Components.Select do
     {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
   end
 
+  # `result` is nil when the clicked value no longer matches anything in
+  # `@results` (async results landed, or the facet context flipped, between
+  # render and click) — a no-op rather than clearing whatever was already
+  # selected, mirroring the `multiple: true` clause's `if result && ...`
+  # guard above.
+  defp select_result(nil, _raw_value, socket), do: {:noreply, socket}
+
   defp select_result(result, _raw_value, socket) do
     socket =
       socket
@@ -244,6 +251,22 @@ defmodule Flicker.Components.Select do
   end
 
   defp maybe_navigate(socket, _result), do: socket
+
+  # Spec 001's keyboard map ("single, selection present | Backspace | clear
+  # the selection, returns to searchable state") generalises to any edit
+  # that diverges the typed text from the selected label, not just
+  # Backspace specifically — otherwise the hidden input keeps carrying the
+  # old value while the visible input shows different text, and a form
+  # submitted at that point silently sends the stale selection.
+  defp clear_stale_selection(%{assigns: %{multiple: false, selected: %Result{} = result}} = socket, text) do
+    if text == display_text(result) do
+      socket
+    else
+      socket |> assign(selected: nil) |> notify_selection(nil)
+    end
+  end
+
+  defp clear_stale_selection(socket, _text), do: socket
 
   defp apply_query(socket, text) do
     trimmed = String.trim(text)
