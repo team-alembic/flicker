@@ -16,6 +16,7 @@ defmodule Flicker.Test.Router do
     pipe_through(:browser)
 
     live("/", Flicker.Test.HostLive)
+    live("/multi", Flicker.Test.MultiHostLive)
 
     if Code.ensure_loaded?(Ash) do
       live("/ash", Flicker.Test.AshHostLive)
