@@ -46,10 +46,17 @@ defmodule Flicker.Components.Select do
   selecting a record. Once the cursor is back in free-text position, the
   listbox reverts to ordinary record search — run against the free-text
   portion `Flicker.Query.parse/2` extracts, not the raw typed string (so a
-  completed `status:active` doesn't leak into the `ilike` match). v1 scope
-  note: the parsed facet filter narrows the *autocomplete UX* only — it is
-  not yet AND-ed into the provider's own record query (recorded as a
-  follow-up in Spec 003's open questions).
+  completed `status:active` doesn't leak into the `ilike` match). The
+  parsed facet filter also ANDs into the provider's own record query (not
+  just the autocomplete UX) — see `run_faceted_search/2`'s `:text` clause.
+
+  The `.Nav` colocated hook reports the input's real `selectionStart` on
+  every keyup/click/select (Spec 003's cursor-tracking follow-up, now
+  closed) — the `cursor` assign carries it (`nil` before the hook's first
+  event, or after this component sets the query text itself, falling back
+  to end-of-text per `Flicker.FacetSuggest.classify/3`), so a cursor moved
+  back into an already-typed facet token classifies right there, not "at
+  the end".
 
   `paginate` ([Spec 010](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-010-windowed-search.md),
   default `false`) switches the "keep typing to narrow" `limit + 1` probe
@@ -70,7 +77,7 @@ defmodule Flicker.Components.Select do
 
   use Phoenix.LiveComponent
 
-  alias Flicker.{FacetSuggest, Keyboard, Messages, Provider, Query, Result}
+  alias Flicker.{CursorContext, FacetSuggest, Keyboard, Messages, Provider, Query, Result}
 
   require Logger
 
@@ -94,6 +101,7 @@ defmodule Flicker.Components.Select do
       |> assign_new(:activate_with_keyboard, fn -> nil end)
       |> assign_new(:facets, fn -> [] end)
       |> assign_new(:facet_context, fn -> :text end)
+      |> assign_new(:cursor, fn -> nil end)
       |> assign_new(:navigate_on_select, fn -> false end)
       |> assign_new(:paginate, fn -> false end)
       |> assign_new(:max_windows, fn -> @default_max_windows end)
@@ -131,12 +139,25 @@ defmodule Flicker.Components.Select do
     {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
   end
 
-  def handle_event("query", %{"value" => text}, socket) do
-    if text == socket.assigns.query do
+  def handle_event("query", %{"value" => text} = params, socket) do
+    cursor = CursorContext.parse_selection_start(params["cursor"])
+
+    if text == socket.assigns.query and cursor == socket.assigns.cursor do
       {:noreply, socket}
     else
-      {:noreply, socket |> clear_stale_selection(text) |> apply_query(text)}
+      {:noreply, socket |> clear_stale_selection(text) |> apply_query(text, cursor)}
     end
+  end
+
+  # A cursor moving without the query text changing (a click, or a
+  # keyboard/mouse selection change with no typing) — no facets configured
+  # means there's no context to reclassify, so this is a no-op rather than
+  # redoing the same record search for nothing.
+  def handle_event("cursor", _params, %{assigns: %{facets: []}} = socket), do: {:noreply, socket}
+
+  def handle_event("cursor", %{"cursor" => cursor}, socket) do
+    socket = assign(socket, :cursor, CursorContext.parse_selection_start(cursor))
+    {:noreply, run_search(socket, String.trim(socket.assigns.query))}
   end
 
   def handle_event("select", %{"value" => raw_value}, socket) do
@@ -171,7 +192,7 @@ defmodule Flicker.Components.Select do
   def handle_event("clear", _params, %{assigns: %{multiple: true}} = socket) do
     socket =
       socket
-      |> assign(selected: [], query: "", open: false)
+      |> assign(selected: [], query: "", cursor: nil, open: false)
       |> notify_multi_selection([])
 
     {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
@@ -180,7 +201,7 @@ defmodule Flicker.Components.Select do
   def handle_event("clear", _params, socket) do
     socket =
       socket
-      |> assign(selected: nil, query: "", open: false)
+      |> assign(selected: nil, query: "", cursor: nil, open: false)
       |> notify_selection(nil)
 
     {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
@@ -196,7 +217,7 @@ defmodule Flicker.Components.Select do
         {:noreply, assign(socket, open: false)}
 
       socket.assigns.query != "" ->
-        {:noreply, socket |> assign(query: "") |> run_search("")}
+        {:noreply, socket |> assign(query: "", cursor: nil) |> run_search("")}
 
       true ->
         {:noreply, socket}
@@ -322,8 +343,14 @@ defmodule Flicker.Components.Select do
   end
 
   defp select_result(%Result{meta: %{flicker_facet: true, insert: insert}}, _raw_value, socket) do
-    new_text = FacetSuggest.replace_current_token(socket.assigns.query, insert)
+    new_text =
+      FacetSuggest.replace_current_token(socket.assigns.query, insert, socket.assigns.cursor)
 
+    # `apply_query/3`'s default `cursor: nil` is deliberate here, not an
+    # oversight: the browser resets the caret to the end of the input's
+    # value once this render programmatically sets it (standard `<input>`
+    # behaviour), so the server's notion of "where the caret is" should
+    # fall back to end-of-text too, matching what the DOM will actually do.
     {:noreply, push_event(apply_query(socket, new_text), "focusElementById", %{id: input_id(socket)})}
   end
 
@@ -387,9 +414,9 @@ defmodule Flicker.Components.Select do
 
   defp clear_stale_selection(socket, _text), do: socket
 
-  defp apply_query(socket, text) do
+  defp apply_query(socket, text, cursor \\ nil) do
     trimmed = String.trim(text)
-    socket = socket |> reset_window() |> assign(query: text, open: true)
+    socket = socket |> reset_window() |> assign(query: text, cursor: cursor, open: true)
 
     cond do
       trimmed == "" ->
@@ -413,12 +440,17 @@ defmodule Flicker.Components.Select do
   defp run_search(%{assigns: %{facets: []}} = socket, text), do: run_record_search(socket, %Query{text: text})
 
   # Classifies off `socket.assigns.query` (the raw, untyped-through text
-  # `apply_query/2` just assigned) rather than the `text` argument here —
+  # `apply_query/3` just assigned) rather than the `text` argument here —
   # the latter is trimmed for the plain-record-search path and trimming
   # would erase the trailing-space transition out of facet-value position
   # (`"status:active "` classifying as `:text`, not still `{:value, ...}`).
+  # `socket.assigns.cursor` is the real caret position the `.Nav` hook last
+  # reported (`nil` — end-of-text — before its first event, or right after
+  # this component sets the query text itself).
   defp run_search(socket, _trimmed_text) do
-    context = FacetSuggest.classify(socket.assigns.query, socket.assigns.facets)
+    context =
+      FacetSuggest.classify(socket.assigns.query, socket.assigns.facets, socket.assigns.cursor)
+
     socket = assign(socket, facet_context: context)
     run_faceted_search(socket, context)
   end
@@ -1199,6 +1231,7 @@ defmodule Flicker.Components.Select do
             const chord = this.el.dataset.activateWithKeyboard
             if (chord) this.registerChord(chord)
             this.setupSentinelObserver()
+            this.attachCursorReporting()
           },
           updated() {
             // The option set changed (the user typed, or results loaded) —
@@ -1223,15 +1256,51 @@ defmodule Flicker.Components.Select do
             }
             this.render()
             this.setupSentinelObserver()
+            this.attachCursorReporting()
           },
           destroyed() {
             this.el.removeEventListener("keydown", this.onKeydown)
             this.sentinelObserver?.disconnect()
+            this.detachCursorReporting()
             // Only the winning registration ever owns the registry entry
             // (see registerChord) — a duplicate loser has nothing to undo.
             if (this.chordSignature && window.__flickerChordRegistry.get(this.chordSignature) === this) {
               window.__flickerChordRegistry.delete(this.chordSignature)
             }
+          },
+          // Real cursor-position reporting (Spec 003's cursor-tracking
+          // follow-up, now closed): `keyup` sets a `phx-value-cursor`
+          // attribute directly on the input, synchronously, before the
+          // event bubbles to LiveView's own delegated `phx-keyup`
+          // listener — so the debounced "query" push (bound on the
+          // input's own `phx-keyup`) always carries the cursor position
+          // for the *same* keystroke it carries the value for, never a
+          // stale one from an earlier or later event. `click`/`select`
+          // don't change the typed value at all (nothing for "query" to
+          // debounce), so they push their own lightweight "cursor" event
+          // immediately. Idempotent, and safe to call again from
+          // `updated()`: the input node itself gets replaced as results
+          // re-render (see the comment on `this.onKeydown`'s attachment
+          // above), which would silently drop a listener bound directly to
+          // it — re-attaching only when the node actually changed keeps
+          // this cheap on the common case (same node).
+          attachCursorReporting() {
+            const input = this.input()
+            if (!input || input === this.cursorInput) return
+            this.detachCursorReporting()
+            this.cursorInput = input
+            this.onKeyupCursor = () => input.setAttribute("phx-value-cursor", String(input.selectionStart))
+            this.onClickOrSelectCursor = () => this.pushEventTo(this.el, "cursor", { cursor: input.selectionStart })
+            input.addEventListener("keyup", this.onKeyupCursor)
+            input.addEventListener("click", this.onClickOrSelectCursor)
+            input.addEventListener("select", this.onClickOrSelectCursor)
+          },
+          detachCursorReporting() {
+            if (!this.cursorInput) return
+            this.cursorInput.removeEventListener("keyup", this.onKeyupCursor)
+            this.cursorInput.removeEventListener("click", this.onClickOrSelectCursor)
+            this.cursorInput.removeEventListener("select", this.onClickOrSelectCursor)
+            this.cursorInput = null
           },
           registerChord(chord) {
             const signature = flickerParseChordSignature(chord)

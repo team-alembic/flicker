@@ -40,4 +40,24 @@ defmodule Flicker.Test.Helpers do
 
     session
   end
+
+  @doc """
+  Like `type_search/3`, but also reports `cursor` (a UTF-16 code-unit
+  offset, matching what a real `<input>`'s `selectionStart` would report)
+  alongside the typed `text` — simulating the colocated hook's
+  `phx-value-cursor` payload merge (Spec 003's cursor-tracking follow-up,
+  now closed) so a test can drive a mid-token cursor position through the
+  full component, not just `Flicker.CursorContext.classify/3` in
+  isolation.
+  """
+  @spec type_search_at(struct(), String.t(), String.t(), non_neg_integer()) :: struct()
+  def type_search_at(session, input_id, text, cursor) do
+    session.view
+    |> element("##{input_id}")
+    |> render_keyup(%{"value" => text, "cursor" => to_string(cursor)})
+
+    render_async(session.view, @search_timeout)
+
+    session
+  end
 end

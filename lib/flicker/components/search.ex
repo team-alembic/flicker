@@ -16,11 +16,19 @@ defmodule Flicker.Components.Search do
   sends `{on_change, query, filter}` to the host — the host owns what it
   does with the composed query (drive a Cinder table, a stream, its own
   list).
+
+  The `.FlickerSearchNav` colocated hook reports the input's real
+  `selectionStart` on every keyup/click/select (Spec 003's cursor-tracking
+  follow-up, now closed) — the `cursor` assign carries it (`nil` before
+  the hook's first event, or after this component sets the text itself,
+  falling back to end-of-text per `Flicker.FacetSuggest.classify/3`), so a
+  cursor moved back into an already-typed token classifies right there,
+  not "at the end".
   """
 
   use Phoenix.LiveComponent
 
-  alias Flicker.{FacetSuggest, Messages, Query}
+  alias Flicker.{CursorContext, FacetSuggest, Messages, Query}
 
   require Logger
 
@@ -30,6 +38,7 @@ defmodule Flicker.Components.Search do
       socket
       |> assign(assigns)
       |> assign_new(:text, fn -> "" end)
+      |> assign_new(:cursor, fn -> nil end)
       |> assign_new(:open, fn -> false end)
       |> assign_new(:suggestions_loading, fn -> false end)
       |> assign(:connected?, Phoenix.LiveView.connected?(socket))
@@ -39,22 +48,47 @@ defmodule Flicker.Components.Search do
   end
 
   @impl true
-  def handle_event("query", %{"value" => text}, socket) do
+  def handle_event("query", %{"value" => text} = params, socket) do
     socket =
       socket
-      |> assign(text: text, open: true)
+      |> assign(
+        text: text,
+        cursor: CursorContext.parse_selection_start(params["cursor"]),
+        open: true
+      )
       |> refresh_context()
       |> notify_change()
 
     {:noreply, socket}
   end
 
+  # A cursor moving without the text changing (a click, or a keyboard/mouse
+  # selection change with no typing) — no facets configured means there's
+  # no context to reclassify, so this is a no-op rather than redoing the
+  # same free-text state for nothing.
+  def handle_event("cursor", _params, %{assigns: %{facets: []}} = socket), do: {:noreply, socket}
+
+  def handle_event("cursor", %{"cursor" => cursor}, socket) do
+    socket =
+      socket
+      |> assign(cursor: CursorContext.parse_selection_start(cursor))
+      |> refresh_context()
+
+    {:noreply, socket}
+  end
+
   def handle_event("select_suggestion", %{"insert" => insert}, socket) do
-    new_text = FacetSuggest.replace_current_token(socket.assigns.text, insert)
+    new_text =
+      FacetSuggest.replace_current_token(socket.assigns.text, insert, socket.assigns.cursor)
 
     socket =
       socket
-      |> assign(text: new_text, open: true)
+      # The browser resets the caret to the end of the input's value once
+      # this render programmatically sets it (standard `<input>` behaviour
+      # on an assigned `.value`) — `cursor: nil` keeps the server's
+      # classification of "where the caret is" in sync with that, rather
+      # than reclassifying against a now-stale mid-token position.
+      |> assign(text: new_text, cursor: nil, open: true)
       |> refresh_context()
       |> notify_change()
 
@@ -68,7 +102,7 @@ defmodule Flicker.Components.Search do
   def handle_event("clear", _params, socket) do
     socket =
       socket
-      |> assign(text: "", open: false)
+      |> assign(text: "", cursor: nil, open: false)
       |> refresh_context()
       |> notify_change()
 
@@ -101,7 +135,7 @@ defmodule Flicker.Components.Search do
 
   defp refresh_context(socket) do
     facets = socket.assigns.facets
-    context = FacetSuggest.classify(socket.assigns.text, facets)
+    context = FacetSuggest.classify(socket.assigns.text, facets, socket.assigns.cursor)
 
     socket
     |> assign(:context, context)
@@ -317,13 +351,54 @@ defmodule Flicker.Components.Search do
             this.activeIndex = -1
             this.onKeydown = e => this.handleKeydown(e)
             this.el.addEventListener("keydown", this.onKeydown)
+            this.attachCursorReporting()
           },
           updated() {
             this.activeIndex = -1
             this.render()
+            this.attachCursorReporting()
           },
           destroyed() {
             this.el.removeEventListener("keydown", this.onKeydown)
+            this.detachCursorReporting()
+          },
+          // Real cursor-position reporting (Spec 003's cursor-tracking
+          // follow-up, now closed): `keyup` sets a `phx-value-cursor`
+          // attribute directly on the input, synchronously, before the
+          // event bubbles to LiveView's own delegated `phx-keyup`
+          // listener — so the debounced "query" push (bound on the
+          // input's own `phx-keyup`) always carries the cursor position
+          // for the *same* keystroke it carries the value for, never a
+          // stale one from an earlier or later event. `click`/`select`
+          // don't change the typed value at all (nothing for "query" to
+          // debounce), so they push their own lightweight "cursor" event
+          // immediately.
+          // Idempotent, and safe to call again from `updated()`: the input
+          // node itself gets replaced as suggestions/results re-render (not
+          // just patched in place), which would silently drop a listener
+          // bound directly to it — re-attaching only when the node actually
+          // changed keeps this cheap on the common case (same node) while
+          // never leaving cursor reporting dangling after a re-render.
+          attachCursorReporting() {
+            const input = this.inputEl()
+            if (!input || input === this.cursorInput) return
+            this.detachCursorReporting()
+            this.cursorInput = input
+            this.onKeyupCursor = () => input.setAttribute("phx-value-cursor", String(input.selectionStart))
+            this.onClickOrSelectCursor = () => this.pushEventTo(this.el, "cursor", { cursor: input.selectionStart })
+            input.addEventListener("keyup", this.onKeyupCursor)
+            input.addEventListener("click", this.onClickOrSelectCursor)
+            input.addEventListener("select", this.onClickOrSelectCursor)
+          },
+          detachCursorReporting() {
+            if (!this.cursorInput) return
+            this.cursorInput.removeEventListener("keyup", this.onKeyupCursor)
+            this.cursorInput.removeEventListener("click", this.onClickOrSelectCursor)
+            this.cursorInput.removeEventListener("select", this.onClickOrSelectCursor)
+            this.cursorInput = null
+          },
+          inputEl() {
+            return this.el.querySelector('input[type="text"]')
           },
           options() {
             return Array.from(this.el.querySelectorAll('[role="option"]'))

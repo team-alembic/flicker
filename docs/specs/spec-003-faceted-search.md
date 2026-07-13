@@ -132,20 +132,32 @@ cannot drift from form rendering elsewhere in the host app.
 Both deliverables ship on the shared parser/registry/cursor-context
 machinery above (`Flicker.Query`, `Flicker.Facet`,
 `Flicker.Providers.AshResource.facets/1`, `Flicker.CursorContext`,
-`Flicker.FacetSuggest`). One scope cut remains from v1; a second, initially
-made to ship without growing this spec into its own multi-phase project,
-has since been lifted:
+`Flicker.FacetSuggest`). Both v1 scope cuts below have since been lifted —
+neither scope cut remains open:
 
-- **Cursor tracking assumes the caret sits at the end of the typed text.**
-  Flicker wires plain `phx-keyup` payloads (value only, no
-  `selectionStart`) rather than a bespoke JS hook reporting real caret
-  position. `Flicker.CursorContext.classify/3` itself supports arbitrary
-  cursor positions and is exercised at every position by its own unit and
-  property tests — this is a component-wiring simplification (documented
-  on `Flicker.FacetSuggest.classify/2`), not a limitation of the state
-  machine. Mid-token editing (moving the caret back into an already-typed
-  token) types "at the end" instead of resuming in place. A follow-up: a
-  colocated hook reporting `selectionStart` on every keystroke.
+- **Resolved:** cursor tracking no longer assumes the caret sits at the
+  end of the typed text. Both components' colocated hooks
+  (`Flicker.Components.Search`'s `.FlickerSearchNav`,
+  `Flicker.Components.Select`'s `.Nav`, ADR-007) report the input's real
+  `selectionStart` on every keyup/click/select: `keyup` sets a
+  `phx-value-cursor` attribute on the input directly (synchronously,
+  before the event bubbles to LiveView's own delegated `phx-keyup`
+  listener) so the existing debounced `"query"` push carries the matching
+  cursor position for that same keystroke; `click`/`select` (no typed
+  value changing, nothing to debounce) push a lightweight `"cursor"`
+  event immediately. `Flicker.CursorContext.parse_selection_start/1`
+  parses the raw payload and `Flicker.CursorContext.from_utf16_offset/2`
+  converts the browser's UTF-16 code-unit offset to the codepoint offset
+  `classify/3` expects; `Flicker.FacetSuggest.classify/3` does both steps
+  for a caller. A cursor moved back into an already-typed token now
+  classifies right there, not "at the end" — `Flicker.FacetSuggest.replace_current_token/3`
+  completes that token in place too, preserving whatever free text or
+  other facet tokens follow it, rather than clobbering them. `cursor`
+  defaults to (and an explicit `nil` falls back to) end-of-text — the
+  dead-render / very-first-event case, before the hook has reported a
+  position yet, and the case right after either component sets the typed
+  text itself (a chosen suggestion, `clear`, `escape`), since the browser
+  resets the caret to the end of the input's value once that happens.
 - **Resolved:** `facets` on `Flicker.select/1` now ANDs the parsed facet
   filter into the provider's own record query, not just the autocomplete UX
   and the free-text portion of the search. While the cursor is in
@@ -172,6 +184,10 @@ the nested relationship-facet search is actor-scoped
 (`Flicker.SearchTest`'s "nested relationship-facet search is actor-scoped"
 describe block, against `Flicker.Test.FacetGenre`'s policy); the
 cursor-context state machine is covered at every position by
-`Flicker.CursorContextTest`/`Flicker.CursorContextPropertyTest`. The dev
-playground's `/faceted-search` page runs `Flicker.search/1` against
+`Flicker.CursorContextTest`/`Flicker.CursorContextPropertyTest`; real
+cursor-position reporting through the full component (a mid-token cursor
+producing the correct `{:value, facet, prefix}` classification and
+suggestions, and the end-of-text fallback when no position is reported)
+is covered by `Flicker.SearchCursorTest`/`Flicker.SelectCursorTest`. The
+dev playground's `/faceted-search` page runs `Flicker.search/1` against
 `Dev.Music.Artist` live.
