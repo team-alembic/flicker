@@ -1,17 +1,34 @@
 defmodule Dev.Live.CinderInterop do
   @moduledoc """
-  Playground page for [Spec 009 Level 1](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-009-cinder-interop.md)
-  — the no-code-required recipe for pairing `Flicker.search/1` with a
-  `Cinder.collection` over the same resource.
+  Playground page for [Spec 009 Level 2](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-009-cinder-interop.md)
+  — `Flicker.Integrations.Cinder`, the blessed adapter, pairing
+  `Flicker.search/1` with a `Cinder.collection` over the same resource with
+  URL state coordinated between the two libraries.
 
   `Flicker.search` never lists records itself; every keystroke it emits
   `{on_change, query, filter}` to the host (Spec 003). This page composes
-  that `filter` onto a base `Ash.Query` for `Dev.Music.Artist` with
-  `Ash.Query.filter_input/2` and hands the result to `Cinder.collection`'s
-  `query` attr — Cinder narrows its own table live, with no Cinder-specific
-  code inside Flicker. `show_filters={false}` because Flicker owns
-  filtering here (Spec 009's double-filter guidance): the two libraries
-  never fight over the same field.
+  that `filter` onto a base `Ash.Query` for `Dev.Music.Artist` via the
+  adapter's `query/2` (no hand-rolled `Ash.Query.filter_input/2` call, the
+  way [Level 1](https://github.com/team-alembic/flicker/blob/main/guides/cinder-integration.md)
+  needed one) and hands the result to `Cinder.collection`'s `query` attr.
+  `show_filters={false}` because Flicker owns filtering here (Spec 009's
+  double-filter guidance): the two libraries never fight over the same
+  field — `test/flicker/cinder_interop_test.exs` asserts
+  `Flicker.Integrations.Cinder.overlapping_fields/2` over this page's
+  `facet_keys/0` and `cinder_filter_fields/0` stays empty, so a Cinder
+  column filter and a Flicker facet can't quietly drift onto the same
+  field as either configuration changes.
+
+  The adapter's other half is URL state: every `on_change` pushes a patch
+  carrying the raw typed string under the adapter's namespaced
+  `flicker_q` param (`push_patch/4`), alongside whatever Cinder's own
+  `Cinder.UrlSync` is already tracking (page, sort) — reloading, sharing,
+  or navigating back to a URL with `?flicker_q=...&sort=...` restores
+  both libraries' state, neither clobbering the other's params.
+  `handle_params/3` is where that restore happens, via the adapter's
+  `restore/2`: it re-parses the raw string (never the parsed struct — the
+  struct is lossy, see `Flicker.Query.t()`'s `:input` field) and feeds
+  `Flicker.search/1`'s new `text` attr, adopted once on mount.
 
   An actor toggle proves the recipe is actor-scoped end to end: both the
   search's own suggestions and the query it composes run under
@@ -20,8 +37,21 @@ defmodule Dev.Live.CinderInterop do
   """
 
   use Phoenix.LiveView
+  use Cinder.UrlSync
 
   alias Dev.Music.Artist
+  alias Flicker.Integrations.Cinder, as: FlickerCinder
+
+  @path "/cinder-interop"
+  @facet_keys [:status, :tier, :monthly_listeners]
+
+  # Documents (and, via the test suite, guards) Spec 009's double-filter
+  # convention: Flicker owns filtering on this page (`show_filters={false}`,
+  # no `<:col filter>`s), so the set of Cinder-filter-managed fields is
+  # empty and `FlickerCinder.overlapping_fields/2` against `@facet_keys`
+  # returns `[]` — see `Flicker.CinderInteropTest`. Sorting doesn't count:
+  # `<:col sort>` on a faceted field is fine (ordering isn't filtering).
+  @cinder_filter_fields []
 
   @actors [
     {"Public (no label)", nil},
@@ -29,8 +59,16 @@ defmodule Dev.Live.CinderInterop do
     {"Major label", "major"}
   ]
 
+  @doc "The fields this page lets Cinder's own column filters manage — exposed for the double-filter drift test."
+  @spec cinder_filter_fields() :: [atom()]
+  def cinder_filter_fields, do: @cinder_filter_fields
+
+  @doc "The Flicker facet keys this page configures — exposed for the double-filter drift test."
+  @spec facet_keys() :: [atom()]
+  def facet_keys, do: @facet_keys
+
   @impl true
-  @doc "Seeds `Dev.Music` and builds the unfiltered base query."
+  @doc "Seeds `Dev.Music` and resolves this page's facet registry once."
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
     Dev.Music.seed!()
@@ -39,10 +77,38 @@ defmodule Dev.Live.CinderInterop do
       socket
       |> assign(:actors, @actors)
       |> assign(:actor_label, nil)
-      |> assign(:filtered_query, base_query(%{}))
+      |> assign(:facets, FlickerCinder.facets(%{resource: Artist, facets: @facet_keys}))
 
     {:ok, socket}
   end
+
+  @impl true
+  @doc """
+  Restores both libraries' URL state: Cinder's own `page`/`sort` (via
+  `Cinder.UrlSync.handle_params/3`) and Flicker's `flicker_q` (via
+  `FlickerCinder.restore/2`, which re-parses the raw string against this
+  page's own facet registry) — runs on every mount and every `push_patch`,
+  so a shared link, a refresh, or the back button all reproduce the exact
+  same narrowed table.
+  """
+  @spec handle_params(map(), String.t(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
+  def handle_params(params, uri, socket) do
+    {text, _query, filter} = FlickerCinder.restore(params, socket.assigns.facets)
+
+    socket =
+      params
+      |> Cinder.UrlSync.handle_params(uri, socket)
+      |> assign(:search_text, text)
+      |> assign(:filtered_query, FlickerCinder.query(base_query(), filter))
+
+    {:noreply, socket}
+  end
+
+  # A stable sort matters beyond aesthetics: `Dev.Music`'s ETS data layer
+  # returns rows in arbitrary order, so without one, which 25 rows land on
+  # Cinder's first page is arbitrary too.
+  defp base_query, do: Ash.Query.sort(Artist, :name)
 
   @impl true
   @doc "Switches the acting actor's `:label`, changing which artists Cinder can read."
@@ -58,21 +124,33 @@ defmodule Dev.Live.CinderInterop do
   @impl true
   @doc """
   Composes `Flicker.search/1`'s emitted filter onto the base query on
-  every keystroke — an empty/`nil` filter (the search cleared) restores
-  the unfiltered query.
+  every keystroke (via the adapter's `query/2`), then pushes a patch
+  carrying the raw typed string under the adapter's own namespaced param
+  — merged with whatever params the current URL already carries (Cinder's
+  own `page`/`sort`, preserved untouched) via `push_patch/4`.
   """
   @spec handle_info({atom(), Flicker.Query.t(), map() | nil}, Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
-  def handle_info({:artist_query_changed, _query, filter}, socket) do
-    {:noreply, assign(socket, :filtered_query, base_query(filter))}
+  def handle_info({:artist_query_changed, query, filter}, socket) do
+    socket =
+      socket
+      |> assign(:filtered_query, FlickerCinder.query(base_query(), filter))
+      |> FlickerCinder.push_patch(@path, query, current_params(socket))
+
+    {:noreply, socket}
   end
 
-  defp base_query(nil), do: base_query(%{})
-
-  defp base_query(filter) do
-    Artist
-    |> Ash.Query.filter_input(filter)
-    |> Ash.Query.sort(:name)
+  # Cinder's own `<:col sort>` clicks patch their own URL directly
+  # (`Cinder.Table.UrlManager`, upstream of this page); this page never
+  # intercepts that, so the params it reads back here are always whatever
+  # the browser's current URL — the one source of truth both libraries'
+  # `push_patch` calls share — actually carries, not a stale copy from the
+  # last `handle_params/3`.
+  defp current_params(socket) do
+    case get_in(socket.assigns, [:url_state, :uri]) do
+      nil -> %{}
+      uri -> uri |> URI.parse() |> Map.get(:query) |> Kernel.||("") |> URI.decode_query()
+    end
   end
 
   @impl true
@@ -83,12 +161,15 @@ defmodule Dev.Live.CinderInterop do
 
     ~H"""
     <div class="space-y-4">
-      <h1 class="text-2xl font-semibold">Cinder interop</h1>
+      <h1 class="text-2xl font-semibold">Cinder interop (Level 2)</h1>
       <p class="text-sm text-gray-600">
         Try <code>status:active</code>, <code>tier:legendary</code>, or free
         text — <code>Flicker.search</code> narrows the <code>Cinder.collection</code>
-        below it live via query composition, no Cinder-specific code in
-        Flicker itself. Clearing the search restores the full table.
+        below it live via <code>Flicker.Integrations.Cinder</code>. Sort a
+        column, then copy the address bar: it carries both Cinder's own
+        <code>sort</code> param and Flicker's namespaced <code>flicker_q</code>,
+        and reloading (or pasting the URL fresh) reproduces the exact same
+        narrowed, sorted table.
       </p>
 
       <fieldset class="flex flex-wrap items-center gap-2">
@@ -111,7 +192,8 @@ defmodule Dev.Live.CinderInterop do
         id="artist-search"
         resource={Artist}
         actor={@actor}
-        facets={[:status, :tier, :monthly_listeners]}
+        facets={@facets}
+        text={@search_text}
         on_change={:artist_query_changed}
       />
 
@@ -120,6 +202,7 @@ defmodule Dev.Live.CinderInterop do
         query={@filtered_query}
         actor={@actor}
         show_filters={false}
+        url_state={@url_state}
       >
         <:col :let={artist} field="name" sort>{artist.name}</:col>
         <:col :let={artist} field="status">{artist.status}</:col>

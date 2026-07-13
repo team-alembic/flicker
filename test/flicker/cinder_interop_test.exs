@@ -2,10 +2,12 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
   defmodule Flicker.CinderInteropTest do
     @moduledoc """
     Covers [Spec 009](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-009-cinder-interop.md)
-    Level 1: `Flicker.search` narrowing a `Cinder.collection` over the same
-    resource via query composition, actor-scoped end to end. Drives
-    `Dev.Live.CinderInterop` directly — the exact playground LiveView the
-    guide quotes — so the recipe can't rot.
+    Levels 1 and 2: `Flicker.search` narrowing a `Cinder.collection` over
+    the same resource via `Flicker.Integrations.Cinder`, actor-scoped end
+    to end, with URL state round-tripping through the adapter's namespaced
+    `flicker_q` param. Drives `Dev.Live.CinderInterop` directly — the
+    exact playground LiveView the guide quotes — so neither recipe can
+    rot.
 
     Seed indices used below (see `Dev.Music.seed!/0`'s deterministic
     naming/status/label derivation): "Casey Cassidy" (index 0, public,
@@ -13,6 +15,12 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
     `monthly_listeners: 160_485`) are both visible to the public actor;
     "Alex Cassidy" (index 1, `label: "indie"`) is only visible once the
     actor toggle switches to the indie label.
+
+    Typing now also patches the URL (the Level 2 adapter's `push_patch/4`),
+    and every patch re-runs `handle_params/3` → a fresh Cinder reload —
+    a second async hop after `type_search/3`'s own `render_async` await.
+    Table assertions therefore pass `timeout:` so PhoenixTest polls
+    through that hop instead of racing it.
     """
 
     use Flicker.Test.ConnCase, async: true
@@ -20,13 +28,17 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
     import Flicker.Test.Helpers
     import Phoenix.LiveViewTest, only: [render_async: 2]
 
+    alias Flicker.Integrations.Cinder, as: FlickerCinder
+
     @moduletag :ash
+
+    @await 2_000
 
     # Cinder's own table load runs in a `start_async` task on connect,
     # separate from Flicker's search task — wait for it too before the
     # first assertion against table contents.
     defp await_table(session) do
-      render_async(session.view, 2_000)
+      render_async(session.view, @await)
       session
     end
 
@@ -38,8 +50,8 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
 
       session = type_search(session, "artist-search-input", "monthly_listeners>=100000")
 
-      refute_has(session, "td", text: "Casey Cassidy")
-      assert_has(session, "td", text: "Jordan Rivers")
+      refute_has(session, "td", text: "Casey Cassidy", timeout: @await)
+      assert_has(session, "td", text: "Jordan Rivers", timeout: @await)
     end
 
     test "clearing the search restores the unfiltered collection", %{conn: conn} do
@@ -49,12 +61,12 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
         |> await_table()
         |> type_search("artist-search-input", "monthly_listeners>=100000")
 
-      refute_has(session, "td", text: "Casey Cassidy")
+      refute_has(session, "td", text: "Casey Cassidy", timeout: @await)
 
       session = type_search(session, "artist-search-input", "")
 
-      assert_has(session, "td", text: "Casey Cassidy")
-      assert_has(session, "td", text: "Jordan Rivers")
+      assert_has(session, "td", text: "Casey Cassidy", timeout: @await)
+      assert_has(session, "td", text: "Jordan Rivers", timeout: @await)
     end
 
     test "the composed query is actor-scoped end to end", %{conn: conn} do
@@ -64,12 +76,81 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
 
       session = click_button(session, "Indie label")
 
-      assert_has(session, "td", text: "Alex Cassidy")
+      assert_has(session, "td", text: "Alex Cassidy", timeout: @await)
 
       session = type_search(session, "artist-search-input", "monthly_listeners>=100000")
 
-      refute_has(session, "td", text: "Alex Cassidy")
-      assert_has(session, "td", text: "Casey Rivers")
+      refute_has(session, "td", text: "Alex Cassidy", timeout: @await)
+      assert_has(session, "td", text: "Casey Rivers", timeout: @await)
+    end
+
+    describe "URL state (the Level 2 adapter)" do
+      test "typing pushes the raw input under the namespaced flicker_q param", %{conn: conn} do
+        conn
+        |> visit("/cinder-interop")
+        |> await_table()
+        |> type_search("artist-search-input", ~s(status:active tier:"legendary"))
+        |> assert_path("/cinder-interop",
+          query_params: %{"flicker_q" => ~s(status:active tier:"legendary")},
+          timeout: @await
+        )
+      end
+
+      test "clearing the search removes the param from the URL entirely", %{conn: conn} do
+        conn
+        |> visit("/cinder-interop")
+        |> await_table()
+        |> type_search("artist-search-input", "status:active")
+        |> assert_path("/cinder-interop",
+          query_params: %{"flicker_q" => "status:active"},
+          timeout: @await
+        )
+        |> type_search("artist-search-input", "")
+        |> assert_path("/cinder-interop", query_params: %{}, timeout: @await)
+      end
+
+      test "visiting a shared URL restores the narrowed table and pre-fills the input", %{conn: conn} do
+        session =
+          conn
+          |> visit("/cinder-interop?flicker_q=" <> URI.encode_www_form("monthly_listeners>=100000"))
+          |> await_table()
+
+        assert_has(session, "input#artist-search-input[value='monthly_listeners>=100000']")
+
+        refute_has(session, "td", text: "Casey Cassidy", timeout: @await)
+        assert_has(session, "td", text: "Jordan Rivers", timeout: @await)
+      end
+
+      test "a Flicker patch preserves Cinder's own sort param alongside flicker_q", %{conn: conn} do
+        conn
+        |> visit("/cinder-interop?sort=-monthly_listeners")
+        |> await_table()
+        |> type_search("artist-search-input", "status:active")
+        |> assert_path("/cinder-interop",
+          query_params: %{"sort" => "-monthly_listeners", "flicker_q" => "status:active"},
+          timeout: @await
+        )
+      end
+
+      test "a shared URL with quoted values and unicode round-trips into the input verbatim", %{conn: conn} do
+        input = ~s(worker:"São Paulo" tier:legendary)
+
+        session =
+          conn
+          |> visit("/cinder-interop?flicker_q=" <> URI.encode_www_form(input))
+          |> await_table()
+
+        assert_has(session, ~s(input#artist-search-input[value='#{input}']))
+      end
+    end
+
+    describe "double-filter convention" do
+      test "the playground page's facets and Cinder's filter-managed fields never overlap" do
+        assert FlickerCinder.overlapping_fields(
+                 Dev.Live.CinderInterop.facet_keys(),
+                 Dev.Live.CinderInterop.cinder_filter_fields()
+               ) == []
+      end
     end
   end
 end
