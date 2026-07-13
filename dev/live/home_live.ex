@@ -23,7 +23,9 @@ defmodule Dev.Live.Home do
     {"/palette-themed", "Command palette — themed",
      "The same palette + federated provider, restyled fullscreen and on-brand via a theme override only"},
     {"/cinder-interop", "Cinder interop",
-     "Flicker.search above a Cinder collection of Dev.Music artists — the Level 1 recipe, no adapter code"}
+     "Flicker.search above a Cinder collection of Dev.Music artists — the Level 1 recipe, no adapter code"},
+    {"/windowed-search", "Windowed search",
+     "paginate infinite scroll over a 220-artist AshResource population and a 150-row slow provider"}
   ]
 
   @impl true

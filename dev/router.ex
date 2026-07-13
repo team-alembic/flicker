@@ -27,6 +27,7 @@ defmodule Dev.Router do
     live("/palette", Dev.Live.Palette)
     live("/palette-themed", Dev.Live.PaletteThemed)
     live("/cinder-interop", Dev.Live.CinderInterop)
+    live("/windowed-search", Dev.Live.WindowedSearch)
     live("/records/:type/:id", Dev.Live.RecordShow)
   end
 end
