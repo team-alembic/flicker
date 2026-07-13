@@ -71,8 +71,10 @@ if Code.ensure_loaded?(Ash) do
     `Flicker.Query.to_filter/2` against this provider's own facet registry
     so the candidates are scoped *before* the text match runs), then
     `query.text` (case-insensitive substring match over `opts[:search]`),
-    sorted by `opts[:sort]` (if any), limited to `opts[:limit]`. Always
-    actor/tenant-scoped (ADR-004).
+    sorted by `opts[:sort]` (if any), limited to `opts[:limit]` and offset
+    by `opts[:offset]` (default `0`, via `Ash.Query.offset/2` —
+    [Spec 010](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-010-windowed-search.md)).
+    Always actor/tenant-scoped (ADR-004).
     """
     @spec search(Query.t(), keyword()) :: {:ok, [Result.t()]} | {:error, term()}
     def search(%Query{text: text} = query, opts) do
@@ -81,6 +83,7 @@ if Code.ensure_loaded?(Ash) do
       actor = Keyword.get(opts, :actor)
       tenant = Keyword.get(opts, :tenant)
       limit = Keyword.get(opts, :limit, @default_limit)
+      offset = Keyword.get(opts, :offset, 0)
 
       ash_query =
         resource
@@ -93,6 +96,7 @@ if Code.ensure_loaded?(Ash) do
         |> apply_search_filter(search_fields, text)
         |> apply_sort(Keyword.get(opts, :sort))
         |> Ash.Query.limit(limit)
+        |> Ash.Query.offset(offset)
 
       with {:ok, records} <- Ash.read(ash_query, actor: actor, tenant: tenant) do
         {:ok, Enum.map(records, &to_result(&1, opts))}

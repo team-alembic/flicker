@@ -39,6 +39,26 @@ defmodule Flicker.Providers.StaticTest do
     test "no match returns an empty list" do
       assert {:ok, []} = Static.search(%Query{text: "nonexistent"}, results: @results)
     end
+
+    # Spec 010: windowed search's `:offset` opt, honoured via `Enum.slice/3`.
+    test "omitting :offset is byte-identical to pre-windowing behaviour" do
+      assert Static.search(%Query{text: ""}, results: @results, limit: 2) ==
+               Static.search(%Query{text: ""}, results: @results, limit: 2, offset: 0)
+    end
+
+    test ":offset skips the first N matches" do
+      assert {:ok, [%Result{label: "Jordan Blake"}]} =
+               Static.search(%Query{text: ""}, results: @results, offset: 2)
+    end
+
+    test ":offset composes with :limit to produce a window" do
+      assert {:ok, [%Result{label: "Alex Rivers"}]} =
+               Static.search(%Query{text: ""}, results: @results, offset: 1, limit: 1)
+    end
+
+    test "an :offset past the end of the matches returns an empty list" do
+      assert {:ok, []} = Static.search(%Query{text: ""}, results: @results, offset: 10)
+    end
   end
 
   describe "fetch/2" do

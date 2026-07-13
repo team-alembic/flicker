@@ -47,20 +47,25 @@ defmodule Flicker.Providers.Static do
   @impl true
   @doc """
   Returns results whose `:label` or `:sublabel` contains `query.text`
-  (case-insensitively), up to `opts[:limit]` results (default: no limit).
+  (case-insensitively), windowed by `opts[:offset]` (default `0`) and
+  `opts[:limit]` (default: no limit) via `Enum.slice/3`
+  ([Spec 010](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-010-windowed-search.md)).
 
   A blank `query.text` matches everything, so callers get a listing rather
-  than an empty set when the picker opens with no input yet.
+  than an empty set when the picker opens with no input yet. Omitting
+  `:offset` (the default `0`) is byte-identical to the pre-windowing
+  behaviour.
   """
   @spec search(Query.t(), keyword()) :: {:ok, [Result.t()]} | {:error, term()}
   def search(%Query{text: text}, opts) do
     results = Keyword.get(opts, :results, [])
     limit = Keyword.get(opts, :limit)
+    offset = Keyword.get(opts, :offset, 0)
 
     matched =
       results
       |> Enum.filter(&matches?(&1, text))
-      |> maybe_limit(limit)
+      |> window(offset, limit)
 
     {:ok, matched}
   end
@@ -95,6 +100,9 @@ defmodule Flicker.Providers.Static do
   defp contains?(nil, _text), do: false
   defp contains?(field, text), do: field |> String.downcase() |> String.contains?(text)
 
-  defp maybe_limit(results, nil), do: results
-  defp maybe_limit(results, limit), do: Enum.take(results, limit)
+  # `Enum.slice/3`'s third argument is an amount, not an end index — `nil`
+  # (no `:limit` configured) takes everything from `offset` onward.
+  defp window(results, 0, nil), do: results
+  defp window(results, offset, nil), do: Enum.slice(results, offset, length(results))
+  defp window(results, offset, limit), do: Enum.slice(results, offset, limit)
 end

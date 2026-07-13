@@ -54,6 +54,28 @@ if Code.ensure_loaded?(Ash) do
         assert length(results) == 3
       end
 
+      # Spec 010: windowed search's `:offset` opt, honoured via
+      # `Ash.Query.offset/2`.
+      test "omitting :offset is byte-identical to pre-windowing behaviour" do
+        assert AshResource.search(%Query{text: ""}, base_opts(limit: 5, sort: [name: :asc])) ==
+                 AshResource.search(%Query{text: ""}, base_opts(limit: 5, sort: [name: :asc], offset: 0))
+      end
+
+      test ":offset skips the first N sorted results, composing with :limit into a window" do
+        {:ok, first_window} = AshResource.search(%Query{text: ""}, base_opts(limit: 5, sort: [name: :asc]))
+
+        {:ok, second_window} =
+          AshResource.search(%Query{text: ""}, base_opts(limit: 5, offset: 5, sort: [name: :asc]))
+
+        assert MapSet.new(first_window, & &1.value) |> MapSet.disjoint?(MapSet.new(second_window, & &1.value))
+
+        {:ok, combined} =
+          AshResource.search(%Query{text: ""}, base_opts(limit: 10, sort: [name: :asc]))
+
+        assert Enum.map(first_window, & &1.value) ++ Enum.map(second_window, & &1.value) ==
+                 Enum.map(combined, & &1.value)
+      end
+
       test "respects :sort" do
         assert {:ok, results} =
                  AshResource.search(%Query{text: ""}, base_opts(limit: 5, sort: [name: :asc]))

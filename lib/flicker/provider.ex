@@ -28,11 +28,28 @@ defmodule Flicker.Provider do
     * `render_option/2` — optional. Custom option rendering, given a
       `Flicker.Result` and the component's assigns.
 
-  `opts` (a keyword list) carries `:actor`, `:tenant`, `:limit`, and any
-  provider-specific configuration. Reads are always actor/tenant-scoped
+  `opts` (a keyword list) carries `:actor`, `:tenant`, `:limit`, `:offset`,
+  and any provider-specific configuration. Reads are always actor/tenant-scoped
   (ADR-004) — providers that wrap an authorisation-aware source must honour
   `:actor`/`:tenant` themselves; `Flicker.Providers.AshResource` does this
   by passing them straight through to Ash.
+
+  ## Windowed search (`:offset`, [Spec 010](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-010-windowed-search.md))
+
+  `:offset` (a non-negative integer, default `0`) is an additive, optional
+  `search/2` opt: `Flicker.select/1`'s `paginate` attr passes an increasing
+  `:offset` (`window * limit`) to fetch the next window of results, which
+  get appended to what's already loaded rather than replacing it.
+  `Flicker.Providers.AshResource` honours it via `Ash.Query.offset/2`;
+  `Flicker.Providers.Static` honours it via `Enum.slice/3`.
+
+  A provider that doesn't implement `:offset` simply ignores the opt and
+  keeps returning its first window every time — this is safe, never an
+  error, and never causes an infinite request loop: core detects the
+  no-progress (a window's first result identical to the previous window's)
+  and marks the list complete after at most one extra probe request.
+  Omitting `:offset` entirely (the default, non-paginated path) behaves
+  exactly as it always has.
 
   ## Error philosophy
 
