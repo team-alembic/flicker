@@ -23,6 +23,7 @@ defmodule Flicker.Test.Router do
       live("/ash", Flicker.Test.AshHostLive)
       live("/facet-search", Flicker.Test.FacetSearchHostLive)
       live("/facet-select", Flicker.Test.FacetSelectHostLive)
+      live("/palette-facets", Flicker.Test.PaletteFacetsHostLive)
 
       if Code.ensure_loaded?(Cinder) do
         live("/cinder-interop", Dev.Live.CinderInterop)

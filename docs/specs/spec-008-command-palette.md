@@ -125,7 +125,17 @@ so host-side state never drifts.
   mechanism (needs client-side storage — localStorage via the hook)?
   Not implemented in this pass — the palette accepts no `:empty_state`
   slot yet, it falls back to the core's existing `:no_results` message.
-- Facet syntax (Spec 003) inside the palette from day one, or after both
-  ship? Not implemented in this pass — `Flicker.palette/1` accepts and
-  forwards `facets`, so it works today, but it hasn't been exercised
-  end-to-end in the playground.
+- **Resolved:** facet syntax (Spec 003) inside the palette shipped from
+  day one — `Flicker.palette/1` accepts and forwards `facets` straight
+  through to its nested `Flicker.Components.Select` core, no palette-only
+  branch. Now exercised end-to-end in both the playground and the test
+  suite: the dev playground's `/palette` page
+  (`Dev.Live.Palette`/`Dev.Providers.MusicSearch`) offers `status:`/
+  `type:` facets over its federated Artists/Albums/Genres search
+  (`Dev.Providers.MusicSearch.facets/0`, honoured by its own `search/2`
+  — `type:` narrows which resource groups are searched at all, `status:`
+  narrows `Dev.Music.Artist` results); `Flicker.PaletteFacetsTest` drives
+  facet-key/value suggestion and a facet-narrowed selection through
+  `Flicker.palette/1` itself against a Tier 1 (`resource:`) fixture, and
+  `Flicker.MusicSearchFacetsTest` covers the Tier 2 (`source:`) provider's
+  own facet handling directly.

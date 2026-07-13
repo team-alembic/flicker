@@ -6,6 +6,11 @@ defmodule Dev.Live.Palette do
   this page, or click the navbar-style trigger button (the `open`/
   `on_close` controlled API); selecting a result navigates to
   `/records/:type/:id` (navigate-on-select, `meta.href`).
+
+  Also exercises `facets` inside `Flicker.palette/1` end-to-end (Spec
+  008's now-closed open question) — `Dev.Providers.MusicSearch.facets/0`
+  supplies `status:`/`type:` key/value autocomplete, and its `search/2`
+  honours both (see that module's moduledoc).
   """
 
   use Phoenix.LiveView
@@ -57,7 +62,8 @@ defmodule Dev.Live.Palette do
         Federated search over Artists, Albums, and Genres — press
         <kbd class="rounded border border-gray-300 px-1.5 py-0.5 text-xs">⌘K</kbd>
         / <kbd class="rounded border border-gray-300 px-1.5 py-0.5 text-xs">Ctrl+K</kbd>,
-        or click the button below.
+        or click the button below. Try <code>status:active</code> or
+        <code>type:album</code> for faceted narrowing.
       </p>
       <button
         type="button"
