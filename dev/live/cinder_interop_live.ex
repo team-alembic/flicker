@@ -39,6 +39,8 @@ defmodule Dev.Live.CinderInterop do
   use Phoenix.LiveView
   use Cinder.UrlSync
 
+  import Dev.UI
+
   alias Dev.Music.Artist
   alias Flicker.Integrations.Cinder, as: FlickerCinder
 
@@ -160,9 +162,8 @@ defmodule Dev.Live.CinderInterop do
     assigns = assign(assigns, :actor, %{label: assigns.actor_label})
 
     ~H"""
-    <div class="space-y-4">
-      <h1 class="text-2xl font-semibold">Cinder interop (Level 2)</h1>
-      <p class="text-sm text-gray-600">
+    <.page title="Cinder interop (Level 2)" current_path="/cinder-interop" spec="docs/specs/spec-009-cinder-interop.md">
+      <:description>
         Try <code>status:active</code>, <code>tier:legendary</code>, or free
         text — <code>Flicker.search</code> narrows the <code>Cinder.collection</code>
         below it live via <code>Flicker.Integrations.Cinder</code>. Sort a
@@ -170,46 +171,36 @@ defmodule Dev.Live.CinderInterop do
         <code>sort</code> param and Flicker's namespaced <code>flicker_q</code>,
         and reloading (or pasting the URL fresh) reproduces the exact same
         narrowed, sorted table.
-      </p>
+      </:description>
 
-      <fieldset class="flex flex-wrap items-center gap-2">
-        <legend class="mb-1 text-sm font-medium">Acting as</legend>
-        <button
-          :for={{name, label} <- @actors}
-          type="button"
-          phx-click="set_actor"
-          phx-value-label={label || ""}
-          class={[
-            "rounded px-3 py-1 text-sm",
-            if(@actor_label == label, do: "bg-indigo-600 text-white", else: "bg-gray-200")
-          ]}
-        >
-          {name}
-        </button>
-      </fieldset>
+      <.actor_toggle actors={@actors} selected={@actor_label} />
 
-      <Flicker.search
-        id="artist-search"
-        resource={Artist}
-        actor={@actor}
-        facets={@facets}
-        text={@search_text}
-        on_change={:artist_query_changed}
-      />
+      <.section label="Search + Cinder table">
+        <Flicker.search
+          id="artist-search"
+          resource={Artist}
+          actor={@actor}
+          facets={@facets}
+          text={@search_text}
+          on_change={:artist_query_changed}
+        />
 
-      <Cinder.collection
-        id="artist-collection"
-        query={@filtered_query}
-        actor={@actor}
-        show_filters={false}
-        url_state={@url_state}
-      >
-        <:col :let={artist} field="name" sort>{artist.name}</:col>
-        <:col :let={artist} field="status">{artist.status}</:col>
-        <:col :let={artist} field="tier">{artist.tier}</:col>
-        <:col :let={artist} field="monthly_listeners" sort>{artist.monthly_listeners}</:col>
-      </Cinder.collection>
-    </div>
+        <div class="mt-4">
+          <Cinder.collection
+            id="artist-collection"
+            query={@filtered_query}
+            actor={@actor}
+            show_filters={false}
+            url_state={@url_state}
+          >
+            <:col :let={artist} field="name" sort>{artist.name}</:col>
+            <:col :let={artist} field="status">{artist.status}</:col>
+            <:col :let={artist} field="tier">{artist.tier}</:col>
+            <:col :let={artist} field="monthly_listeners" sort>{artist.monthly_listeners}</:col>
+          </Cinder.collection>
+        </div>
+      </.section>
+    </.page>
     """
   end
 end

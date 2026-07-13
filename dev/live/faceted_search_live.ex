@@ -18,6 +18,8 @@ defmodule Dev.Live.FacetedSearch do
 
   use Phoenix.LiveView
 
+  import Dev.UI
+
   alias Dev.Music
 
   @impl true
@@ -56,29 +58,34 @@ defmodule Dev.Live.FacetedSearch do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="space-y-4">
-      <h1 class="text-2xl font-semibold">Faceted search</h1>
-      <p class="text-sm text-gray-600">
+    <.page title="Faceted search" current_path="/faceted-search" spec="docs/specs/spec-003-faceted-search.md">
+      <:description>
         Try <code>status:active</code>, <code>tier:legendary</code>,
         <code>after:1980-01-01</code>, or free text — the list below is a
         plain <code>Ash.read!/2</code> against the emitted filter, not part
         of the component.
-      </p>
-      <Flicker.search
-        id="artist-search"
-        resource={Dev.Music.Artist}
-        actor={@actor}
-        facets={[:status, :tier, :monthly_listeners, after: [attribute: :formed_on, op: :>=]]}
-        on_change={:artist_query_changed}
-      />
-      <ul class="divide-y divide-gray-200">
-        <li :for={artist <- @artists} class="py-2">
-          <span class="font-medium">{artist.name}</span>
-          <span class="text-sm text-gray-500">— {artist.status} · {artist.tier}</span>
-        </li>
-        <li :if={@artists == []} class="py-2 text-sm text-gray-500">No artists match.</li>
-      </ul>
-    </div>
+      </:description>
+
+      <.section label="Facet search">
+        <Flicker.search
+          id="artist-search"
+          resource={Dev.Music.Artist}
+          actor={@actor}
+          facets={[:status, :tier, :monthly_listeners, after: [attribute: :formed_on, op: :>=]]}
+          on_change={:artist_query_changed}
+        />
+      </.section>
+
+      <.section label="Filtered artists">
+        <ul class="divide-y divide-gray-200">
+          <li :for={artist <- @artists} class="py-2">
+            <span class="font-medium">{artist.name}</span>
+            <span class="text-sm text-gray-500">— {artist.status} · {artist.tier}</span>
+          </li>
+          <li :if={@artists == []} class="py-2 text-sm text-gray-500">No artists match.</li>
+        </ul>
+      </.section>
+    </.page>
     """
   end
 end

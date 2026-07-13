@@ -15,6 +15,8 @@ defmodule Dev.Live.Palette do
 
   use Phoenix.LiveView
 
+  import Dev.UI
+
   alias Dev.Providers.MusicSearch
 
   # The public actor (no `:label`) — `Dev.Music.Artist`'s policy is
@@ -56,16 +58,17 @@ defmodule Dev.Live.Palette do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="space-y-4">
-      <h1 class="text-2xl font-semibold">Command palette</h1>
-      <p class="text-sm text-gray-600">
+    <.page title="Command palette" current_path="/palette" spec="docs/specs/spec-008-command-palette.md">
+      <:description>
         Federated search over Artists, Albums, and Genres — press
         <kbd class="rounded border border-gray-300 px-1.5 py-0.5 text-xs">⌘K</kbd>
         / <kbd class="rounded border border-gray-300 px-1.5 py-0.5 text-xs">Ctrl+K</kbd>,
         or click the button below. Try <code>status:active</code> or
         <code>type:album</code> for faceted narrowing.
-      </p>
+      </:description>
+
       <button
+        id="cmdk-open-trigger"
         type="button"
         phx-click="open_palette"
         class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
@@ -80,7 +83,7 @@ defmodule Dev.Live.Palette do
         on_close={:palette_closed}
         on_select={:palette_selected}
       />
-    </div>
+    </.page>
     """
   end
 end

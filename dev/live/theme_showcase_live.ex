@@ -7,6 +7,8 @@ defmodule Dev.Live.ThemeShowcase do
 
   use Phoenix.LiveView
 
+  import Dev.UI
+
   alias Flicker.Theme
 
   @results [
@@ -40,20 +42,22 @@ defmodule Dev.Live.ThemeShowcase do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="space-y-8">
-      <h1 class="text-2xl font-semibold">Theme showcase</h1>
-      <div class="grid grid-cols-1 gap-8 md:grid-cols-3">
-        <section :for={{name, theme} <- @presets}>
-          <h2 class="mb-2 font-medium capitalize">{name}</h2>
+    <.page title="Theme showcase" current_path="/themes">
+      <:description>
+        The same <code>Flicker.select/1</code> rendered in every shipped theme preset.
+      </:description>
+
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <.section :for={{name, theme} <- @presets} label={name |> to_string() |> String.replace("_", " ")}>
           <Flicker.select
             id={"theme-select-#{name}"}
             source={{Flicker.Providers.Static, results: @results}}
             theme={theme}
             on_select={:theme_selected}
           />
-        </section>
+        </.section>
       </div>
-    </div>
+    </.page>
     """
   end
 end

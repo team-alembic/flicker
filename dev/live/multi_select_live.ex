@@ -9,6 +9,8 @@ defmodule Dev.Live.MultiSelect do
 
   use Phoenix.LiveView
 
+  import Dev.UI
+
   alias Dev.Music.Artist
 
   @impl true
@@ -39,17 +41,15 @@ defmodule Dev.Live.MultiSelect do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="space-y-6">
-      <h1 class="text-2xl font-semibold">Multi-select</h1>
-      <p class="text-sm text-gray-600">
+    <.page title="Multi-select" current_path="/multi-select" spec="docs/specs/spec-002-multi-select-chips.md">
+      <:description>
         Both pickers read <code>Dev.Music.Artist</code>. The form-mode picker
         opens with three artists preselected — one <code>fetch/2</code> call
         resolves all three chips. The controlled picker caps at 4 selections.
-      </p>
+      </:description>
 
-      <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
-        <section>
-          <h2 class="mb-2 font-medium">Form mode (preselected)</h2>
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <.section label="Form mode (preselected)">
           <.form for={@form} id="artists-form">
             <Flicker.select
               id="artist-form-multiselect"
@@ -61,10 +61,9 @@ defmodule Dev.Live.MultiSelect do
               option_sublabel={fn artist -> artist.label || "public" end}
             />
           </.form>
-        </section>
+        </.section>
 
-        <section>
-          <h2 class="mb-2 font-medium">Controlled mode (max 4)</h2>
+        <.section label="Controlled mode (max 4)">
           <Flicker.select
             id="artist-controlled-multiselect"
             resource={Artist}
@@ -75,12 +74,12 @@ defmodule Dev.Live.MultiSelect do
             option_sublabel={fn artist -> artist.label || "public" end}
             on_select={:controlled_selected}
           />
-          <p class="mt-2 text-sm">
+          <p class="mt-2 text-sm text-gray-700">
             Selected: {@selected_results |> Enum.map(& &1.label) |> Enum.join(", ")}
           </p>
-        </section>
+        </.section>
       </div>
-    </div>
+    </.page>
     """
   end
 end

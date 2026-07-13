@@ -7,6 +7,8 @@ defmodule Dev.Live.EdgeStates do
 
   use Phoenix.LiveView
 
+  import Dev.UI
+
   alias Dev.Providers.{Erroring, Slow}
 
   @results [
@@ -53,36 +55,43 @@ defmodule Dev.Live.EdgeStates do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="space-y-8">
-      <h1 class="text-2xl font-semibold">Edge states</h1>
+    <.page title="Edge states" current_path="/edge-states">
+      <:description>
+        Slow, erroring, and empty-result providers, reproducible on demand.
+      </:description>
 
-      <section>
-        <h2 class="mb-2 font-medium">Slow provider (loading / debounce / stale-drop)</h2>
-        <form phx-change="set_latency" class="mb-2 flex items-center gap-2 text-sm">
+      <.section label="Slow provider (loading / debounce / stale-drop)">
+        <form phx-change="set_latency" class="mb-3 flex items-center gap-2 text-sm text-gray-700">
           <label for="latency_ms">Latency (ms)</label>
-          <input type="number" name="latency_ms" id="latency_ms" value={@latency_ms} min="0" step="100" />
+          <input
+            type="number"
+            name="latency_ms"
+            id="latency_ms"
+            value={@latency_ms}
+            min="0"
+            step="100"
+            class="w-24 rounded-md border border-gray-300 px-2 py-1"
+          />
         </form>
         <Flicker.select
           id="slow-select"
           source={{Slow, results: @results, latency_ms: @latency_ms}}
           on_select={:noop_selected}
         />
-      </section>
+      </.section>
 
-      <section>
-        <h2 class="mb-2 font-medium">Erroring provider</h2>
+      <.section label="Erroring provider">
         <Flicker.select id="erroring-select" source={Erroring} on_select={:noop_selected} />
-      </section>
+      </.section>
 
-      <section>
-        <h2 class="mb-2 font-medium">Empty results</h2>
+      <.section label="Empty results">
         <Flicker.select
           id="empty-select"
           source={{Flicker.Providers.Static, results: []}}
           on_select={:noop_selected}
         />
-      </section>
-    </div>
+      </.section>
+    </.page>
     """
   end
 end

@@ -9,6 +9,8 @@ defmodule Dev.Live.PaletteThemed do
 
   use Phoenix.LiveView
 
+  import Dev.UI
+
   alias Dev.Providers.MusicSearch
 
   @brand_theme %{
@@ -63,14 +65,14 @@ defmodule Dev.Live.PaletteThemed do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="space-y-4">
-      <h1 class="text-2xl font-semibold">Command palette — themed</h1>
-      <p class="text-sm text-gray-600">
+    <.page title="Command palette — themed" current_path="/palette-themed" spec="docs/specs/spec-008-command-palette.md">
+      <:description>
         The same <code>Flicker.palette/1</code> + federated provider as
-        <.link navigate="/palette" class="text-indigo-600 hover:underline">/palette</.link>
+        <.link navigate="/palette" class="text-indigo-600 underline">/palette</.link>
         — restyled fullscreen and on-brand with nothing but a
         <code>theme</code> override map.
-      </p>
+      </:description>
+
       <button
         type="button"
         phx-click="open_palette"
@@ -88,7 +90,7 @@ defmodule Dev.Live.PaletteThemed do
         theme={@brand_theme}
         activate_with_keyboard="mod+j"
       />
-    </div>
+    </.page>
     """
   end
 end

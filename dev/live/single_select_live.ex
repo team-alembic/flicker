@@ -8,6 +8,8 @@ defmodule Dev.Live.SingleSelect do
 
   use Phoenix.LiveView
 
+  import Dev.UI
+
   alias Dev.Music.Artist
 
   @actors [
@@ -44,11 +46,29 @@ defmodule Dev.Live.SingleSelect do
   defp normalize_label(label), do: label
 
   @impl true
-  @doc "Receives the controlled-mode picker's selection."
-  @spec handle_info({atom(), Flicker.Result.t() | nil}, Phoenix.LiveView.Socket.t()) ::
-          {:noreply, Phoenix.LiveView.Socket.t()}
+  @doc "Receives the controlled-mode picker's selection, and applies the form-mode picker's."
+  @spec handle_info(
+          {atom(), Flicker.Result.t() | nil}
+          | {module(), :selected, String.t(), String.t() | nil},
+          Phoenix.LiveView.Socket.t()
+        ) :: {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_info({:controlled_selected, result}, socket) do
     {:noreply, assign(socket, :selected_result, result)}
+  end
+
+  # Form-field mode notifies the host with the field's new value so it can
+  # merge it into its own form params (the same mechanic
+  # `Flicker.AshPhoenixForm.attach/2` ships for `AshPhoenix.Form` hosts).
+  # Without this clause every form-mode selection crashed this LiveView —
+  # caught by Spec 007's browser suite; PhoenixTest never drove this page,
+  # only the test-support hosts (which do handle it).
+  def handle_info({Flicker.Components.Select, :selected, "artist[artist_id]", value}, socket) do
+    params =
+      (socket.assigns.form.source || %{})
+      |> Map.put("artist_id", value)
+      |> Map.delete("_unused_artist_id")
+
+    {:noreply, assign(socket, :form, to_form(params, as: "artist"))}
   end
 
   @impl true
@@ -58,33 +78,17 @@ defmodule Dev.Live.SingleSelect do
     assigns = assign(assigns, :actor, %{label: assigns.actor_label})
 
     ~H"""
-    <div class="space-y-6">
-      <h1 class="text-2xl font-semibold">Single select</h1>
-      <p class="text-sm text-gray-600">
+    <.page title="Single select" current_path="/single-select" spec="docs/specs/spec-001-portable-single-select.md">
+      <:description>
         Both pickers read <code>Dev.Music.Artist</code>, the policy-bearing
         resource — switch the actor and watch labelled artists appear or
         disappear from search results.
-      </p>
+      </:description>
 
-      <fieldset class="flex flex-wrap items-center gap-2">
-        <legend class="mb-1 text-sm font-medium">Acting as</legend>
-        <button
-          :for={{name, label} <- @actors}
-          type="button"
-          phx-click="set_actor"
-          phx-value-label={label || ""}
-          class={[
-            "rounded px-3 py-1 text-sm",
-            if(@actor_label == label, do: "bg-indigo-600 text-white", else: "bg-gray-200")
-          ]}
-        >
-          {name}
-        </button>
-      </fieldset>
+      <.actor_toggle actors={@actors} selected={@actor_label} />
 
-      <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
-        <section>
-          <h2 class="mb-2 font-medium">Form mode</h2>
+      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <.section label="Form mode">
           <.form for={@form} id="artist-form">
             <Flicker.select
               id="artist-form-select"
@@ -96,10 +100,9 @@ defmodule Dev.Live.SingleSelect do
               option_sublabel={fn artist -> artist.label || "public" end}
             />
           </.form>
-        </section>
+        </.section>
 
-        <section>
-          <h2 class="mb-2 font-medium">Controlled mode</h2>
+        <.section label="Controlled mode">
           <Flicker.select
             id="artist-controlled-select"
             resource={Artist}
@@ -109,12 +112,12 @@ defmodule Dev.Live.SingleSelect do
             option_sublabel={fn artist -> artist.label || "public" end}
             on_select={:controlled_selected}
           />
-          <p :if={@selected_result != :none} class="mt-2 text-sm">
+          <p :if={@selected_result != :none} class="mt-2 text-sm text-gray-700">
             Selected: {if @selected_result, do: @selected_result.label, else: "cleared"}
           </p>
-        </section>
+        </.section>
       </div>
-    </div>
+    </.page>
     """
   end
 end

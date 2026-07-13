@@ -10,6 +10,8 @@ defmodule Dev.Live.KeyboardActivation do
 
   use Phoenix.LiveView
 
+  import Dev.UI
+
   alias Dev.Music.Artist
 
   @impl true
@@ -43,24 +45,26 @@ defmodule Dev.Live.KeyboardActivation do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="space-y-6">
-      <h1 class="text-2xl font-semibold">Keyboard activation</h1>
-      <p class="text-sm text-gray-600">
+    <.page
+      title="Keyboard activation"
+      current_path="/keyboard-activation"
+      spec="docs/specs/spec-006-keyboard-activation.md"
+    >
+      <:description>
         Press <kbd class="rounded border border-gray-300 px-1.5 py-0.5 text-xs">⌘K</kbd>
         / <kbd class="rounded border border-gray-300 px-1.5 py-0.5 text-xs">Ctrl+K</kbd>
         anywhere on this page to jump into the search below — including
         while the unrelated text field underneath has focus.
-      </p>
+      </:description>
 
       <div>
-        <label class="mb-1 block text-sm font-medium" for="unrelated-input">
+        <label class="mb-1 block text-sm font-medium text-gray-700" for="unrelated-input">
           An unrelated text input (click in here, then press the chord)
         </label>
         <input id="unrelated-input" type="text" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
       </div>
 
-      <section>
-        <h2 class="mb-2 font-medium">mod+k search</h2>
+      <.section label="mod+k search">
         <Flicker.select
           id="keyboard-select"
           resource={Artist}
@@ -69,13 +73,12 @@ defmodule Dev.Live.KeyboardActivation do
           on_select={:keyboard_selected}
           activate_with_keyboard="mod+k"
         />
-        <p :if={@selected_result != :none} class="mt-2 text-sm">
+        <p :if={@selected_result != :none} class="mt-2 text-sm text-gray-700">
           Selected: {if @selected_result, do: @selected_result.label, else: "cleared"}
         </p>
-      </section>
+      </.section>
 
-      <section>
-        <h2 class="mb-2 font-medium">A second mod+k search (duplicate chord)</h2>
+      <.section label="A second mod+k search (duplicate chord)">
         <p class="mb-2 text-sm text-gray-600">
           Claims the same chord as the one above — check the console for
           the duplicate-registration warning; the chord above keeps
@@ -89,11 +92,11 @@ defmodule Dev.Live.KeyboardActivation do
           on_select={:keyboard_duplicate_selected}
           activate_with_keyboard="mod+k"
         />
-        <p :if={@duplicate_selected_result != :none} class="mt-2 text-sm">
+        <p :if={@duplicate_selected_result != :none} class="mt-2 text-sm text-gray-700">
           Selected: {if @duplicate_selected_result, do: @duplicate_selected_result.label, else: "cleared"}
         </p>
-      </section>
-    </div>
+      </.section>
+    </.page>
     """
   end
 end

@@ -11,6 +11,8 @@ defmodule Dev.Live.WindowedSearch do
 
   use Phoenix.LiveView
 
+  import Dev.UI
+
   alias Dev.Music.Artist
   alias Dev.Providers.Slow
 
@@ -67,26 +69,25 @@ defmodule Dev.Live.WindowedSearch do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="space-y-8">
-      <h1 class="text-2xl font-semibold">Windowed search</h1>
-      <p class="text-sm text-gray-600">
+    <.page title="Windowed search" current_path="/windowed-search" spec="docs/specs/spec-010-windowed-search.md">
+      <:description>
         <code>paginate</code> replaces "keep typing to narrow" with infinite
         scroll — scroll the listbox to its tail (or press <kbd>↓</kbd> on the
-        last option) to load the next window. See
-        <a
-          class="text-indigo-600 hover:underline"
-          href="https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-010-windowed-search.md"
-        >
-          Spec 010
-        </a>.
-      </p>
+        last option) to load the next window.
+      </:description>
 
-      <section>
-        <h2 class="mb-2 font-medium">Fast — <code>Flicker.Providers.AshResource</code></h2>
-        <p class="mb-2 text-sm text-gray-600">
+      <.section label="Fast — Flicker.Providers.AshResource">
+        <p class="mb-3 text-sm text-gray-600">
           220 seeded <code>Dev.Music.Artist</code> rows, offset via
           <code>Ash.Query.offset/2</code>.
         </p>
+        <%!--
+          Both pickers on this page use the Tailwind preset: infinite
+          scroll needs a listbox that actually scrolls (`max-h-60
+          overflow-auto`), which the unstyled vanilla default can't give
+          it — an unconstrained listbox just grows, and the tail sentinel
+          never has a fold to cross.
+        --%>
         <Flicker.select
           id="artist-windowed-select"
           resource={Artist}
@@ -95,34 +96,43 @@ defmodule Dev.Live.WindowedSearch do
           option_label={:name}
           option_sublabel={fn artist -> artist.label || "public" end}
           on_select={:artist_selected}
+          theme={Flicker.Theme.tailwind()}
           paginate
         />
-        <p :if={@selected_artist != :none} class="mt-2 text-sm">
+        <p :if={@selected_artist != :none} class="mt-2 text-sm text-gray-700">
           Selected: {if @selected_artist, do: @selected_artist.label, else: "cleared"}
         </p>
-      </section>
+      </.section>
 
-      <section>
-        <h2 class="mb-2 font-medium">Slow — <code>Dev.Providers.Slow</code> wrapping <code>Static</code></h2>
-        <p class="mb-2 text-sm text-gray-600">
+      <.section label="Slow — Dev.Providers.Slow wrapping Static">
+        <p class="mb-3 text-sm text-gray-600">
           150 in-memory results, offset via <code>Enum.slice/3</code>;
           latency makes the loading-more row and <code>aria-busy</code> easy to see land.
         </p>
-        <form phx-change="set_latency" class="mb-2 flex items-center gap-2 text-sm">
+        <form phx-change="set_latency" class="mb-3 flex items-center gap-2 text-sm text-gray-700">
           <label for="windowed-latency_ms">Latency (ms)</label>
-          <input type="number" name="latency_ms" id="windowed-latency_ms" value={@latency_ms} min="0" step="100" />
+          <input
+            type="number"
+            name="latency_ms"
+            id="windowed-latency_ms"
+            value={@latency_ms}
+            min="0"
+            step="100"
+            class="w-24 rounded-md border border-gray-300 px-2 py-1"
+          />
         </form>
         <Flicker.select
           id="constellation-windowed-select"
           source={{Slow, results: @results, latency_ms: @latency_ms}}
           on_select={:constellation_selected}
+          theme={Flicker.Theme.tailwind()}
           paginate
         />
-        <p :if={@selected_constellation != :none} class="mt-2 text-sm">
+        <p :if={@selected_constellation != :none} class="mt-2 text-sm text-gray-700">
           Selected: {if @selected_constellation, do: @selected_constellation.label, else: "cleared"}
         </p>
-      </section>
-    </div>
+      </.section>
+    </.page>
     """
   end
 end

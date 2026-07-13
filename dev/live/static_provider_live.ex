@@ -7,6 +7,8 @@ defmodule Dev.Live.StaticProvider do
 
   use Phoenix.LiveView
 
+  import Dev.UI
+
   @results [
     %Flicker.Result{value: "mercury", label: "Mercury", sublabel: "1st planet"},
     %Flicker.Result{value: "venus", label: "Venus", sublabel: "2nd planet"},
@@ -43,21 +45,23 @@ defmodule Dev.Live.StaticProvider do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="space-y-4">
-      <h1 class="text-2xl font-semibold">Pure-Elixir provider</h1>
-      <p class="text-sm text-gray-600">
+    <.page title="Pure-Elixir provider" current_path="/static-provider" spec="docs/specs/spec-004-provider-contract.md">
+      <:description>
         No Ash resource here — <code>Flicker.Providers.Static</code>
         over a fixed in-memory list.
-      </p>
-      <Flicker.select
-        id="planet-select"
-        source={{Flicker.Providers.Static, results: @results}}
-        on_select={:planet_selected}
-      />
-      <p :if={@selected_result != :none} class="text-sm">
-        Selected: {if @selected_result, do: @selected_result.label, else: "cleared"}
-      </p>
-    </div>
+      </:description>
+
+      <.section label="Static provider">
+        <Flicker.select
+          id="planet-select"
+          source={{Flicker.Providers.Static, results: @results}}
+          on_select={:planet_selected}
+        />
+        <p :if={@selected_result != :none} class="mt-2 text-sm text-gray-700">
+          Selected: {if @selected_result, do: @selected_result.label, else: "cleared"}
+        </p>
+      </.section>
+    </.page>
     """
   end
 end

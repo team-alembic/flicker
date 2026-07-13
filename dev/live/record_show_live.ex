@@ -8,6 +8,8 @@ defmodule Dev.Live.RecordShow do
 
   use Phoenix.LiveView
 
+  import Dev.UI
+
   @impl true
   @doc "Assigns the `:type`/`:id` path params straight through — nothing to load, this page only proves navigation happened."
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
@@ -20,18 +22,22 @@ defmodule Dev.Live.RecordShow do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     ~H"""
-    <div class="space-y-4">
-      <h1 class="text-2xl font-semibold">Navigated via the palette</h1>
-      <p class="text-sm text-gray-600">
+    <.page title="Navigated via the palette" current_path="/palette" spec="docs/specs/spec-008-command-palette.md">
+      <:description>
         Selecting a result with <code>meta.href</code> set issued a
         <code>push_navigate/2</code> straight here — no <code>on_select</code>
         handling required on the host's part.
-      </p>
-      <p id="record-summary" class="rounded-md border border-gray-200 px-3 py-2 text-sm">
-        Type: <strong>{@type}</strong> · Id: <code>{@id}</code>
-      </p>
-      <.link navigate="/palette" class="text-indigo-600 hover:underline">Back to the palette demo</.link>
-    </div>
+      </:description>
+
+      <.section label="Destination">
+        <p id="record-summary" class="text-sm text-gray-700">
+          Type: <strong>{@type}</strong> · Id: <code>{@id}</code>
+        </p>
+        <.link navigate="/palette" class="mt-3 inline-block text-sm text-indigo-600 underline">
+          Back to the palette demo
+        </.link>
+      </.section>
+    </.page>
     """
   end
 end
