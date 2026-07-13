@@ -133,6 +133,43 @@ end
 Requires `phoenix_test` in your own `:test` deps (most PhoenixTest users
 already have it).
 
+## Windowed search (infinite scroll)
+
+The shipped default — "keep typing to narrow" — treats narrowing as the
+interaction: type more, see less, until you're at the record you want.
+That's the right model for most typeahead pickers. For a browsing-shaped
+population (a few hundred mostly-unfamiliar options the user wants to
+*scan*, not narrow), pass `paginate`:
+
+```heex
+<Flicker.select
+  id="artist-select"
+  field={@form[:artist_id]}
+  resource={MyApp.Artist}
+  actor={@current_user}
+  search={[:name]}
+  option_label={:name}
+  paginate
+/>
+```
+
+Scrolling to the tail of the listbox (or pressing `ArrowDown` on the last
+option) loads the next `limit`-sized window and appends it — no page
+numbers, no "next" button, just more results. `max_windows` (default 10)
+caps how many windows load before the tail falls back to the same "keep
+typing" hint the non-`paginate`d default shows; a new query always resets
+back to the first window. `paginate` is `false` by default on both
+`Flicker.select/1` and `Flicker.palette/1` — turning it on is a per-picker
+UX decision, not a new global default (see
+[Spec 010](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-010-windowed-search.md)
+for the full design).
+
+Writing your own `Flicker.Provider`? `search/2`'s `opts` gains an
+additive, optional `:offset` (default `0`) — implement it and windowing
+works; ignore it and your provider keeps working exactly as it does today
+(core detects a provider that ignores `:offset` and stops asking after one
+extra probe, never looping forever).
+
 ## Theming
 
 Every visually distinct part of the rendered markup — the wrapper, the

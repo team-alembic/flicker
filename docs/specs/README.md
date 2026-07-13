@@ -16,7 +16,7 @@ Update the status here **and** in the spec's frontmatter when it changes.
 | [007](./spec-007-screen-reader-support.md) | First-class screen-reader support: announcements, AT test matrix, a11y statement | in-progress |
 | [008](./spec-008-command-palette.md) | `Flicker.palette`: ⌘K fullscreen site-search overlay, grouped results, navigate-on-select | shipped |
 | [009](./spec-009-cinder-interop.md) | Cinder interop: `Flicker.search` drives a Cinder collection (recipe → adapter → upstream) | in-progress |
-| [010](./spec-010-windowed-search.md) | Windowed search: opt-in infinite scroll in the listbox, `:offset` provider opt, capped windows | draft |
+| [010](./spec-010-windowed-search.md) | Windowed search: opt-in infinite scroll in the listbox, `:offset` provider opt, capped windows | shipped |
 
 Build order is 004 → 001 (005 starts alongside) → 002 → 003; the playground
 gains a page as each spec ships (see [DESIGN.md](../DESIGN.md#sequencing)).

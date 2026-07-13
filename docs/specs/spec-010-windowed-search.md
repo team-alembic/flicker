@@ -1,5 +1,5 @@
 ---
-status: draft
+status: shipped
 date: 2026-07-11
 depends_on: [spec-001, spec-004, adr-003, adr-007]
 ---
@@ -87,7 +87,7 @@ a window's first result against the previous window's — an identical
 window means the provider ignored `:offset`, so core marks the list
 complete and renders the narrow hint. Documented on the behaviour.
 
-## Acceptance criteria (draft)
+## Acceptance criteria
 
 - `paginate={false}` (default) renders byte-identical markup and issues
   identical provider calls to today — covered by a regression test.
@@ -105,13 +105,18 @@ complete and renders the narrow hint. Documented on the behaviour.
   `Ash.Query.offset/2`), each covered by tests; the playground page
   demonstrates both fast and slow providers.
 
-## Open questions
+## Open questions — resolved
 
-- Default `max_windows` (lean: 10 windows ≈ 200 results at the default
-  limit — beyond that, narrowing beats scrolling for any human).
-- Should the palette default `paginate` on? Command palettes are
-  browse-shaped more often than form pickers (lean: no for v1 —
-  consistency beats cleverness until a consumer asks).
-- Does `load-more`-on-ArrowDown need debouncing to stop a held key
-  machine-gunning windows? (Probably yes — one in-flight window at a
-  time, queued keypresses collapse.)
+- Default `max_windows`: **10** (≈200 results at the default `limit` of
+  25) — beyond that, narrowing beats scrolling for any human.
+- Should the palette default `paginate` on? **No.** `Flicker.palette/1`
+  gains the same `paginate`/`max_windows` attrs (passed straight through
+  to the nested `Flicker.Components.Select`) but defaults `paginate` to
+  `false`, same as `Flicker.select/1` — consistency beats cleverness
+  until a consumer asks.
+- Does `load-more`-on-`ArrowDown` need debouncing? **Yes, one in-flight
+  window at a time.** The server ignores a `load-more` event while a
+  window is already loading or the list is complete; a held `ArrowDown`
+  key-repeats the event, but only the first one past each completed
+  fetch does anything — queued keypresses collapse rather than queuing a
+  request each.

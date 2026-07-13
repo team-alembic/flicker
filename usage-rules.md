@@ -62,6 +62,13 @@ implementation details.
   `Flicker.Providers.Static` does). `Flicker.search/1` emits
   `{on_change, %Flicker.Query{}, filter}` — no selection semantics, you
   feed `filter` to your own table/stream/list.
+- **`paginate`** (on `Flicker.select/1` and `Flicker.palette/1`, default
+  `false`) — windowed infinite scroll instead of "keep typing to narrow":
+  reaching the tail of the listbox loads and appends the next window.
+  `max_windows` (default 10) caps how many windows load. Writing a custom
+  provider? `search/2`'s `opts` gains an additive, optional `:offset`
+  (default `0`) — implement it to support windowing, or ignore it safely
+  (core detects the no-progress and stops asking after one extra probe).
 
 ## Basic usage
 
@@ -205,6 +212,25 @@ navbar button trigger it. A provider whose `Flicker.Result`s carry
 `:group` gets contiguous group headers for free; a result whose
 `meta.href` is set additionally navigates (`push_navigate/2`) on
 selection — the raw `on_select` message still fires either way.
+
+### Windowed search (infinite scroll)
+
+```heex
+<Flicker.select
+  id="artist-select"
+  field={@form[:artist_id]}
+  resource={MyApp.Artist}
+  actor={@current_user}
+  search={[:name]}
+  option_label={:name}
+  paginate
+  max_windows={20}
+/>
+```
+
+For browsing-shaped populations, not typeahead-shaped ones — `paginate`
+stays `false` by default because narrowing is the right default
+interaction for most pickers.
 
 ### Testing a select
 
