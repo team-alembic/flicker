@@ -374,6 +374,19 @@ defmodule Flicker do
     doc: "The host receives `{on_change, %Flicker.Query{}, filter}` on every keystroke."
   )
 
+  attr(:text, :string,
+    default: nil,
+    doc: """
+    Initial search text — e.g. restored from a URL param
+    ([Spec 009](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-009-cinder-interop.md)
+    Level 2's `Flicker.Integrations.Cinder`). Adopted once, on this
+    component instance's first mount only; the component owns all
+    updates to it afterward (typing, clearing), so changing this attr on
+    a later render of an already-mounted instance has no effect — it is
+    not a controlled value.
+    """
+  )
+
   attr(:limit, :integer, default: nil, doc: "Max nested relationship-facet search results shown.")
 
   attr(:debounce, :integer,
@@ -411,6 +424,7 @@ defmodule Flicker do
       actor={@actor}
       tenant={@tenant}
       on_change={@on_change}
+      text={@text}
       limit={@limit}
       debounce={@debounce}
       theme={@theme}

@@ -33,11 +33,21 @@ defmodule Flicker.Components.Search do
   require Logger
 
   @impl true
+  # `:text` is popped out of `assigns` before the blanket `assign/2` below so
+  # it's adopted only via `assign_new/3` (Spec 009 Level 2's `text` attr on
+  # `Flicker.search/1`, for restoring a URL-serialised search on mount) —
+  # once this component's own socket has a `:text` assign (from its own
+  # `mount/1`-less first `update/2`, or any later `handle_event` typing),
+  # `assign_new/3` is a no-op regardless of what the host keeps passing in,
+  # so a host that doesn't clear its `text:` attr after mount can't clobber
+  # what the user types next.
   def update(assigns, socket) do
+    {initial_text, assigns} = Map.pop(assigns, :text)
+
     socket =
       socket
       |> assign(assigns)
-      |> assign_new(:text, fn -> "" end)
+      |> assign_new(:text, fn -> initial_text || "" end)
       |> assign_new(:cursor, fn -> nil end)
       |> assign_new(:open, fn -> false end)
       |> assign_new(:suggestions_loading, fn -> false end)

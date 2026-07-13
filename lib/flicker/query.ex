@@ -17,6 +17,16 @@ defmodule Flicker.Query do
       appear more than once (`parse/2` doesn't deduplicate) — repeated
       instances of the same facet are meant to OR together (see
       `to_filter/1`).
+    * `:input` — the verbatim string `parse/2` was called with, untouched
+      (facet tokens still in place, quoting/casing/whitespace exactly as
+      typed). `:text` and `:facets` are *derived* from it and lossy in
+      both directions (facet tokens are stripped from `:text`;
+      `:facets`' cast values can't reproduce the original literal, e.g.
+      `true`/`TRUE`, `7d` vs. its resolved date); `:input` is the one
+      field a round-trip (e.g. [Spec 009](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-009-cinder-interop.md)
+      Level 2's URL-state serialisation) can re-`parse/2` and get back the
+      exact same query — the source of truth to persist, never `:text`
+      or a reconstruction of `:facets`.
   """
 
   alias Flicker.Facet
@@ -27,11 +37,12 @@ defmodule Flicker.Query do
   @typedoc "A search request / parsed query."
   @type t :: %__MODULE__{
           text: String.t(),
-          facets: [facet_match()]
+          facets: [facet_match()],
+          input: String.t()
         }
 
   @enforce_keys [:text]
-  defstruct text: nil, facets: []
+  defstruct text: nil, facets: [], input: ""
 
   @operator_symbols [{">=", :gte}, {"<=", :lte}, {"!=", :neq}, {">", :gt}, {"<", :lt}]
 
@@ -85,11 +96,12 @@ defmodule Flicker.Query do
       ...> Flicker.Query.parse(~s(status:active worker:"Casey Nguyen" visit notes), facets)
       %Flicker.Query{
         text: "visit notes",
-        facets: [{:status, :eq, :active}, {:worker, :eq, "Casey Nguyen"}]
+        facets: [{:status, :eq, :active}, {:worker, :eq, "Casey Nguyen"}],
+        input: ~s(status:active worker:"Casey Nguyen" visit notes)
       }
 
       iex> Flicker.Query.parse("unknown:value free text", [])
-      %Flicker.Query{text: "unknown:value free text", facets: []}
+      %Flicker.Query{text: "unknown:value free text", facets: [], input: "unknown:value free text"}
   """
   @spec parse(String.t(), [Facet.t()]) :: t()
   def parse(input, facets \\ []) when is_binary(input) and is_list(facets) do
@@ -107,7 +119,8 @@ defmodule Flicker.Query do
 
     %__MODULE__{
       text: reversed_text |> Enum.reverse() |> Enum.join(" "),
-      facets: Enum.reverse(reversed_facets)
+      facets: Enum.reverse(reversed_facets),
+      input: input
     }
   end
 
