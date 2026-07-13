@@ -69,6 +69,12 @@ defmodule Flicker.Messages.English do
       (next to the ↵ key).
     * `:footer_close_hint` — the palette footer's "close" kbd hint label
       (next to the esc key).
+    * `:loading_more` — `paginate`-d select only (Spec 010): shown in the
+      themed tail row while the next window loads.
+    * `:more_results_appended` — %{count: n, total: total} — `paginate`-d
+      select only: the live-region announcement after a window appends
+      (Spec 010), naming how many were just added and the new running
+      total.
   """
   @spec message(atom(), map()) :: String.t()
   def message(:search_placeholder, _bindings), do: "Search..."
@@ -108,4 +114,9 @@ defmodule Flicker.Messages.English do
   def message(:footer_navigate_hint, _bindings), do: "navigate"
   def message(:footer_select_hint, _bindings), do: "select"
   def message(:footer_close_hint, _bindings), do: "close"
+  def message(:loading_more, _bindings), do: "Loading more..."
+
+  def message(:more_results_appended, %{count: 1, total: total}), do: "1 more result, #{total} total"
+
+  def message(:more_results_appended, %{count: count, total: total}), do: "#{count} more results, #{total} total"
 end

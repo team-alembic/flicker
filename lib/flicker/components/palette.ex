@@ -115,6 +115,8 @@ defmodule Flicker.Components.Palette do
           theme={@select_theme}
           messages={@messages}
           facets={@facets}
+          paginate={@paginate}
+          max_windows={@max_windows}
           option={@option}
         />
         <div class={@theme.footer}>

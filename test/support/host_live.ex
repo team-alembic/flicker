@@ -18,7 +18,10 @@ defmodule Flicker.Test.HostLive do
   `Flicker.select/1`, for exercising Spec 006's server-side validation and
   rendering. The `"facets"` session key (controlled mode only) passes a
   hand-built `Flicker.Facet` list straight through, for exercising Spec
-  003's faceted-search behaviour with no Ash resource involved.
+  003's faceted-search behaviour with no Ash resource involved. The
+  `"paginate"`, `"max_windows"`, and `"limit"` session keys (controlled
+  mode only) pass straight through to `Flicker.select/1`, for exercising
+  Spec 010's windowed search.
   """
 
   use Phoenix.LiveView
@@ -41,6 +44,9 @@ defmodule Flicker.Test.HostLive do
     min_chars = Map.get(session, "min_chars", 0)
     activate_with_keyboard = Map.get(session, "activate_with_keyboard")
     facets = Map.get(session, "facets", [])
+    paginate = Map.get(session, "paginate", false)
+    max_windows = Map.get(session, "max_windows")
+    limit = Map.get(session, "limit")
 
     # A fresh (non-submitted) form has no `client_id` key in its params at
     # all — only seed one when the test is simulating an edit form with an
@@ -55,6 +61,9 @@ defmodule Flicker.Test.HostLive do
       |> assign(:min_chars, min_chars)
       |> assign(:activate_with_keyboard, activate_with_keyboard)
       |> assign(:facets, facets)
+      |> assign(:paginate, paginate)
+      |> assign(:max_windows, max_windows)
+      |> assign(:limit, limit)
       |> assign(:selected_result, :none)
       |> assign(:submitted_params, nil)
       |> assign(:form, to_form(initial_params, as: "form"))
@@ -127,9 +136,12 @@ defmodule Flicker.Test.HostLive do
       id="picker"
       source={@provider}
       min_chars={@min_chars}
+      limit={@limit}
       on_select={:client_selected}
       activate_with_keyboard={@activate_with_keyboard}
       facets={@facets}
+      paginate={@paginate}
+      max_windows={@max_windows}
     />
     <p :if={@selected_result != :none} id="selection">
       {if @selected_result, do: @selected_result.label, else: "cleared"}

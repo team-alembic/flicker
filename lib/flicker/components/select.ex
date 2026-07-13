@@ -50,6 +50,22 @@ defmodule Flicker.Components.Select do
   note: the parsed facet filter narrows the *autocomplete UX* only — it is
   not yet AND-ed into the provider's own record query (recorded as a
   follow-up in Spec 003's open questions).
+
+  `paginate` ([Spec 010](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-010-windowed-search.md),
+  default `false`) switches the "keep typing to narrow" `limit + 1` probe
+  into windowed infinite scroll: reaching the tail of the listbox (via the
+  `.Nav` hook's `IntersectionObserver` sentinel, or `ArrowDown` on the last
+  option) fetches the next `limit`-sized window (`offset: window * limit`)
+  and appends it to `results` instead of replacing them. A new query, or a
+  facet-context change, resets `window` to `0`, discards any in-flight
+  window fetch, and scrolls the listbox back to the top — windowing only
+  ever accumulates for the *current* query. Capped by `max_windows`
+  (default 10): past the cap — or as soon as core detects a provider
+  ignoring `:offset` (a window identical to the one before it) — the list
+  is marked complete and the tail renders the same "keep typing to narrow"
+  hint windowing otherwise replaces, rather than a bespoke dead-end state.
+  `paginate: false` (the default) is byte-identical to pre-Spec-010
+  behaviour — none of this machinery engages.
   """
 
   use Phoenix.LiveComponent
@@ -60,6 +76,7 @@ defmodule Flicker.Components.Select do
 
   @default_limit 25
   @default_min_chars 0
+  @default_max_windows 10
 
   @impl true
   def update(assigns, socket) do
@@ -78,6 +95,14 @@ defmodule Flicker.Components.Select do
       |> assign_new(:facets, fn -> [] end)
       |> assign_new(:facet_context, fn -> :text end)
       |> assign_new(:navigate_on_select, fn -> false end)
+      |> assign_new(:paginate, fn -> false end)
+      |> assign_new(:max_windows, fn -> @default_max_windows end)
+      |> assign_new(:windows_loaded, fn -> 0 end)
+      |> assign_new(:loading_more, fn -> false end)
+      |> assign_new(:window_complete, fn -> false end)
+      |> assign_new(:window_head, fn -> nil end)
+      |> assign_new(:last_appended_count, fn -> nil end)
+      |> assign_new(:current_query, fn -> nil end)
 
     socket =
       socket
@@ -178,8 +203,61 @@ defmodule Flicker.Components.Select do
     end
   end
 
+  # A `load-more` window (Spec 010) — the `.Nav` hook's `IntersectionObserver`
+  # sentinel, or `ArrowDown` on the last option, pushes this. Debounced to
+  # one in-flight window at a time: ignored while a window is already
+  # loading, the list is already complete, or no initial window has loaded
+  # yet (`windows_loaded == 0` — e.g. still below `min_chars`, or a facet
+  # suggestion, not a record search, is currently driving the listbox).
   @impl true
-  def handle_async(:search, {:ok, {:ok, results}}, socket) do
+  def handle_event(
+        "load-more",
+        _params,
+        %{assigns: %{paginate: true, loading_more: false, window_complete: false, windows_loaded: loaded}} = socket
+      )
+      when loaded > 0 do
+    {:noreply, run_next_window(socket)}
+  end
+
+  def handle_event("load-more", _params, socket), do: {:noreply, socket}
+
+  @impl true
+  def handle_async(:search, {:ok, {:record, {:ok, results}}}, socket) do
+    limit = socket.assigns.limit
+    available = filter_available(results, socket)
+    window_results = Enum.take(available, limit)
+    has_more = length(available) > limit
+
+    {:noreply,
+     assign(socket,
+       results: window_results,
+       has_more: has_more,
+       loading: false,
+       error: false,
+       windows_loaded: 1,
+       loading_more: false,
+       window_head: window_head(window_results),
+       window_complete: window_complete?(has_more, 1, socket.assigns.max_windows),
+       last_appended_count: nil
+     )}
+  end
+
+  def handle_async(:search, {:ok, {:record, {:error, reason}}}, socket) do
+    Logger.warning("Flicker search failed: #{inspect(reason)}")
+
+    {:noreply,
+     assign(socket,
+       results: [],
+       has_more: false,
+       loading: false,
+       error: true,
+       loading_more: false,
+       window_complete: true,
+       last_appended_count: nil
+     )}
+  end
+
+  def handle_async(:search, {:ok, {:facet, {:ok, results}}}, socket) do
     limit = socket.assigns.limit
     available = filter_available(results, socket)
 
@@ -192,7 +270,7 @@ defmodule Flicker.Components.Select do
      )}
   end
 
-  def handle_async(:search, {:ok, {:error, reason}}, socket) do
+  def handle_async(:search, {:ok, {:facet, {:error, reason}}}, socket) do
     Logger.warning("Flicker search failed: #{inspect(reason)}")
     {:noreply, assign(socket, results: [], has_more: false, loading: false, error: true)}
   end
@@ -208,7 +286,39 @@ defmodule Flicker.Components.Select do
 
   def handle_async(:search, {:exit, reason}, socket) do
     Logger.warning("Flicker search task exited: #{inspect(reason)}")
-    {:noreply, assign(socket, results: [], has_more: false, loading: false, error: true)}
+
+    {:noreply,
+     assign(socket,
+       results: [],
+       has_more: false,
+       loading: false,
+       error: true,
+       loading_more: false
+     )}
+  end
+
+  # Window N+1 landing (Spec 010) — appended, never replacing, `results`.
+  # `target` is the window index this response fills; it's only ever
+  # `socket.assigns.windows_loaded + 1` (the debounce guard on `load-more`
+  # never lets a second window request start while one is in flight), so
+  # there is no separate staleness check to make here beyond the
+  # `start_async/3` same-name cancellation `reset_window/1` already invokes
+  # on a fresh query.
+  @impl true
+  def handle_async(:load_more, {:ok, {target, {:ok, results}}}, socket) do
+    {:noreply, append_window(socket, target, results)}
+  end
+
+  def handle_async(:load_more, {:ok, {_target, {:error, reason}}}, socket) do
+    Logger.warning("Flicker load-more failed: #{inspect(reason)}")
+    {:noreply, assign(socket, loading_more: false, window_complete: true)}
+  end
+
+  def handle_async(:load_more, {:exit, {:shutdown, :cancel}}, socket), do: {:noreply, socket}
+
+  def handle_async(:load_more, {:exit, reason}, socket) do
+    Logger.warning("Flicker load-more task exited: #{inspect(reason)}")
+    {:noreply, assign(socket, loading_more: false, window_complete: true)}
   end
 
   defp select_result(%Result{meta: %{flicker_facet: true, insert: insert}}, _raw_value, socket) do
@@ -279,7 +389,7 @@ defmodule Flicker.Components.Select do
 
   defp apply_query(socket, text) do
     trimmed = String.trim(text)
-    socket = assign(socket, query: text, open: true)
+    socket = socket |> reset_window() |> assign(query: text, open: true)
 
     cond do
       trimmed == "" ->
@@ -357,11 +467,12 @@ defmodule Flicker.Components.Select do
       socket
       |> assign(loading: true, error: false)
       |> start_async(:search, fn ->
-        FacetSuggest.related_search(facet, prefix,
-          actor: actor,
-          tenant: tenant,
-          limit: fetch_limit
-        )
+        {:facet,
+         FacetSuggest.related_search(facet, prefix,
+           actor: actor,
+           tenant: tenant,
+           limit: fetch_limit
+         )}
       end)
     end
   end
@@ -395,19 +506,112 @@ defmodule Flicker.Components.Select do
     actor = socket.assigns[:actor]
     tenant = socket.assigns[:tenant]
     # Fetch one more than we display: `has_more` without a count query
-    # (extraction notes #3) — "keep typing to narrow" instead of paginating.
+    # (extraction notes #3) — "keep typing to narrow" instead of paginating,
+    # unless `paginate` (Spec 010) turns the probe into window 0 of many.
     fetch_limit = socket.assigns.limit + 1
+    opts = search_opts(socket, actor, tenant, fetch_limit, 0)
 
     socket
-    |> assign(loading: true, error: false)
-    |> start_async(:search, fn ->
-      Provider.run_search(provider, query,
-        actor: actor,
-        tenant: tenant,
-        limit: fetch_limit
-      )
-    end)
+    |> assign(loading: true, error: false, current_query: query)
+    |> start_async(:search, fn -> {:record, Provider.run_search(provider, query, opts)} end)
   end
+
+  # `:offset` is only ever sent when `paginate` is on — omitting the key
+  # entirely (rather than sending `offset: 0`) is what keeps `paginate:
+  # false`'s provider calls byte-identical to pre-Spec-010 behaviour (the
+  # regression the acceptance criteria call for).
+  defp search_opts(%{assigns: %{paginate: true}}, actor, tenant, limit, offset),
+    do: [actor: actor, tenant: tenant, limit: limit, offset: offset]
+
+  defp search_opts(_socket, actor, tenant, limit, _offset), do: [actor: actor, tenant: tenant, limit: limit]
+
+  # Requests the next window (Spec 010) — `handle_event("load-more", ...)`'s
+  # debounce guard already ensures at most one of these runs at a time, and
+  # that `current_query`/`windows_loaded` reflect the query currently on
+  # screen (a fresh query resets both via `reset_window/1`).
+  defp run_next_window(socket) do
+    provider = socket.assigns.provider
+    actor = socket.assigns[:actor]
+    tenant = socket.assigns[:tenant]
+    limit = socket.assigns.limit
+    target = socket.assigns.windows_loaded + 1
+    offset = socket.assigns.windows_loaded * limit
+    query = socket.assigns.current_query
+    opts = search_opts(socket, actor, tenant, limit + 1, offset)
+
+    socket
+    |> assign(loading_more: true, error: false)
+    |> start_async(:load_more, fn -> {target, Provider.run_search(provider, query, opts)} end)
+  end
+
+  # Appends window `target`'s results, unless core detects the provider
+  # ignored `:offset` (this window's first result identical to the
+  # previous window's) — the no-progress behavioural probe (Spec 010): a
+  # provider that always returns the same first window gets exactly this
+  # one extra request, then the list is marked complete instead of
+  # requesting forever.
+  defp append_window(socket, target, results) do
+    limit = socket.assigns.limit
+    available = filter_available(results, socket)
+    window_results = Enum.take(available, limit)
+    has_more = length(available) > limit
+
+    if stalled?(socket, window_results) do
+      assign(socket, loading_more: false, window_complete: true, last_appended_count: nil)
+    else
+      assign(socket,
+        results: socket.assigns.results ++ window_results,
+        has_more: has_more,
+        loading_more: false,
+        windows_loaded: target,
+        window_head: window_head(window_results),
+        window_complete: window_complete?(has_more, target, socket.assigns.max_windows),
+        last_appended_count: length(window_results)
+      )
+    end
+  end
+
+  defp stalled?(_socket, []), do: false
+  defp stalled?(%{assigns: %{window_head: nil}}, _window_results), do: false
+
+  defp stalled?(%{assigns: %{window_head: head}}, window_results), do: window_head(window_results) == head
+
+  defp window_head([]), do: nil
+  defp window_head([%Result{value: value} | _]), do: to_string(value)
+
+  defp window_complete?(has_more, windows_loaded, max_windows), do: !has_more || windows_loaded >= max_windows
+
+  # Windowing (Spec 010) is only ever active for an ordinary free-text
+  # record search — facet-key/value suggestions (Spec 003) are never
+  # paginated, so `paginate: true` configured alongside `facets` still
+  # renders exactly the facet-suggestion UI while the cursor is in facet
+  # position.
+  defp paginating?(%{paginate: true, facet_context: :text}), do: true
+  defp paginating?(_assigns), do: false
+
+  # A new query (or facet-context change) always restarts windowing at 0
+  # (Spec 010) — any in-flight `load-more` window belongs to the query
+  # being replaced, so it's cancelled here rather than left to land and
+  # append onto results it no longer matches. `cancel_async/2` is a no-op
+  # when no `:load_more` task is running (nothing to cancel most of the
+  # time).
+  defp reset_window(socket) do
+    socket
+    |> cancel_async(:load_more)
+    |> assign(
+      windows_loaded: 0,
+      loading_more: false,
+      window_complete: false,
+      window_head: nil,
+      last_appended_count: nil
+    )
+    |> maybe_scroll_listbox_top()
+  end
+
+  defp maybe_scroll_listbox_top(%{assigns: %{paginate: true}} = socket),
+    do: push_event(socket, "scrollListboxToTop", %{id: listbox_id_for(socket.assigns.id)})
+
+  defp maybe_scroll_listbox_top(socket), do: socket
 
   defp resolve_selected(%{assigns: %{field: nil}} = socket), do: socket
 
@@ -587,10 +791,19 @@ defmodule Flicker.Components.Select do
   defp state_announcement(%{open: true, facets: [_ | _], facet_context: context} = assigns),
     do: facet_state_announcement(assigns, context)
 
-  defp state_announcement(%{open: true} = assigns),
-    do: message(assigns, :results_count, %{count: length(assigns.results)})
+  defp state_announcement(%{open: true} = assigns), do: text_state_announcement(assigns)
 
   defp state_announcement(_assigns), do: ""
+
+  # A `paginate`-d window that just appended (Spec 010) gets its own
+  # message-keyed announcement ("N more results, M total") instead of the
+  # plain results count — `last_appended_count` is `reset_window/1`'s
+  # own reset field, so it's only ever non-nil right after a successful
+  # append of the *current* query's results, never a stale prior query's.
+  defp text_state_announcement(%{paginate: true, last_appended_count: count} = assigns) when is_integer(count),
+    do: message(assigns, :more_results_appended, %{count: count, total: length(assigns.results)})
+
+  defp text_state_announcement(assigns), do: message(assigns, :results_count, %{count: length(assigns.results)})
 
   defp facet_state_announcement(assigns, {:key, _prefix}) do
     [
@@ -608,7 +821,7 @@ defmodule Flicker.Components.Select do
     |> Enum.join(" ")
   end
 
-  defp facet_state_announcement(assigns, :text), do: message(assigns, :results_count, %{count: length(assigns.results)})
+  defp facet_state_announcement(assigns, :text), do: text_state_announcement(assigns)
 
   defp facet_label(%{label: nil, key: key}), do: to_string(key)
   defp facet_label(%{label: label}), do: label
@@ -698,6 +911,19 @@ defmodule Flicker.Components.Select do
         assigns.activate_with_keyboard && chord_display(assigns.activate_with_keyboard)
       )
 
+    paginating = paginating?(assigns)
+
+    assigns =
+      assigns
+      |> assign(:paginating, paginating)
+      |> assign(:show_loading_more, paginating && assigns.loading_more)
+      |> assign(
+        :show_sentinel,
+        paginating && assigns.has_more && !assigns.window_complete && !assigns.loading_more
+      )
+      |> assign(:show_narrow_hint, assigns.has_more && (!paginating || assigns.window_complete))
+      |> assign(:aria_busy, if(assigns.paginate, do: to_string(assigns.loading_more)))
+
     assigns = assign(assigns, :announcement, announcement(assigns))
 
     ~H"""
@@ -710,6 +936,7 @@ defmodule Flicker.Components.Select do
       data-active-class={@theme.option_active}
       data-multiple={to_string(@multiple)}
       data-activate-with-keyboard={@activate_with_keyboard}
+      data-paginate={if @paginate, do: "true"}
     >
       <div :if={@multiple} class={@theme.chip_list} role="list" aria-label={message(assigns, :selected_items)}>
         <span :for={result <- @selected} class={@theme.chip} role="listitem">
@@ -784,7 +1011,14 @@ defmodule Flicker.Components.Select do
       <div id={"#{@id}-announcer"} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
         {@announcement}
       </div>
-      <ul :if={@open} id={@listbox_id} role="listbox" aria-labelledby={"#{@input_id}-label"} class={@theme.listbox}>
+      <ul
+        :if={@open}
+        id={@listbox_id}
+        role="listbox"
+        aria-labelledby={"#{@input_id}-label"}
+        aria-busy={@aria_busy}
+        class={@theme.listbox}
+      >
         <li :if={@loading} class={@theme.loading_state}>{message(assigns, :loading)}</li>
         <li :if={@error} class={@theme.error_state}>{message(assigns, :error)}</li>
         <li :if={!@loading && !@error && @at_max} class={@theme.hint}>
@@ -820,7 +1054,11 @@ defmodule Flicker.Components.Select do
                 </li>
             <% end %>
           <% end %>
-          <li :if={@has_more} class={@theme.hint}>{message(assigns, :keep_typing)}</li>
+          <li :if={@show_loading_more} class={@theme.loading_more} aria-hidden="true">
+            {message(assigns, :loading_more)}
+          </li>
+          <li :if={@show_sentinel} data-flicker-sentinel aria-hidden="true" style={@sr_only_style}></li>
+          <li :if={@show_narrow_hint} class={@theme.hint}>{message(assigns, :keep_typing)}</li>
         <% end %>
       </ul>
       <%= if @field && @multiple do %>
@@ -856,6 +1094,18 @@ defmodule Flicker.Components.Select do
           window.__flickerFocusListenerAttached = true
           window.addEventListener("phx:focusElementById", e => {
             document.getElementById(e.detail.id)?.focus()
+          })
+        }
+
+        // Windowed search (Spec 010): a fresh query resets `window` to 0
+        // server-side and pushes this event so the listbox scrolls back to
+        // the top — otherwise the user would be left scrolled deep into
+        // results that just got replaced out from under them.
+        if (!window.__flickerScrollTopListenerAttached) {
+          window.__flickerScrollTopListenerAttached = true
+          window.addEventListener("phx:scrollListboxToTop", e => {
+            const listbox = document.getElementById(e.detail.id)
+            if (listbox) listbox.scrollTop = 0
           })
         }
 
@@ -925,6 +1175,13 @@ defmodule Flicker.Components.Select do
             // actually exist, since the "focus" round-trip re-renders the
             // loading state (no options yet) before the results land.
             this.pendingActivateFirst = false
+            // Set when a `load-more` window was requested (Spec 010) —
+            // unlike an ordinary results update, the highlight must
+            // *continue* into the newly-appended window rather than
+            // resetting, so the keyboard user who pressed ArrowDown at the
+            // end sees it keep moving once the window lands.
+            this.pendingLoadMore = false
+            this.sentinelObserver = null
             // Listen on the wrapper, not the input: the input node
             // re-renders as results change, which would strip a listener
             // bound to it directly, and keydown bubbles up from the
@@ -941,27 +1198,35 @@ defmodule Flicker.Components.Select do
             this.chordSignature = null
             const chord = this.el.dataset.activateWithKeyboard
             if (chord) this.registerChord(chord)
+            this.setupSentinelObserver()
           },
           updated() {
             // The option set changed (the user typed, or results loaded) —
             // start fresh with no highlight (spec: active option resets to
             // none after results update), unless an ArrowDown-open is still
-            // waiting for the first batch of options to activate.
+            // waiting for the first batch of options to activate, or a
+            // `load-more` window is landing (Spec 010, see `pendingLoadMore`
+            // above).
+            const options = this.options()
             if (this.pendingActivateFirst) {
-              const options = this.options()
               if (options.length > 0) {
                 this.activeIndex = 0
                 this.pendingActivateFirst = false
               } else {
                 this.activeIndex = -1
               }
+            } else if (this.pendingLoadMore) {
+              this.pendingLoadMore = false
+              this.activeIndex = Math.min(this.activeIndex, options.length - 1)
             } else {
               this.activeIndex = -1
             }
             this.render()
+            this.setupSentinelObserver()
           },
           destroyed() {
             this.el.removeEventListener("keydown", this.onKeydown)
+            this.sentinelObserver?.disconnect()
             // Only the winning registration ever owns the registry entry
             // (see registerChord) — a duplicate loser has nothing to undo.
             if (this.chordSignature && window.__flickerChordRegistry.get(this.chordSignature) === this) {
@@ -1019,8 +1284,38 @@ defmodule Flicker.Components.Select do
             // No wrap — stops at the last/first option (spec 001 deltas
             // from the origin, which wrapped via modulo).
             const next = this.activeIndex + delta
+            // ArrowDown already sitting on the last option, in a `paginate`
+            // listbox — Spec 010: keyboard users get the same "reaching the
+            // tail loads the next window" behaviour scrolling gets, via the
+            // same debounced `load-more` event the sentinel observer uses.
+            const atEnd = delta > 0 && this.activeIndex >= options.length - 1
             this.activeIndex = Math.max(0, Math.min(options.length - 1, next))
             this.render()
+            if (atEnd && this.el.dataset.paginate === "true") this.requestLoadMore()
+          },
+          // Debounced server-side (the `load-more` handler ignores a
+          // request while a window is already loading or the list is
+          // complete) — a held ArrowDown key-repeats this, and the
+          // IntersectionObserver can re-fire while the sentinel stays
+          // visible, but only the first request past each completed fetch
+          // does anything (Spec 010's resolved "queued keypresses collapse"
+          // open question).
+          requestLoadMore() {
+            this.pendingLoadMore = true
+            this.pushEventTo(this.el, "load-more", {})
+          },
+          setupSentinelObserver() {
+            this.sentinelObserver?.disconnect()
+            const sentinel = this.el.querySelector("[data-flicker-sentinel]")
+            if (!sentinel) return
+            const listbox = sentinel.closest('[role="listbox"]')
+            this.sentinelObserver = new IntersectionObserver(
+              entries => {
+                if (entries.some(entry => entry.isIntersecting)) this.requestLoadMore()
+              },
+              { root: listbox }
+            )
+            this.sentinelObserver.observe(sentinel)
           },
           handleKeydown(e) {
             const options = this.options()

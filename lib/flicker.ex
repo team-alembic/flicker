@@ -45,6 +45,7 @@ defmodule Flicker do
 
   @default_limit 25
   @default_debounce 150
+  @default_max_windows 10
 
   @doc """
   Renders a type-to-search, pick-one combobox.
@@ -116,6 +117,28 @@ defmodule Flicker do
   `activate_with_keyboard="mod+k"` focuses and opens this search from
   anywhere on the page — a global Cmd/Ctrl+K supersearch shortcut. See
   Spec 006 for the chord syntax and behaviour.
+
+  ## Windowed search (infinite scroll)
+
+  `paginate` ([Spec 010](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-010-windowed-search.md),
+  default `false`) turns "keep typing to narrow" into windowed infinite
+  scroll — scrolling to (or pressing `ArrowDown` at) the last option loads
+  the next `limit`-sized window and appends it, up to `max_windows`:
+
+      <Flicker.select
+        id="artist-select"
+        field={f[:artist_id]}
+        resource={MyApp.Artist}
+        actor={\@current_user}
+        search={[:name]}
+        option_label={:name}
+        paginate
+        max_windows={20}
+      />
+
+  This is deliberately opt-in — the default stays "narrowing is the
+  interaction" for a typeahead; see the spec for when browsing beats
+  narrowing.
   """
   attr(:id, :string,
     required: true,
@@ -229,6 +252,16 @@ defmodule Flicker do
         "provider; see the moduledoc for what's in and out of scope for facets-in-select in v1."
   )
 
+  attr(:paginate, :boolean,
+    default: false,
+    doc: "Windowed infinite scroll instead of \"keep typing to narrow\" (Spec 010). See moduledoc."
+  )
+
+  attr(:max_windows, :integer,
+    default: nil,
+    doc: "`paginate` only: caps how many windows load before the narrow hint takes over. Defaults to 10."
+  )
+
   slot(:option, doc: "Custom option rendering, given the `Flicker.Result` as the slot argument.")
 
   @spec select(map()) :: Phoenix.LiveView.Rendered.t()
@@ -250,6 +283,7 @@ defmodule Flicker do
         assigns[:debounce] || Application.get_env(:flicker, :default_debounce, @default_debounce)
       )
       |> assign(:theme, Theme.resolve(assigns[:theme]))
+      |> assign(:max_windows, assigns[:max_windows] || @default_max_windows)
 
     ~H"""
     <.live_component
@@ -270,6 +304,8 @@ defmodule Flicker do
       messages={@messages}
       activate_with_keyboard={@activate_with_keyboard}
       facets={@resolved_facets}
+      paginate={@paginate}
+      max_windows={@max_windows}
       option={@option}
     />
     """
@@ -537,6 +573,18 @@ defmodule Flicker do
     doc: "Faceted key/value autocomplete over the search input (Spec 003) — see `Flicker.select/1`."
   )
 
+  attr(:paginate, :boolean,
+    default: false,
+    doc:
+      "Windowed infinite scroll instead of \"keep typing to narrow\" (Spec 010) — see `Flicker.select/1`. " <>
+        "Defaults to `false` here too: a command palette isn't assumed to be browse-shaped just because it's a palette."
+  )
+
+  attr(:max_windows, :integer,
+    default: nil,
+    doc: "`paginate` only: caps how many windows load before the narrow hint takes over. Defaults to 10."
+  )
+
   slot(:option, doc: "Custom option rendering, given the `Flicker.Result` as the slot argument.")
 
   @spec palette(map()) :: Phoenix.LiveView.Rendered.t()
@@ -557,6 +605,7 @@ defmodule Flicker do
         assigns[:debounce] || Application.get_env(:flicker, :default_debounce, @default_debounce)
       )
       |> assign(:theme, Theme.resolve(assigns[:theme]))
+      |> assign(:max_windows, assigns[:max_windows] || @default_max_windows)
 
     ~H"""
     <.live_component
@@ -575,6 +624,8 @@ defmodule Flicker do
       messages={@messages}
       activate_with_keyboard={@activate_with_keyboard}
       facets={@resolved_facets}
+      paginate={@paginate}
+      max_windows={@max_windows}
       option={@option}
     />
     """
