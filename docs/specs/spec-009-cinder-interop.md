@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: shipped
 date: 2026-07-10
 depends_on: [spec-003, adr-006]
 ---
@@ -57,7 +57,7 @@ and a hexdocs guide, tested, so the recipe can't rot.
 > `Dev.Music`'s) can't see into — worked around with
 > `config :ash, disable_async?: true` in `:dev`/`:test` (Cinder-only,
 > nothing under `lib/` checks that key); a Postgres-backed or
-> non-private-ETS host never hits it. Levels 2 and 3 are unbuilt.
+> non-private-ETS host never hits it.
 
 **Level 2 — blessed adapter (`Flicker.Integrations.Cinder`).** Removes the
 boilerplate and resolves the two real conflicts:
@@ -74,11 +74,53 @@ boilerplate and resolves the two real conflicts:
 `ash`: `Code.ensure_loaded?` guard, no-cinder CI unaffected, adapter
 compiles only when Cinder is present.
 
+> **Shipped.** `Flicker.Integrations.Cinder` (guarded by
+> `Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder)` — `cinder`
+> was already an optional dep from Level 1, so no `mix.exs` change was
+> needed) ships `query/2` (Level 1's `base_query/1` recipe as one call),
+> `restore/2`/`push_patch/4`/`encode_params/1`/`put_params/2`/
+> `decode_input/1` (URL state), `facets/1` (the same registry resolution
+> `Flicker.search/1` uses internally, so restore parses against
+> identical facets), and `overlapping_fields/2` (the double-filter
+> convention's drift guard). URL serialisation round-trips
+> `Flicker.Query`'s new `:input` field — the verbatim typed string,
+> re-`parse/2`d on restore — never `:text` or a reconstruction of
+> `:facets`, both of which are lossy (`active?:TRUE` → `true`,
+> `after:7d` → a resolved date, quoting gone). `Flicker.search/1` gained
+> an optional `text` attr (adopted once, on the component's first mount
+> — not a controlled value) so a restored URL pre-fills the input.
+> The playground `/cinder-interop` page now runs on the adapter with
+> `use Cinder.UrlSync` + `url_state` active alongside it;
+> `test/flicker/cinder_interop_test.exs` drives the URL flow end to end
+> (typing patches `flicker_q`, clearing removes it, a shared URL
+> restores the narrowed table and pre-fills the input, a Flicker patch
+> preserves Cinder's `sort` param, quoted/unicode inputs round-trip) and
+> `test/flicker/integrations/cinder_test.exs` covers the adapter's own
+> contract, including a trip wire asserting `flicker_q` stays disjoint
+> from `Cinder.UrlSync.build_url/3`'s reserved keys and that Cinder's
+> own URL rewrites preserve `flicker_q` as a custom param. One test-side
+> lesson worth keeping: the base query the host composes must carry an
+> explicit sort — with `Dev.Music`'s ETS data layer returning rows in
+> arbitrary order, which 25 rows land on Cinder's first page is
+> otherwise arbitrary too, which surfaced as a maddeningly intermittent
+> "row missing from page 1" flake, not an error.
+
 **Level 3 — upstream integration.** Cinder's `search` attr suggests a slot
 where Flicker could *be* Cinder's search control, configured rather than
 composed. Requires Cinder-side changes — a conversation with the Cinder
 maintainers once Levels 1–2 prove the demand and the seam. Out of Flicker's
 unilateral control; tracked here, not promised.
+
+> **Not built — and deliberately not holding this spec open.** With
+> Levels 1–2 shipped, everything within Flicker's unilateral control is
+> done: the spec's own framing makes Level 3 an upstream conversation
+> ("tracked, not promised"), gated on Cinder maintainers, with no
+> Flicker-side work specified or specifiable until that conversation
+> shapes the seam. Keeping a spec `in-progress` indefinitely for work
+> this repo can't schedule would make the status meaningless — so the
+> spec ships, and if the upstream conversation ever lands a concrete
+> Cinder-side API, that becomes a new spec (likely mostly in Cinder's
+> repo, per the open question below) rather than a reopened this one.
 
 ## Non-goals
 
@@ -86,7 +128,7 @@ unilateral control; tracked here, not promised.
 - Replacing Cinder's column filters — coexistence, not conquest.
 - Any Cinder version below the `query`-attr API.
 
-## Acceptance criteria (draft)
+## Acceptance criteria
 
 - Level 1: typing `status:active worker:"Casey"` above a Cinder collection
   narrows it live; clearing the search restores the unfiltered collection;
@@ -94,8 +136,26 @@ unilateral control; tracked here, not promised.
   **Shipped** — see the note above.
 - Level 2: with the adapter, a shared URL reproduces both the Flicker query
   and Cinder's own state (page, sort); neither library clobbers the other's
-  params; core suite still passes without `cinder` installed. **Not
-  built.**
+  params; core suite still passes without `cinder` installed.
+
+  **Shipped, with notes.** A shared `?flicker_q=...&sort=...` URL
+  reproduces the narrowed table *and* Cinder's sort, verified end to end
+  in `test/flicker/cinder_interop_test.exs`; param coexistence is
+  guaranteed in both directions (the adapter's `put_params/2` only ever
+  touches `flicker_q`; Cinder's `build_url/3` preserves `flicker_q` as a
+  custom param — both covered in `test/flicker/integrations/cinder_test.exs`,
+  including a trip wire against Cinder's reserved key list). The no-cinder
+  story needed no work beyond the `Code.ensure_loaded?` guard: `cinder`
+  already lived in `ash_deps/0` (dev/test-only, absent with
+  `FLICKER_NO_ASH`), so the adapter, the upgraded playground page, and
+  both test files are all inert on the no-ash CI leg. Notes: the restored
+  `text` is adopted by `Flicker.search/1` once, on first mount only — a
+  URL restored *after* mount (back/forward within a live session)
+  re-filters the table but doesn't overwrite what's in the input, a
+  deliberate trade against fighting the user's in-flight typing; and
+  Cinder's `page` param coexists untested end to end (the seeded
+  playground table fits interactions on one page) — its mechanism is
+  identical to `sort`'s, which is tested.
 - The `on_change` payload designed in Spec 003 is sufficient for the
   adapter without Cinder-specific leakage into `Flicker.Query`.
 
@@ -117,12 +177,36 @@ unilateral control; tracked here, not promised.
   that's Cinder's state, not Flicker's, and Level 2's job is coordinating
   the two in the URL, not merging them into one payload.
 
+  **Level 2 postscript:** the verdict held, with one amendment the
+  "no new field" prediction didn't foresee: URL serialisation needs the
+  *verbatim typed string* (`:text` + `:facets` are lossy in both
+  directions — facet tokens are stripped from `:text`, and cast facet
+  values can't reproduce the original literal), so `Flicker.Query`
+  gained an `:input` field carrying exactly what `parse/2` was given.
+  Still zero Cinder leakage: `:input` is a property of parsing itself
+  (any consumer that persists/restores a query wants it), not a
+  Cinder-shaped wrapper.
+
 ## Open questions
 
 - Should the emitted value be `%Flicker.Query{}` (adapter converts) or a
   ready `Ash.Query`/filter (host converts less, couples more)? Leaning:
   emit both — the struct plus a `to_filter/1` — decided in Spec 003.
 - Param namespacing convention for Level 2 (`?q=` vs `?flicker[q]=`).
+
+  **Resolved: a flat, prefixed `?flicker_q=`.** Reading `cinder`'s
+  actual `Cinder.UrlSync.build_url/3` (`~> 0.15`): Cinder claims the
+  flat keys `page`, `sort`, `page_size`, `search`, `after`, `before`,
+  plus one flat param *per filterable column field name* — so any bare
+  key a column might be named (`q` included) is potentially Cinder's,
+  and `?q=` can collide. A nested `?flicker[q]=` can't collide either,
+  but Phoenix's bracket params decode to a nested map, which
+  `build_url/3`'s flat merge (`URI.decode_query` → `Map.merge` →
+  `URI.encode_query`) doesn't round-trip cleanly. `flicker_q` is flat
+  (survives Cinder's rewrite as an ordinary custom param, verified by
+  test), collision-proof in practice (no real column is named
+  `flicker_q`), and self-describing in a shared URL.
+  `Flicker.Integrations.Cinder.url_param/0` exposes it.
 - Does Level 3 belong in Cinder's repo as "bring your own search
   component" rather than anything Flicker-specific? (Probably yes — the
   most ecosystem-healthy shape.)

@@ -232,6 +232,57 @@ For browsing-shaped populations, not typeahead-shaped ones — `paginate`
 stays `false` by default because narrowing is the right default
 interaction for most pickers.
 
+### Driving a Cinder table (with shareable URLs)
+
+```heex
+<Flicker.search
+  id="artist-search"
+  resource={MyApp.Artist}
+  actor={@current_user}
+  facets={[:status, :genre]}
+  text={@search_text}
+  on_change={:artist_query_changed}
+/>
+
+<Cinder.collection query={@filtered_query} actor={@current_user} show_filters={false} url_state={@url_state}>
+  ...
+</Cinder.collection>
+```
+
+```elixir
+alias Flicker.Integrations.Cinder, as: FlickerCinder
+
+def handle_params(params, uri, socket) do
+  facets = FlickerCinder.facets(%{resource: MyApp.Artist, facets: [:status, :genre]})
+  {text, _query, filter} = FlickerCinder.restore(params, facets)
+
+  socket =
+    params
+    |> Cinder.UrlSync.handle_params(uri, socket)
+    |> assign(:search_text, text)
+    |> assign(:filtered_query, FlickerCinder.query(MyApp.Artist, filter))
+
+  {:noreply, socket}
+end
+
+def handle_info({:artist_query_changed, query, filter}, socket) do
+  socket =
+    socket
+    |> assign(:filtered_query, FlickerCinder.query(MyApp.Artist, filter))
+    |> FlickerCinder.push_patch(~p"/artists", query)
+
+  {:noreply, socket}
+end
+```
+
+`Flicker.Integrations.Cinder` compiles only when `cinder` is in your own
+deps. It serialises the raw typed string under a namespaced `flicker_q`
+param, coexisting with Cinder's own `UrlSync` params (`page`, `sort`,
+...) — a shared URL restores both. One rule: a field is filtered by a
+Flicker facet *or* a Cinder column filter, never both
+(`show_filters={false}` when Flicker owns filtering;
+`FlickerCinder.overlapping_fields/2` guards the convention in a test).
+
 ### Testing a select
 
 ```elixir
