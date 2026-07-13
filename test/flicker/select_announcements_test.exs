@@ -36,7 +36,7 @@ defmodule Flicker.SelectAnnouncementsTest do
       |> LiveViewTest.element("#picker")
       |> LiveViewTest.render_hook("focus", %{})
 
-      html = LiveViewTest.render_async(session.view)
+      html = LiveViewTest.render_async(session.view, 2_000)
 
       assert html =~ ~s(id="picker-announcer")
       assert html =~ "3 results available"
@@ -239,7 +239,7 @@ defmodule Flicker.SelectAnnouncementsTest do
       LiveViewTest.render_keyup(element, %{"value" => "slow"})
       LiveViewTest.render_keyup(element, %{"value" => "fast"})
 
-      html = LiveViewTest.render_async(session.view)
+      html = LiveViewTest.render_async(session.view, 2_000)
 
       assert html =~ "1 result available"
       refute html =~ "2 results available"

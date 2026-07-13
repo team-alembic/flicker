@@ -40,7 +40,7 @@ defmodule Flicker.SelectStaleResultsTest do
     LiveViewTest.render_keyup(element, %{"value" => "slow"})
     LiveViewTest.render_keyup(element, %{"value" => "fast"})
 
-    html = LiveViewTest.render_async(session.view)
+    html = LiveViewTest.render_async(session.view, 2_000)
 
     assert html =~ "Fresh result for fast"
     refute html =~ "Stale result for slow"
@@ -68,7 +68,7 @@ defmodule Flicker.SelectStaleResultsTest do
 
     assert LiveViewTest.render(session.view) =~ "status:"
 
-    html = LiveViewTest.render_async(session.view)
+    html = LiveViewTest.render_async(session.view, 2_000)
 
     assert html =~ "status:"
     refute html =~ "Stale result for slow"

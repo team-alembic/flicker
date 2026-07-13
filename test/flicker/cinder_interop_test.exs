@@ -18,7 +18,7 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
     use Flicker.Test.ConnCase, async: true
 
     import Flicker.Test.Helpers
-    import Phoenix.LiveViewTest, only: [render_async: 1]
+    import Phoenix.LiveViewTest, only: [render_async: 2]
 
     @moduletag :ash
 
@@ -26,7 +26,7 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
     # separate from Flicker's search task — wait for it too before the
     # first assertion against table contents.
     defp await_table(session) do
-      render_async(session.view)
+      render_async(session.view, 2_000)
       session
     end
 

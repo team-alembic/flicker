@@ -115,7 +115,7 @@ defmodule Flicker.SelectTest do
         |> Phoenix.LiveViewTest.element("#picker-input")
         |> Phoenix.LiveViewTest.render_focus()
 
-      Phoenix.LiveViewTest.render_async(session.view)
+      Phoenix.LiveViewTest.render_async(session.view, 2_000)
 
       assert html =~ ~s(value="cas")
       assert_has(session, "[role='option']", text: "Casey Cassidy")

@@ -39,7 +39,7 @@ defmodule Flicker.SelectConfigDefaultsTest do
     # Opening the picker (rather than typing) runs the blank-query search —
     # `type_search("")` would be a no-op since the query is already "".
     session.view |> Phoenix.LiveViewTest.element("#picker-input") |> Phoenix.LiveViewTest.render_focus()
-    Phoenix.LiveViewTest.render_async(session.view)
+    Phoenix.LiveViewTest.render_async(session.view, 2_000)
 
     assert_has(session, "li", text: "Keep typing to narrow results")
   end

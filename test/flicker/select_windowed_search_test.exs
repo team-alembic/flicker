@@ -94,7 +94,7 @@ defmodule Flicker.SelectWindowedSearchTest do
     |> LiveViewTest.element("#picker-input")
     |> LiveViewTest.render_focus()
 
-    LiveViewTest.render_async(session.view)
+    LiveViewTest.render_async(session.view, 2_000)
 
     session
   end
@@ -140,7 +140,7 @@ defmodule Flicker.SelectWindowedSearchTest do
       assert_has(session, "[role='option']", count: 3)
 
       html = load_more(session)
-      LiveViewTest.render_async(session.view)
+      LiveViewTest.render_async(session.view, 2_000)
 
       assert_has(session, "[role='option']", count: 6)
       assert html =~ ~s(data-paginate="true")
@@ -154,7 +154,7 @@ defmodule Flicker.SelectWindowedSearchTest do
 
       load_more(session)
       load_more(session)
-      LiveViewTest.render_async(session.view)
+      LiveViewTest.render_async(session.view, 2_000)
 
       assert_received {:search_opts, _second_call}
       refute_received {:search_opts, _third_call}
@@ -169,7 +169,7 @@ defmodule Flicker.SelectWindowedSearchTest do
       |> LiveViewTest.element("#picker-input")
       |> LiveViewTest.render_keyup(%{"value" => "item"})
 
-      html = LiveViewTest.render_async(session.view)
+      html = LiveViewTest.render_async(session.view, 2_000)
 
       assert_has(session, "[role='option']", count: 3)
       assert LiveViewTest.render(session.view) == html
@@ -180,7 +180,7 @@ defmodule Flicker.SelectWindowedSearchTest do
         open(conn, %{"provider" => {Flicker.Providers.Static, results: results(6)}, "limit" => 3, "paginate" => true})
 
       load_more(session)
-      LiveViewTest.render_async(session.view)
+      LiveViewTest.render_async(session.view, 2_000)
 
       session.view
       |> LiveViewTest.element("#picker-input")
@@ -200,11 +200,11 @@ defmodule Flicker.SelectWindowedSearchTest do
       assert_received {:search_opts, _first}
 
       load_more(session)
-      LiveViewTest.render_async(session.view)
+      LiveViewTest.render_async(session.view, 2_000)
       assert_received {:search_opts, _second}
 
       load_more(session)
-      LiveViewTest.render_async(session.view)
+      LiveViewTest.render_async(session.view, 2_000)
       refute_received {:search_opts, _third}
 
       # Still exactly window 0's results — the identical duplicate window
@@ -240,7 +240,7 @@ defmodule Flicker.SelectWindowedSearchTest do
       assert html =~ ~s(aria-busy="true")
       assert html =~ "Loading more..."
 
-      html = LiveViewTest.render_async(session.view)
+      html = LiveViewTest.render_async(session.view, 2_000)
 
       assert html =~ ~s(aria-busy="false")
       refute html =~ "Loading more..."
@@ -253,7 +253,7 @@ defmodule Flicker.SelectWindowedSearchTest do
         open(conn, %{"provider" => {Flicker.Providers.Static, results: results(6)}, "limit" => 3, "paginate" => true})
 
       html = load_more(session)
-      html = html <> LiveViewTest.render_async(session.view)
+      html = html <> LiveViewTest.render_async(session.view, 2_000)
 
       assert html =~ "3 more results, 6 total"
     end

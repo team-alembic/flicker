@@ -49,7 +49,7 @@ if Code.ensure_loaded?(Ash) do
       element = LiveViewTest.element(session.view, "#artist-search-input")
       LiveViewTest.render_keyup(element, %{"value" => "genre:M"})
 
-      html = LiveViewTest.render_async(session.view)
+      html = LiveViewTest.render_async(session.view, 2_000)
 
       assert html =~ ~s(id="artist-search-announcer")
       assert html =~ "Typing a value for genre"

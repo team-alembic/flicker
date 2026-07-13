@@ -56,7 +56,7 @@ defmodule Flicker.SelectFacetsBoundaryTest do
 
     element = LiveViewTest.element(session.view, "#picker-input")
     LiveViewTest.render_keyup(element, %{"value" => "status:active jo"})
-    html = LiveViewTest.render_async(session.view)
+    html = LiveViewTest.render_async(session.view, 2_000)
 
     assert html =~ "[{:status, :eq, :active}]"
 
