@@ -28,6 +28,26 @@ defmodule Flicker.FacetSuggestTest do
     end
   end
 
+  describe "classify/3" do
+    test "an explicit nil cursor falls back to the end of the text, same as classify/2" do
+      assert FacetSuggest.classify("status:acti", [@status], nil) == FacetSuggest.classify("status:acti", [@status])
+    end
+
+    # Regression: a mid-token cursor must classify at the real position,
+    # not "at the end" — the v1 scope cut this closes (spec-003's
+    # implementation notes).
+    test "a real, mid-token cursor classifies there instead of at the end" do
+      # Cursor 3 sits inside "stat" of "status:active" — still key context,
+      # even though the text is a fully-formed, known facet token.
+      assert FacetSuggest.classify("status:active", [@status], 3) == {:key, "sta"}
+    end
+
+    test "cursor is a UTF-16 offset, converted before classifying (an explicit cursor at the true end still matches the nil fallback)" do
+      text = "status:acti"
+      assert FacetSuggest.classify(text, [@status], String.length(text)) == FacetSuggest.classify(text, [@status])
+    end
+  end
+
   describe "key_suggestions/2" do
     test "'stat' suggests 'status:'" do
       assert [%Result{value: "status:", label: "status:", sublabel: "Status", meta: meta}] =
@@ -100,6 +120,35 @@ defmodule Flicker.FacetSuggestTest do
 
     test "replaces a whole closed-quoted token containing whitespace" do
       assert FacetSuggest.replace_current_token(~s(worker:"Casey Nguyen"), "worker:456 ") == "worker:456 "
+    end
+  end
+
+  describe "replace_current_token/3" do
+    test "an explicit nil cursor is byte-identical to replace_current_token/2" do
+      assert FacetSuggest.replace_current_token("status:acti", "status:active ", nil) ==
+               FacetSuggest.replace_current_token("status:acti", "status:active ")
+    end
+
+    # Regression: completing a token the cursor was moved back into must
+    # not clobber whatever follows it — the naive "always slice to the end
+    # of the text" approach `replace_current_token/2` alone would take
+    # (mirroring the v1 assumption that the cursor is always at the end).
+    test "a mid-token cursor completes that token and preserves what follows it" do
+      assert FacetSuggest.replace_current_token("status:acti tier:legendary", "status:active ", 10) ==
+               "status:active tier:legendary"
+    end
+
+    test "the trailing space `replacement` carries doesn't double up with the separator that followed the old token" do
+      assert FacetSuggest.replace_current_token("status:acti free text", "status:active ", 10) ==
+               "status:active free text"
+    end
+
+    test "a mid-token cursor takes a UTF-16 offset, converted before the token boundary is found" do
+      # An astral codepoint ahead of the cursor shifts a naive same-offset
+      # read one codepoint short — this still completes "stat" whole.
+      # "😀 stat" is 6 codepoints but 7 UTF-16 units (the emoji is a
+      # surrogate pair); 7 is the true end of the string.
+      assert FacetSuggest.replace_current_token("😀 stat", "status:", 7) == "😀 status:"
     end
   end
 

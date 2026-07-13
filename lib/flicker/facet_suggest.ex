@@ -25,19 +25,32 @@ defmodule Flicker.FacetSuggest do
   @type suggestion :: Result.t()
 
   @doc """
-  Classifies `text` (cursor assumed at the end — see moduledoc note below)
-  against `facets`.
+  Classifies `text` against `facets` at `cursor` — a UTF-16 code-unit
+  offset, exactly what a real `<input>`'s `selectionStart` reports.
 
-  Both components track the cursor as "end of the typed text": Flicker
-  wires plain `phx-keyup`/`phx-change` payloads (no `selectionStart`), so
-  mid-token editing (moving the cursor back into an already-typed token)
-  isn't distinguished from typing at the end — `Flicker.CursorContext`
-  itself supports arbitrary cursor positions and is exercised at every
-  position by its own unit/property tests; this is a component-wiring
-  simplification, not a limitation of the state machine.
+  Both components' colocated hooks report the real caret position on
+  every keystroke/click/selection change (Spec 003's cursor-tracking
+  follow-up, now closed) — `cursor` is that reported value, converted to
+  the codepoint offset `Flicker.CursorContext.classify/3` expects via
+  `Flicker.CursorContext.from_utf16_offset/2`.
+
+  `cursor` defaults to (and an explicit `nil` also falls back to) the end
+  of `text` — the documented fallback for the dead render / very first
+  event, before the hook has reported a real position yet. Mid-token
+  editing (moving the caret back into an already-typed token) is
+  otherwise classified exactly where the caret sits, not "at the end" —
+  `Flicker.CursorContext` itself has always supported arbitrary cursor
+  positions and is exercised at every position by its own unit/property
+  tests; this function is what threads a real one into it.
   """
-  @spec classify(String.t(), [Facet.t()]) :: CursorContext.t()
-  def classify(text, facets), do: CursorContext.classify(text, String.length(text), facets)
+  @spec classify(String.t(), [Facet.t()], non_neg_integer() | nil) :: CursorContext.t()
+  def classify(text, facets, cursor \\ nil)
+
+  def classify(text, facets, nil), do: CursorContext.classify(text, String.length(text), facets)
+
+  def classify(text, facets, cursor) when is_integer(cursor) do
+    CursorContext.classify(text, CursorContext.from_utf16_offset(text, cursor), facets)
+  end
 
   @doc """
   Facet-key suggestions matching `prefix` — 'stat' → 'status:'.
@@ -176,12 +189,20 @@ defmodule Flicker.FacetSuggest do
   end
 
   @doc """
-  Splices `replacement` in for the current token, assuming the cursor sits
-  at the end of `text` (see `classify/2`) — the current token boundary is
-  found the same quote-aware way `CursorContext.classify/3` finds it
-  (`CursorContext.token_start/2`), so a token that is a double-quoted span
-  containing whitespace (`worker:"Casey N`) is replaced whole rather than
-  just its trailing word.
+  Splices `replacement` in for the token at `cursor` (a UTF-16 code-unit
+  offset, same convention as `classify/3`) — the token boundary is found
+  the same quote-aware way `CursorContext.classify/3` finds it
+  (`CursorContext.token_bounds/2`), so a token that is a double-quoted
+  span containing whitespace (`worker:"Casey N`) is replaced whole rather
+  than just its trailing word, and anything *after* the replaced token
+  (free text, or another facet token) survives untouched — completing a
+  token the cursor was moved back into (mid-token editing, Spec 003's
+  cursor-tracking follow-up, now closed) never clobbers what follows it.
+
+  `cursor` defaults to (and an explicit `nil` also falls back to) the end
+  of `text`, same fallback `classify/3` documents — every existing caller
+  that picks a suggestion right after typing it (the overwhelming common
+  case) needs nothing else.
 
   ## Examples
 
@@ -193,11 +214,46 @@ defmodule Flicker.FacetSuggest do
 
       iex> Flicker.FacetSuggest.replace_current_token(~s(worker:"Casey N), "worker:123 ")
       "worker:123 "
+
+      iex> Flicker.FacetSuggest.replace_current_token(
+      ...>   "status:acti tier:legendary",
+      ...>   "status:active ",
+      ...>   10
+      ...> )
+      "status:active tier:legendary"
   """
-  @spec replace_current_token(String.t(), String.t()) :: String.t()
-  def replace_current_token(text, replacement) do
-    start = CursorContext.token_start(text, String.length(text))
-    String.slice(text, 0, start) <> replacement
+  @spec replace_current_token(String.t(), String.t(), non_neg_integer() | nil) :: String.t()
+  def replace_current_token(text, replacement, cursor \\ nil)
+
+  def replace_current_token(text, replacement, nil) do
+    splice_token(text, replacement, String.length(text))
+  end
+
+  def replace_current_token(text, replacement, cursor) when is_integer(cursor) do
+    splice_token(text, replacement, CursorContext.from_utf16_offset(text, cursor))
+  end
+
+  defp splice_token(text, replacement, codepoint_cursor) do
+    {start, stop} = CursorContext.token_bounds(text, codepoint_cursor)
+    prefix = String.slice(text, 0, start)
+    suffix = String.slice(text, stop, String.length(text) - stop)
+    prefix <> join_replacement(replacement, suffix)
+  end
+
+  # `replacement` always carries its own trailing space (a completed
+  # key/value suggestion moves the cursor past it, ready for the next
+  # token) — when the token being completed isn't the last one, `suffix`
+  # already starts with the whitespace that used to separate it from what
+  # follows, so appending both verbatim would double it up
+  # (`"status:active " <> " tier:legendary"`). Collapsing that one
+  # accidental extra space is the only normalisation this does; anything
+  # else about `suffix` (its own tokens, quoting) is untouched.
+  defp join_replacement(replacement, suffix) do
+    if String.ends_with?(replacement, " ") and String.starts_with?(suffix, " ") do
+      replacement <> String.slice(suffix, 1, String.length(suffix) - 1)
+    else
+      replacement <> suffix
+    end
   end
 
   @doc """

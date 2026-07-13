@@ -16,9 +16,12 @@ defmodule Flicker.CursorContext do
   `cursor` is a **codepoint offset** into `input` (`0` is before the first
   character, `String.length(input)` is after the last) — the same unit
   `String.length/1` and `String.slice/3` use. A caller wiring this to a real
-  `<input>`'s `selectionStart` (a UTF-16 code-unit offset) is responsible for
-  converting between the two; out-of-range values (negative, or past the end
-  of `input`) are clamped rather than raising.
+  `<input>`'s `selectionStart` (a UTF-16 code-unit offset) converts between
+  the two with `from_utf16_offset/2` (and parses the raw event payload with
+  `parse_selection_start/1` first — see `Flicker.Components.Search`/
+  `Flicker.Components.Select`, or the higher-level `Flicker.FacetSuggest.classify/3`,
+  which does both steps for you); out-of-range values (negative, or past the
+  end of `input`) are clamped rather than raising.
 
   ## States
 
@@ -106,7 +109,7 @@ defmodule Flicker.CursorContext do
   N|` is a single token starting at `0`, not split at the space before
   `N`).
 
-  Used by `Flicker.FacetSuggest.replace_current_token/2` to find the
+  Used by `Flicker.FacetSuggest.replace_current_token/3` to find the
   boundary to splice a chosen suggestion in at, so replacing a token never
   clips mid-quote.
 
@@ -120,11 +123,122 @@ defmodule Flicker.CursorContext do
   """
   @spec token_start(String.t(), integer()) :: non_neg_integer()
   def token_start(input, cursor) when is_binary(input) and is_integer(cursor) do
+    input |> token_bounds(cursor) |> elem(0)
+  end
+
+  @doc """
+  The `{start, stop}` codepoint bounds of the token containing `cursor` —
+  `token_start/2` is `elem(token_bounds(input, cursor), 0)`. `stop` is that
+  same token's end offset (one past its last codepoint), or `start` itself
+  when the cursor sits in a whitespace gap between tokens / empty input
+  (matching `token_start/2`'s own empty-virtual-token behaviour there).
+
+  Used by `Flicker.FacetSuggest.replace_current_token/3` to know not just
+  where a chosen suggestion's replacement text starts, but where the token
+  being completed *ends* — so completing a token the cursor has been moved
+  back into (mid-token editing, Spec 003's cursor-tracking follow-up, now
+  closed) never clobbers whatever free text or other facet tokens follow
+  it.
+
+  ## Examples
+
+      iex> Flicker.CursorContext.token_bounds("foo bar stat", 12)
+      {8, 12}
+
+      iex> Flicker.CursorContext.token_bounds("status:acti tier:legendary", 10)
+      {0, 11}
+  """
+  @spec token_bounds(String.t(), integer()) :: {non_neg_integer(), non_neg_integer()}
+  def token_bounds(input, cursor) when is_binary(input) and is_integer(cursor) do
     codepoints = String.to_charlist(input)
     clamped_cursor = cursor |> max(0) |> min(length(codepoints))
-    {_chars, start} = current_token(codepoints, clamped_cursor)
-    start
+    tokens = tokenize_with_offsets(codepoints)
+
+    case Enum.find(tokens, fn {_chars, start, stop} ->
+           start <= clamped_cursor and clamped_cursor <= stop
+         end) do
+      {_chars, start, stop} -> {start, stop}
+      nil -> {clamped_cursor, clamped_cursor}
+    end
   end
+
+  @doc """
+  Converts `utf16_offset` — a UTF-16 code-unit offset, the unit a real
+  `<input>`'s `selectionStart` reports — into the codepoint offset
+  `classify/3`/`token_start/2` expect (see the "Cursor position" section
+  above). A no-op for the common case: every codepoint Flicker's own
+  facet grammar cares about (ASCII, plus the Unicode letters/digits
+  `key_char?/1` allows in a key) is exactly one UTF-16 code unit. Only a
+  codepoint outside the Basic Multilingual Plane — an emoji typed into a
+  free-text facet value, say — is encoded as a two-unit surrogate pair in
+  UTF-16 and needs collapsing to the single codepoint it is.
+
+  ## Examples
+
+      iex> Flicker.CursorContext.from_utf16_offset("status:active", 7)
+      7
+
+      iex> Flicker.CursorContext.from_utf16_offset("😀status", 3)
+      2
+  """
+  @spec from_utf16_offset(String.t(), non_neg_integer()) :: non_neg_integer()
+  def from_utf16_offset(input, utf16_offset) when is_binary(input) and is_integer(utf16_offset) do
+    input |> String.to_charlist() |> do_from_utf16_offset(utf16_offset, 0, 0)
+  end
+
+  defp do_from_utf16_offset([], _utf16_offset, _consumed, codepoint_index), do: codepoint_index
+
+  defp do_from_utf16_offset(_codepoints, utf16_offset, consumed, codepoint_index) when consumed >= utf16_offset,
+    do: codepoint_index
+
+  defp do_from_utf16_offset([codepoint | rest], utf16_offset, consumed, codepoint_index) do
+    do_from_utf16_offset(
+      rest,
+      utf16_offset,
+      consumed + utf16_units(codepoint),
+      codepoint_index + 1
+    )
+  end
+
+  defp utf16_units(codepoint) when codepoint > 0xFFFF, do: 2
+  defp utf16_units(_codepoint), do: 1
+
+  @doc """
+  Parses a `selectionStart` value out of an event payload the colocated
+  hook sends (Spec 003's cursor-tracking follow-up, now closed). Every
+  value pushed over the LiveView socket arrives as a string (`phx-value-*`
+  attributes and pushed event payloads are always strings), so this is
+  the one place both `Flicker.Components.Search` and
+  `Flicker.Components.Select` parse it back into an integer — or `nil`
+  for anything that isn't a clean non-negative integer, which is exactly
+  what `Flicker.FacetSuggest.classify/3` treats as "no position reported
+  yet" and falls back to the end of the text for (the dead-render / very
+  first keystroke case, before the hook's first event has landed).
+
+  ## Examples
+
+      iex> Flicker.CursorContext.parse_selection_start("7")
+      7
+
+      iex> Flicker.CursorContext.parse_selection_start(nil)
+      nil
+
+      iex> Flicker.CursorContext.parse_selection_start("nope")
+      nil
+  """
+  @spec parse_selection_start(String.t() | integer() | nil) :: non_neg_integer() | nil
+  def parse_selection_start(nil), do: nil
+  def parse_selection_start(value) when is_integer(value) and value >= 0, do: value
+  def parse_selection_start(value) when is_integer(value), do: nil
+
+  def parse_selection_start(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int >= 0 -> int
+      _ -> nil
+    end
+  end
+
+  def parse_selection_start(_value), do: nil
 
   # -- Locating the token under the cursor --------------------------------
   #

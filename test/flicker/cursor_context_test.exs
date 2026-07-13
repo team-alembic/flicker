@@ -237,4 +237,59 @@ defmodule Flicker.CursorContextTest do
       assert CursorContext.token_start("stat", -5) == 0
     end
   end
+
+  describe "token_bounds/2" do
+    test "the {start, stop} of a token that isn't the last one in the input" do
+      assert CursorContext.token_bounds("status:acti tier:legendary", 10) == {0, 11}
+    end
+
+    test "the {start, stop} of the trailing token" do
+      assert CursorContext.token_bounds("foo bar stat", 12) == {8, 12}
+    end
+
+    test "a cursor sitting in a whitespace gap is its own empty token" do
+      assert CursorContext.token_bounds("foo  bar", 4) == {4, 4}
+    end
+
+    test "an open-quoted token spanning whitespace counts as one token" do
+      assert CursorContext.token_bounds(~s(worker:"Casey N), 16) == {0, 15}
+    end
+  end
+
+  describe "from_utf16_offset/2" do
+    test "ASCII/BMP text is a 1:1 pass-through" do
+      assert CursorContext.from_utf16_offset("status:active", 0) == 0
+      assert CursorContext.from_utf16_offset("status:active", 7) == 7
+      assert CursorContext.from_utf16_offset("status:active", 13) == 13
+    end
+
+    test "an astral codepoint (a surrogate pair in UTF-16) collapses to one codepoint" do
+      assert CursorContext.from_utf16_offset("😀status", 2) == 1
+      assert CursorContext.from_utf16_offset("😀status", 3) == 2
+    end
+
+    test "an offset past the end of the input clamps to the input's codepoint length" do
+      assert CursorContext.from_utf16_offset("ab", 999) == 2
+    end
+  end
+
+  describe "parse_selection_start/1" do
+    test "a clean non-negative integer string parses" do
+      assert CursorContext.parse_selection_start("0") == 0
+      assert CursorContext.parse_selection_start("7") == 7
+    end
+
+    test "nil (no position reported yet) stays nil" do
+      assert CursorContext.parse_selection_start(nil) == nil
+    end
+
+    test "a negative integer string is rejected" do
+      assert CursorContext.parse_selection_start("-1") == nil
+    end
+
+    test "garbage is rejected rather than raising" do
+      assert CursorContext.parse_selection_start("nope") == nil
+      assert CursorContext.parse_selection_start("7px") == nil
+    end
+  end
 end
