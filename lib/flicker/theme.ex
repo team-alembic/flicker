@@ -26,6 +26,15 @@ defmodule Flicker.Theme do
     * `:option` — a single result row.
     * `:option_active` — added to the active (keyboard-highlighted) option;
       the JS hook toggles this class client-side.
+    * `:option_label` — the option's primary label span (default rendering
+      only; an `:option` slot owns its own markup).
+    * `:option_sublabel` — the option's secondary/sublabel span (default
+      rendering only).
+    * `:suggestion` — a facet key/value suggestion row (Spec 003); rendered
+      in place of `:option` when the listbox is suggesting facets rather
+      than records, so suggestions can look distinct from results.
+    * `:suggestion_token` — the `status:`/`active` token span inside a
+      suggestion row (kbd/mono treatment).
     * `:loading_state` — the listbox's loading row.
     * `:empty_state` — the listbox's no-results row.
     * `:error_state` — the listbox's error row.
@@ -74,6 +83,10 @@ defmodule Flicker.Theme do
           listbox: String.t(),
           option: String.t(),
           option_active: String.t(),
+          option_label: String.t(),
+          option_sublabel: String.t(),
+          suggestion: String.t(),
+          suggestion_token: String.t(),
           loading_state: String.t(),
           empty_state: String.t(),
           error_state: String.t(),
@@ -99,6 +112,10 @@ defmodule Flicker.Theme do
             listbox: "flicker-listbox",
             option: "flicker-option",
             option_active: "flicker-option--active",
+            option_label: "flicker-option-label",
+            option_sublabel: "flicker-option-sublabel",
+            suggestion: "flicker-suggestion",
+            suggestion_token: "flicker-suggestion-token",
             loading_state: "flicker-loading",
             empty_state: "flicker-empty",
             error_state: "flicker-error",
@@ -136,6 +153,11 @@ defmodule Flicker.Theme do
         "absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-sm shadow-lg ring-1 ring-black/5 focus:outline-none",
       option: "cursor-pointer select-none px-3 py-2 text-gray-900 hover:bg-indigo-50",
       option_active: "bg-indigo-100 text-indigo-900",
+      option_label: "font-medium",
+      option_sublabel: "ml-2 text-xs text-gray-400",
+      suggestion: "cursor-pointer select-none px-3 py-2 hover:bg-indigo-50",
+      suggestion_token:
+        "mr-2 inline-block rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-xs text-indigo-700",
       loading_state: "px-3 py-2 text-gray-500",
       empty_state: "px-3 py-2 text-gray-500",
       error_state: "px-3 py-2 text-red-600",
@@ -178,6 +200,10 @@ defmodule Flicker.Theme do
       # daisyUI's own (BUG 4: double hover on option rows).
       option: "cursor-pointer rounded-md px-3 py-2",
       option_active: "bg-primary text-primary-content",
+      option_label: "font-medium",
+      option_sublabel: "ml-2 text-xs opacity-60",
+      suggestion: "cursor-pointer rounded-md px-3 py-2",
+      suggestion_token: "kbd kbd-sm mr-2",
       loading_state: "px-3 py-2 text-base-content/60",
       empty_state: "px-3 py-2 text-base-content/60",
       error_state: "px-3 py-2 text-error",

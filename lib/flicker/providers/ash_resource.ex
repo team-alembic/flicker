@@ -9,6 +9,11 @@ if Code.ensure_loaded?(Ash) do
     `Code.ensure_loaded?/1`, ADR-006): it's inert, not merely undocumented,
     in a build without `ash` in its deps.
 
+    Every emitted `Flicker.Result` carries the underlying record as
+    `meta.record` — the documented, stable way for an `:option` slot to
+    render icons, badges, or anything else the two label strings can't
+    express.
+
     Configure it with `{Flicker.Providers.AshResource, opts}`:
 
       * `:resource` — required. The Ash resource module to read.
@@ -165,12 +170,15 @@ if Code.ensure_loaded?(Ash) do
     defp apply_sort(query, nil), do: query
     defp apply_sort(query, sort), do: Ash.Query.sort(query, sort)
 
+    # `meta.record` is the documented public contract for this provider:
+    # an `:option` slot needs the record itself for icons/badges/avatars,
+    # not just the two label strings.
     defp to_result(record, opts) do
       %Result{
         value: primary_key_value(record),
         label: field_value(record, Keyword.fetch!(opts, :option_label)),
         sublabel: opts |> Keyword.get(:option_sublabel) |> optional_field_value(record),
-        meta: %{}
+        meta: %{record: record}
       }
     end
 

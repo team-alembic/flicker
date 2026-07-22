@@ -138,8 +138,9 @@ entry). Everything *not* listed is internal — change freely.
 **Internal (explicitly):** the LiveComponent module, its assigns and
 events; hook internals and JS event payloads; `Flicker.Providers.AshResource`'s
 private options; DOM structure beyond documented theme parts;
-`Result.meta` contents for built-in providers (hosts own `meta` for their
-own providers).
+`Result.meta` contents for built-in providers — with one exception:
+`AshResource`'s `meta.record` (the underlying record, for `:option` slots)
+is documented public contract. Hosts own `meta` for their own providers.
 
 ## Open questions
 

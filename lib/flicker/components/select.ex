@@ -373,6 +373,9 @@ defmodule Flicker.Components.Select do
     {:noreply, assign(socket, loading_more: false, window_complete: true)}
   end
 
+  defp suggestion?(%Result{meta: %{flicker_facet: true}}), do: true
+  defp suggestion?(_result), do: false
+
   defp select_result(%Result{meta: %{flicker_facet: true, insert: insert}}, _raw_value, socket) do
     new_text =
       FacetSuggest.replace_current_token(socket.assigns.query, insert, socket.assigns.cursor)
@@ -1134,7 +1137,12 @@ defmodule Flicker.Components.Select do
               <% {:header, label} -> %>
                 <li role="presentation" class={@theme.group_header}>{label}</li>
               <% {:option, result, index} -> %>
-                <li id={option_id(assigns, index)} role="option" aria-selected="false" class={@theme.option}>
+                <li
+                  id={option_id(assigns, index)}
+                  role="option"
+                  aria-selected="false"
+                  class={if suggestion?(result), do: @theme.suggestion, else: @theme.option}
+                >
                   <button
                     type="button"
                     tabindex="-1"
@@ -1143,10 +1151,15 @@ defmodule Flicker.Components.Select do
                     phx-target={@myself}
                     disabled={!@connected?}
                   >
-                    <%= if @option != [] do %>
-                      {render_slot(@option, result)}
-                    <% else %>
-                      <span>{result.label}</span> <span :if={result.sublabel}>{result.sublabel}</span>
+                    <%= cond do %>
+                      <% @option != [] -> %>
+                        {render_slot(@option, result)}
+                      <% suggestion?(result) -> %>
+                        <span class={@theme.suggestion_token}>{result.label}</span>
+                        <span :if={result.sublabel} class={@theme.option_sublabel}>{result.sublabel}</span>
+                      <% true -> %>
+                        <span class={@theme.option_label}>{result.label}</span>
+                        <span :if={result.sublabel} class={@theme.option_sublabel}>{result.sublabel}</span>
                     <% end %>
                   </button>
                 </li>
