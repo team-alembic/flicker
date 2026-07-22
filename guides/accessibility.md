@@ -107,6 +107,22 @@ finds none, and CI can re-run that grep as a regression check.
   aria-selected/labelled chip list) are exercised incidentally by the
   full component test suite's HTML assertions.
 
+**What's automated, browser-driven** (Spec 007's `test/flicker/browser/`
+suite, `@moduletag :browser` — excluded from the default `mix test` run,
+run via `mix test --only browser` locally or the dedicated CI job; see
+`test/support/browser_case.ex`):
+
+- `axe-core` runs against every `dev/` playground route (the playground is
+  Spec 005's fixture), the command palette scanned both closed and open —
+  zero violations, enforced in CI (`test/flicker/browser/axe_test.exs`).
+- Arrow-key/`Enter`/two-stage-`Escape`/`Tab` highlight movement and the
+  `aria-activedescendant` wiring — client-side JS
+  (`Flicker.Components.Select`'s colocated `.Nav` hook) ExUnit/PhoenixTest
+  cannot drive on its own — plus `mod+k` open/toggle, focus trap and
+  restore on the palette, and windowed-search load-more, all driven
+  through a real Chrome via Wallaby
+  (`test/flicker/browser/keyboard_test.exs`).
+
 **What still needs a manual pass** (tracked in
 [Spec 007](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-007-screen-reader-support.md),
 left `in-progress` deliberately — this guide is not a claim that the
@@ -114,14 +130,8 @@ matrix below has been run):
 
 - The manual AT test script below, executed against VoiceOver+Safari,
   NVDA+Firefox, and (budget/licensing permitting) JAWS+Chrome, with
-  results recorded in the repo.
-- An automated `axe-core` run against the `dev/` playground pages in CI
-  (the playground is Spec 005's fixture) — no axe check has been wired
-  up yet.
-- Arrow-key/`Enter` highlight movement and the `aria-activedescendant`
-  wiring are client-side JS (`Flicker.Components.Select`'s colocated
-  `.Nav` hook) that ExUnit/PhoenixTest cannot drive — they're implemented
-  and covered by the manual script, not by ExUnit.
+  results recorded in the repo — this is the one remaining gap; nothing
+  substitutes for an actual screen reader.
 - Voice-control (Dragon) and switch-access are explicitly out of scope
   for v1 (Spec 007's non-goals) and untested.
 - High-contrast/forced-colors visual theming is a theme-preset concern,

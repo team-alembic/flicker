@@ -9,6 +9,17 @@ defmodule Flicker.MixProject do
       app: :flicker,
       version: @version,
       elixir: "~> 1.17",
+      # Needed for `Phoenix.LiveView.ColocatedHook`'s merged manifest
+      # (`_build/#{Mix.env()}/phoenix-colocated/flicker/index.js`) to be
+      # written at all — otherwise only the per-hook fragment files land in
+      # `_build`, and nothing ever exports the `hooks` map a `LiveSocket`
+      # needs. Real host apps normally get this for free from their own
+      # Phoenix 1.8 boilerplate; flicker needs it itself for the dev
+      # playground's `.Nav`/`.Palette`/`.FlickerSearchNav` hooks to mount
+      # at all (Spec 005/007 — this was previously silently broken: the
+      # playground rendered fine, but no client-side keyboard behaviour
+      # ever ran, since `phx-hook="..."` had nothing to attach).
+      compilers: [:phoenix_live_view] ++ Mix.compilers(),
       elixirc_paths: elixirc_paths(Mix.env()),
       consolidate_protocols: Mix.env() != :test,
       start_permanent: Mix.env() == :prod,
@@ -162,9 +173,22 @@ defmodule Flicker.MixProject do
       # optional, not a hard runtime dep.
       {:igniter, "~> 0.6", optional: true, only: [:dev, :test], runtime: false},
 
-      # HTTP server for the dev playground's endpoint (Spec 005) — `:dev`
-      # only, never shipped and never started outside `mix dev`.
-      {:bandit, "~> 1.0", only: :dev}
+      # HTTP server for the dev playground's endpoint (Spec 005) — never
+      # shipped. Also `:test`-only (not started there, just compiled) so the
+      # browser suite (Spec 007) can boot `Dev.Endpoint` for real over HTTP
+      # instead of `Phoenix.ConnTest`'s in-process dispatch, which axe-core
+      # and Wallaby both need a rendered DOM to run against.
+      {:bandit, "~> 1.0", only: [:dev, :test]},
+
+      # Browser-driven tests (Spec 007): axe-core accessibility scans and
+      # client-side keyboard behaviour ExUnit/PhoenixTest can't reach (real
+      # arrow-key/aria-activedescendant/focus-trap DOM behaviour). `a11y_audit`
+      # vendors axe-core itself — no npm — and drives it through a Wallaby
+      # session. `:test`-only, tagged `@moduletag :browser` and excluded from
+      # the default `mix test` run (see `.github/workflows/elixir.yml`'s
+      # `browser` job and `test/support/browser_case.ex`).
+      {:a11y_audit, "~> 0.4", only: :test, runtime: false},
+      {:wallaby, "~> 0.30", only: :test, runtime: false}
     ]
   end
 

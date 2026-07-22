@@ -124,6 +124,44 @@ jobs:
       - run: mix compile --warnings-as-errors
       - run: mix test --exclude ash
 
+  # Spec 007's browser-driven suite: axe-core scans + client-side keyboard
+  # behaviour (arrow-key highlight, mod+k, focus trap, windowed-search
+  # load-more) that ExUnit/PhoenixTest can't reach, run against a real
+  # Chrome via Wallaby/chromedriver against `Dev.Endpoint` over real HTTP
+  # (see `test/support/browser_case.ex`). `@moduletag :browser`, excluded
+  # from every other job's plain `mix test`/`mix check` run.
+  browser:
+    name: browser (axe-core + keyboard)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-latest-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: deps-latest-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - run: mix deps.get
+
+      # Puts a matching Chrome + chromedriver on `PATH` — Wallaby's Chrome
+      # driver shells out to a bare `chromedriver` by default
+      # (`Wallaby.Chrome.find_chromedriver_executable/0`), so nothing
+      # further needs wiring in `config/config.exs`.
+      - name: Install Chrome for Testing + matching chromedriver
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chromedriver: true
+
+      - run: mix test --only browser
+
   docs:
     name: Build & deploy docs
     needs: latest

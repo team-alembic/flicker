@@ -104,11 +104,26 @@ to `shipped`, and is explicitly *not* done:
   JAWS+Chrome as budget allows) against the script in
   `guides/accessibility.md` — no AT has actually been run against this
   yet, and results need to land in the repo.
-- An automated `axe-core` run against the `dev/` playground pages, wired
-  into CI — not implemented; `axe reports zero violations ... enforced in
-  CI` (acceptance criteria above) is unmet.
-- Arrow-key/`Enter`/`aria-activedescendant` client-side behaviour is
-  implemented but only exercised by the (not-yet-run) manual script, not
-  by an automated browser-driven test.
 
-Status stays `in-progress` until those three land.
+Status stays `in-progress` until that lands.
+
+## Status note (2026-07-22)
+
+The other two remaining items from the note above have since shipped:
+`test/flicker/browser/axe_test.exs` runs `axe-core` (via `a11y_audit`,
+driven by Wallaby against a real, real-HTTP-served `Dev.Endpoint`) against
+every `dev/` playground route — the palette scanned both closed and open
+— zero violations, and `.github/workflows/elixir.yml`'s `browser` job
+enforces it in CI. `test/flicker/browser/keyboard_test.exs` covers every
+server-reachable row of the Spec 001 keyboard map's client-side half
+(arrow-key highlight with no-wrap, `aria-activedescendant`, `Enter`
+selecting without submitting the surrounding form, two-stage `Escape`,
+`Tab` closing, `mod+k` open/toggle including on macOS specifically, focus
+trap + restore on the palette, and windowed-search load-more) end to end
+in a real Chrome. Both are `@moduletag :browser`, excluded from the
+default `mix test`/`mix check` run, and run via `mix test --only browser`
+(locally, given a `chromedriver` on `PATH`; the CI `browser` job installs
+one).
+
+Only the manual AT matrix remains — the spec stays `in-progress` for that
+reason alone.

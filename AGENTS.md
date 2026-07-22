@@ -86,6 +86,13 @@ mix credo --strict
 mix dialyzer
 mix docs
 mix usage_rules.sync           # regenerate .claude/skills/ from deps
+
+# Spec 007's browser-driven suite (axe-core + client-side keyboard
+# behaviour) — excluded from `mix test`/`mix check`, needs a real Chrome +
+# chromedriver on PATH (`brew install --cask chromedriver` on macOS, or
+# CI's `browser` job). Boots `Dev.Endpoint` for real over HTTP itself —
+# see `test/support/browser_case.ex`.
+mix test --only browser
 ```
 
 ## Rules
