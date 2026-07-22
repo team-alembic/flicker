@@ -36,6 +36,27 @@ if config_env() == :test do
   # tasks.
   config :ash, disable_async?: true
 
+  # `Dev.Endpoint` served over real HTTP for the browser suite (Spec 007,
+  # `@moduletag :browser`, excluded by default — see
+  # `test/support/browser_case.ex`): axe-core and Wallaby both need an
+  # actual rendered DOM, which `Phoenix.ConnTest`'s in-process dispatch
+  # (`Flicker.Test.Endpoint` above) can't give them. A different port from
+  # `Dev.Endpoint`'s `:dev` config below so `mix dev` and the browser suite
+  # never collide. Harmless to declare even when the browser tests don't
+  # run, and even on the no-ash leg (same reasoning as `ash_domains` above)
+  # — `Dev.Application` is still never wired as `:test`'s `mod` callback,
+  # so nothing starts this on its own.
+  config :flicker, Dev.Endpoint,
+    url: [host: "localhost"],
+    http: [ip: {127, 0, 0, 1}, port: 4002],
+    secret_key_base: String.duplicate("b", 64),
+    live_view: [signing_salt: "flicker-browser-signing-salt"],
+    render_errors: [formats: [html: Dev.ErrorHTML], layout: false],
+    pubsub_server: Dev.PubSub,
+    adapter: Bandit.PhoenixAdapter,
+    check_origin: false,
+    server: true
+
   config :flicker, Flicker.Test.Endpoint,
     url: [host: "localhost"],
     secret_key_base: String.duplicate("a", 64),
@@ -51,14 +72,20 @@ if config_env() == :test do
   config :flicker, ash_domains: [Dev.Music, Flicker.Test.PolicyDomain, Flicker.Test.FacetDomain]
 
   config :phoenix_test, :endpoint, Flicker.Test.Endpoint
+
+  # `Dev.Endpoint` (dev/) — the dev playground's Bandit-served endpoint
+  # (Spec 005), only ever started by `Dev.Application` (mix.exs wires it as
+  # the `:dev`-only `mod` callback).
+  config :wallaby,
+    otp_app: :flicker,
+    driver: Wallaby.Chrome,
+    chromedriver: [headless: true],
+    # See the matching `:test` config above — the same private-ETS/async-task
+    # mismatch shows up live in the browser too.
+    base_url: "http://localhost:4002"
 end
 
-# `Dev.Endpoint` (dev/) — the dev playground's Bandit-served endpoint
-# (Spec 005), only ever started by `Dev.Application` (mix.exs wires it as
-# the `:dev`-only `mod` callback).
 if config_env() == :dev do
-  # See the matching `:test` config above — the same private-ETS/async-task
-  # mismatch shows up live in the browser too.
   config :ash, disable_async?: true
 
   config :flicker, Dev.Endpoint,

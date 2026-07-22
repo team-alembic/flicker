@@ -15,8 +15,17 @@ defmodule Dev.Music.Artist do
     data_layer: Ash.DataLayer.Ets,
     authorizers: [Ash.Policy.Authorizer]
 
+  # Shared (non-private) table: the select component runs its search in a
+  # `start_async` task — a different process from whoever seeded the data
+  # — and `Ash.DataLayer.Ets`' `private?: true` tables are `:private`
+  # ETS, readable only by their owner process, so a private table seeded in
+  # a LiveView's `mount/3` (every playground page) is invisible to that
+  # task and every search comes back empty in a real browser (Spec 007's
+  # browser suite caught this). Same reasoning as `Flicker.Test.PolicyArtist`;
+  # test isolation comes from `Dev.Music.seed!/1`'s deterministic,
+  # idempotent data instead of per-process tables.
   ets do
-    private?(true)
+    private?(false)
   end
 
   attributes do

@@ -24,6 +24,16 @@ defmodule Dev.Live.MultiSelect do
       socket
       |> assign(:selected_results, [])
       |> assign(:form, to_form(%{"artist_ids" => preselected_ids}, as: "artists"))
+      # `Dev.Music.Artist`'s read policy is `is_nil(label) or label ==
+      # ^actor(:label)` — with no `actor:` at all (the bare `nil` default
+      # every `Flicker.select` falls back to), Ash can't resolve
+      # `actor(:label)` against a non-map actor and denies the whole read
+      # outright (`Ash.Error.Forbidden`, not a per-row filter), which
+      # `Provider.run_search/3` then surfaces as the generic error state on
+      # both pickers below (BUG: "Something went wrong" on every search).
+      # A public actor (`label: nil`, same shape `single_select_live.ex`
+      # uses) is enough for the policy to resolve normally.
+      |> assign(:actor, %{label: nil})
 
     {:ok, socket}
   end
@@ -59,6 +69,7 @@ defmodule Dev.Live.MultiSelect do
               search={[:name]}
               option_label={:name}
               option_sublabel={fn artist -> artist.label || "public" end}
+              actor={@actor}
             />
           </.form>
         </.section>
@@ -73,6 +84,7 @@ defmodule Dev.Live.MultiSelect do
             option_label={:name}
             option_sublabel={fn artist -> artist.label || "public" end}
             on_select={:controlled_selected}
+            actor={@actor}
           />
           <p class="mt-2 text-sm text-gray-700">
             Selected: {@selected_results |> Enum.map(& &1.label) |> Enum.join(", ")}

@@ -4,9 +4,15 @@ defmodule Dev.Music do
   Spec 005's dev playground.
 
   `Dev.Music.{Artist, Album, Genre}` run on `Ash.DataLayer.Ets` with
-  `private?: true`, so each calling process (each async test) gets its own
-  isolated table — `seed!/0` is safe to call once per test, against a fresh
-  table every time, with no cross-test bleed and no database.
+  **shared** (non-private) tables — a `private?: true` table is `:private`
+  ETS, readable only by its owner process, which made every playground
+  page's search come back empty in a real browser: the select component's
+  search runs in a `start_async` task, a different process from the
+  LiveView `mount/3` that seeded (Spec 007's browser suite caught this;
+  same reasoning as `Flicker.Test.PolicyArtist`). Cross-test isolation
+  comes from `seed!/1` being deterministic and idempotent instead: every
+  caller converges on the same one seed set, however many async tests call
+  it concurrently, with no cross-test bleed and no database.
 
   `Dev.Music.Artist` is the policy-bearing resource: its `:label` field
   gates visibility by actor (see its moduledoc), so actor-scoping
@@ -35,27 +41,58 @@ defmodule Dev.Music do
 
   Deterministic — no randomness — so the same call always produces the
   same records, and searches like "cas" reliably match the same artist
-  (`"Casey Cassidy"`, seed index 0). Safe to call repeatedly: each calling
-  process gets its own private ETS table (see the moduledoc), so a fresh
-  call from a fresh test process starts from empty.
+  (`"Casey Cassidy"`, seed index 0). Idempotent, and safe to call
+  concurrently from async tests (the tables are shared now — see the
+  moduledoc): a `:global`-locked critical section seeds only what's
+  missing, so every caller converges on the same single seed set instead
+  of duplicating it. A larger `count` than what's already seeded tops the
+  population up from the next seed index; a smaller one leaves existing
+  rows in place and just returns the first `count`.
 
   `count` is an additive parameter for the dev playground's windowed-search
   page ([Spec 010](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-010-windowed-search.md)),
   which needs a population large enough to make scrolling through several
   windows meaningful — every existing caller keeps the default 50.
 
-  Returns `%{genres: [Dev.Music.Genre.t()], artists: [Dev.Music.Artist.t()]}`.
+  Returns `%{genres: [Dev.Music.Genre.t()], artists: [Dev.Music.Artist.t()]}`
+  with `artists` in seed-index order.
   """
   @spec seed!(pos_integer()) :: %{genres: [struct()], artists: [struct()]}
   def seed!(count \\ @default_artist_count) do
-    genres = Enum.map(@genre_names, &create_genre!/1)
-    artists = Enum.map(0..(count - 1), &create_artist!(&1, genres))
+    :global.trans({{__MODULE__, :seed}, self()}, fn ->
+      genres = ensure_genres!()
+      existing = seeded_artists()
+      existing_count = length(existing)
 
-    %{genres: genres, artists: artists}
+      topped_up =
+        if existing_count < count do
+          Enum.map(existing_count..(count - 1), &create_artist!(&1, genres))
+        else
+          []
+        end
+
+      %{genres: genres, artists: Enum.take(existing ++ topped_up, count)}
+    end)
   end
 
-  defp create_genre!(name) do
-    Ash.create!(Dev.Music.Genre, %{name: name}, authorize?: false)
+  defp ensure_genres! do
+    existing = Map.new(Ash.read!(Dev.Music.Genre, authorize?: false), &{&1.name, &1})
+
+    Enum.map(@genre_names, fn name ->
+      existing[name] || Ash.create!(Dev.Music.Genre, %{name: name}, authorize?: false)
+    end)
+  end
+
+  # Every seeded artist's `formed_on` is `~D[1970-01-01]` + index * 137
+  # days — strictly increasing and unique per seed index — so sorting by it
+  # recovers seed-index order without storing the index itself. Rows tests
+  # create ad hoc (outside `seed!/1`) carry no `formed_on`, so they're
+  # excluded here rather than miscounted as seeds.
+  defp seeded_artists do
+    Dev.Music.Artist
+    |> Ash.read!(authorize?: false)
+    |> Enum.filter(& &1.formed_on)
+    |> Enum.sort_by(& &1.formed_on, Date)
   end
 
   defp create_artist!(index, genres) do

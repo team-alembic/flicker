@@ -8,8 +8,11 @@ defmodule Dev.Music.Genre do
     domain: Dev.Music,
     data_layer: Ash.DataLayer.Ets
 
+  # Shared (non-private) table — see `Dev.Music.Artist`'s `ets` block for
+  # why `private?: true` breaks `start_async`-driven searches in a real
+  # browser (Spec 007's browser suite).
   ets do
-    private?(true)
+    private?(false)
   end
 
   attributes do

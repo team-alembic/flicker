@@ -114,7 +114,7 @@ defmodule Dev.UI do
         </.link>
         <a
           href="https://github.com/team-alembic/flicker"
-          class="text-gray-400 hover:text-gray-600"
+          class="text-gray-600 hover:text-gray-900"
           aria-label="Flicker on GitHub"
         >
           <span aria-hidden="true">GitHub</span>
@@ -125,7 +125,7 @@ defmodule Dev.UI do
         <.nav_link path="/" title="Home" current_path={@current_path} />
 
         <div :for={{group, links} <- @nav_groups}>
-          <p class="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-gray-400">{group}</p>
+          <p class="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-gray-600">{group}</p>
           <div class="space-y-0.5">
             <.nav_link :for={{path, title} <- links} path={path} title={title} current_path={@current_path} />
           </div>
