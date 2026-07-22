@@ -134,8 +134,12 @@ defmodule Flicker.Components.Palette do
         // (after the Spec 001 two-stage escape inside the nested search
         // input has had first refusal).
         function flickerPaletteIsMac() {
+          // Case-insensitive — see `Flicker.Components.Select`'s identical
+          // helper: Chromium's `userAgentData.platform` reports "macOS"
+          // (lowercase `m`), which the old case-sensitive `/Mac/` test
+          // never matched, so `mod+k` resolved to `ctrl` on Mac Chrome/Edge.
           const platform = navigator.userAgentData?.platform || navigator.platform || ""
-          return /Mac|iPhone|iPad/.test(platform)
+          return /mac|iphone|ipad/i.test(platform)
         }
 
         function flickerPaletteResolveModifier(modifier) {
@@ -237,9 +241,16 @@ defmodule Flicker.Components.Palette do
           focusable() {
             const panel = this.panel()
             if (!panel) return []
+            // The tabindex="-1" exclusion must apply to *every* selector,
+            // not just the bare-[tabindex] one — the nested listbox's
+            // option buttons all carry tabindex="-1" (activedescendant-
+            // driven, never tab stops), and counting them here made the
+            // trap's "last focusable" the last option instead of the
+            // input, so Tab escaped the dialog (caught by Spec 007's
+            // browser suite).
             return Array.from(
-              panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
-            ).filter(el => !el.disabled)
+              panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]')
+            ).filter(el => !el.disabled && el.getAttribute("tabindex") !== "-1")
           },
           handleKeydown(e) {
             if (this.el.dataset.open !== "true") return

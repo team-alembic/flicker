@@ -58,6 +58,32 @@ if Code.ensure_loaded?(Ash) do
       end
     end
 
+    describe "keyup guard" do
+      # A real browser fires `phx-keyup` for the Enter keydown the hook has
+      # already turned into a suggestion-insert, and that trailing keyup's
+      # "query" event would otherwise clobber the just-inserted token with
+      # the pre-insert input value — see the guard clause in
+      # `Flicker.Components.Search.handle_event("query", ...)`, caught by
+      # the browser-driven suite (Spec 007).
+      test "a query keyup for Enter/Escape/Tab never clobbers the inserted token", %{conn: conn} do
+        session =
+          conn
+          |> visit_as(%{label: nil})
+          |> type_search("artist-search-input", "stat")
+
+        session = click_button(session, "status:")
+        assert_has(session, "#artist-search-input[value='status:']")
+
+        for key <- ["Enter", "Escape", "Tab"] do
+          session.view
+          |> Phoenix.LiveViewTest.element("#artist-search-input")
+          |> Phoenix.LiveViewTest.render_keyup(%{"key" => key, "value" => "stat", "cursor" => "4"})
+
+          assert_has(session, "#artist-search-input[value='status:']")
+        end
+      end
+    end
+
     describe "distinct-AND / repeated-OR, verified against the generated Ash filter" do
       test "distinct facet keys AND together", %{conn: conn} do
         session =

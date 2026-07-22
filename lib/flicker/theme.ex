@@ -170,7 +170,13 @@ defmodule Flicker.Theme do
       clear_button: "btn btn-ghost btn-xs absolute right-2 top-1/2 -translate-y-1/2",
       listbox:
         "menu dropdown-content menu-sm z-10 mt-1 max-h-60 w-full flex-nowrap overflow-auto rounded-box bg-base-100 p-2 shadow",
-      option: "cursor-pointer rounded-md px-3 py-2 hover:bg-base-200",
+      # No `hover:bg-*` here: daisyUI's `menu` component (applied to the
+      # listbox `<ul>`) already paints its own hover background on each
+      # `<li>`'s interactive child (the option `<button>`) — adding a
+      # second Tailwind `hover:bg-base-200` utility on the `<li>` itself
+      # stacked a second, differently-positioned hover highlight on top of
+      # daisyUI's own (BUG 4: double hover on option rows).
+      option: "cursor-pointer rounded-md px-3 py-2",
       option_active: "bg-primary text-primary-content",
       loading_state: "px-3 py-2 text-base-content/60",
       empty_state: "px-3 py-2 text-base-content/60",

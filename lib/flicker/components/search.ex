@@ -57,7 +57,17 @@ defmodule Flicker.Components.Search do
     {:ok, socket}
   end
 
+  # `phx-keyup` fires for *every* key — including the Enter/Escape keydowns
+  # the `.FlickerSearchNav` hook has already turned into a
+  # suggestion-insert/close — and that trailing keyup races the resulting
+  # server round trip, smuggling a stale `value` into a "query" event that
+  # clobbers the just-inserted facet token (or reopens the just-closed
+  # suggestions) a debounce later. Neither key can have edited the text, so
+  # their keyups are ignored outright — same guard, same reasoning, as
+  # `Flicker.Components.Select`'s.
   @impl true
+  def handle_event("query", %{"key" => key}, socket) when key in ["Enter", "Escape", "Tab"], do: {:noreply, socket}
+
   def handle_event("query", %{"value" => text} = params, socket) do
     socket =
       socket
@@ -93,16 +103,15 @@ defmodule Flicker.Components.Search do
 
     socket =
       socket
-      # The browser resets the caret to the end of the input's value once
-      # this render programmatically sets it (standard `<input>` behaviour
-      # on an assigned `.value`) — `cursor: nil` keeps the server's
-      # classification of "where the caret is" in sync with that, rather
-      # than reclassifying against a now-stale mid-token position.
+      # `cursor: nil` keeps the server's classification of "where the caret
+      # is" in sync with end-of-text, matching what `focus_input/2` (below)
+      # actually puts in the DOM, rather than reclassifying against a
+      # now-stale mid-token position.
       |> assign(text: new_text, cursor: nil, open: true)
       |> refresh_context()
       |> notify_change()
 
-    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
+    {:noreply, focus_input(socket, new_text)}
   end
 
   def handle_event("focus", _params, socket), do: {:noreply, assign(socket, open: true)}
@@ -116,7 +125,7 @@ defmodule Flicker.Components.Search do
       |> refresh_context()
       |> notify_change()
 
-    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
+    {:noreply, focus_input(socket, "")}
   end
 
   @impl true
@@ -211,6 +220,16 @@ defmodule Flicker.Components.Search do
   else
     defp to_filter(_query, _facets), do: nil
   end
+
+  # See `Flicker.Components.Select`'s identical helper for why this exists:
+  # LiveView's DOM patching never touches a focused text input's `value`,
+  # so reassigning `@text` to something the user didn't just type (an
+  # inserted facet token, a cleared search) while the input keeps DOM focus
+  # never reaches the browser through the ordinary render diff. Pushes
+  # `phx:focusElementById` (handled in the `.FlickerSearchNav` hook below,
+  # which shares its registration with `Flicker.Components.Select`'s) to
+  # force-set it instead.
+  defp focus_input(socket, value), do: push_event(socket, "focusElementById", %{id: input_id(socket), value: value})
 
   defp input_id(%Phoenix.LiveView.Socket{} = socket), do: input_id_for(socket.assigns.id)
   defp input_id(assigns), do: input_id_for(assigns.id)
@@ -349,10 +368,26 @@ defmodule Flicker.Components.Search do
         // highlighted index, Enter clicks it, Escape closes) but scoped to
         // this component's own suggestion `<ul>`, since `Flicker.search`
         // has no selection/multi-select behaviour to also handle.
+        // Shares its guard flag and event name with
+        // `Flicker.Components.Select`'s `.Nav` hook — deliberately, since
+        // `Flicker.search/1` and `Flicker.select/1` can both be mounted on
+        // the same page (Spec 005's dev playground layout puts a
+        // `Flicker.search/1` in the shared chrome above every page's own
+        // content) and only the *first* hook to mount would otherwise win
+        // the registration, silently leaving the other's `push_event`s
+        // handled by a stale/mismatched listener. Both components'
+        // versions of this block must stay identical (value-aware) so it
+        // genuinely doesn't matter which one wins (caught by Spec 007's
+        // browser suite: a real page with both mounted showed the
+        // `Flicker.select/1` half of this working, or the `Flicker.search/1`
+        // half, but never both, depending on mount order).
         if (!window.__flickerFocusListenerAttached) {
           window.__flickerFocusListenerAttached = true
           window.addEventListener("phx:focusElementById", e => {
-            document.getElementById(e.detail.id)?.focus()
+            const el = document.getElementById(e.detail.id)
+            if (!el) return
+            if (e.detail.value !== undefined) el.value = e.detail.value
+            el.focus()
           })
         }
 
@@ -454,11 +489,14 @@ defmodule Flicker.Components.Search do
           },
           render() {
             const activeClass = this.activeClass()
+            // Class *lists*, split before toggling — same fix, same
+            // reasoning, as `Flicker.Components.Select`'s `.Nav` render().
+            const activeClasses = activeClass ? activeClass.split(/\s+/).filter(Boolean) : []
             this.options().forEach((option, i) => {
               const active = i === this.activeIndex
               option.setAttribute("aria-selected", active ? "true" : "false")
               const button = option.querySelector("button")
-              if (button && activeClass) button.classList.toggle(activeClass, active)
+              if (button) activeClasses.forEach(cls => button.classList.toggle(cls, active))
             })
           }
         }

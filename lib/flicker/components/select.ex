@@ -136,16 +136,38 @@ defmodule Flicker.Components.Select do
         apply_query(socket, socket.assigns.query)
       end
 
-    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
+    {:noreply, focus_input(socket)}
   end
+
+  # `phx-keyup` fires for *every* key, including the Enter/Escape/Tab
+  # keydowns the `.Nav` hook has already turned into a select/close — and
+  # that trailing keyup races the resulting server round trip, smuggling a
+  # stale `value`/`cursor` into a "query" event that reopens the listbox
+  # (or clears a just-made selection) a debounce later. None of these keys
+  # can have edited the text, so their keyups are ignored outright (caught
+  # by Spec 007's browser-driven suite; PhoenixTest couldn't see it because
+  # it never fires the trailing keyup a real browser does).
+  def handle_event("query", %{"key" => key}, socket) when key in ["Enter", "Escape", "Tab"], do: {:noreply, socket}
 
   def handle_event("query", %{"value" => text} = params, socket) do
     cursor = CursorContext.parse_selection_start(params["cursor"])
 
-    if text == socket.assigns.query and cursor == socket.assigns.cursor do
-      {:noreply, socket}
-    else
-      {:noreply, socket |> clear_stale_selection(text) |> apply_query(text, cursor)}
+    cond do
+      text == socket.assigns.query and cursor == socket.assigns.cursor ->
+        {:noreply, socket}
+
+      # The caret moved but the text didn't (arrow/Home/End keyups). With
+      # no facets configured there is no cursor-dependent context to
+      # reclassify — mirrors the "cursor" event's `facets: []` no-op below
+      # — so re-running the same search would only churn the DOM, resetting
+      # the client-side option highlight the arrow key just moved (Spec
+      # 007's browser suite caught Enter-after-ArrowDown no-oping because
+      # of exactly this).
+      text == socket.assigns.query and socket.assigns.facets == [] ->
+        {:noreply, assign(socket, :cursor, cursor)}
+
+      true ->
+        {:noreply, socket |> clear_stale_selection(text) |> apply_query(text, cursor)}
     end
   end
 
@@ -160,12 +182,21 @@ defmodule Flicker.Components.Select do
     {:noreply, run_search(socket, String.trim(socket.assigns.query))}
   end
 
-  def handle_event("select", %{"value" => raw_value}, socket) do
+  # Reads `phx-value-result`, deliberately not `phx-value-value`: LiveView's
+  # client-side `extractMeta` unconditionally overwrites `meta.value` with
+  # `el.value` for any element where that's defined (`view.ts`), and a
+  # `<button>` always has a native `.value` DOM property (`""` unless a
+  # `value=` HTML attribute is set) — clobbering a `phx-value-value` custom
+  # param with an empty string on *every* option click, in every browser
+  # (caught by Spec 007's browser suite; `Phoenix.LiveViewTest`'s
+  # Floki-based click simulation has no DOM `.value` property to clobber
+  # with, so no ExUnit/PhoenixTest test could ever have seen this).
+  def handle_event("select", %{"result" => raw_value}, socket) do
     result = Enum.find(socket.assigns.results, &(to_string(&1.value) == raw_value))
     select_result(result, raw_value, socket)
   end
 
-  def handle_event("remove_chip", %{"value" => raw_value}, %{assigns: %{multiple: true}} = socket) do
+  def handle_event("remove_chip", %{"result" => raw_value}, %{assigns: %{multiple: true}} = socket) do
     new_selected = Enum.reject(socket.assigns.selected, &(to_string(&1.value) == raw_value))
 
     socket =
@@ -173,7 +204,7 @@ defmodule Flicker.Components.Select do
       |> assign(selected: new_selected)
       |> notify_multi_selection(new_selected)
 
-    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
+    {:noreply, focus_input(socket)}
   end
 
   def handle_event("remove_last_chip", _params, %{assigns: %{multiple: true, selected: [_ | _] = selected}} = socket) do
@@ -195,7 +226,7 @@ defmodule Flicker.Components.Select do
       |> assign(selected: [], query: "", cursor: nil, open: false)
       |> notify_multi_selection([])
 
-    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
+    {:noreply, focus_input(socket, "")}
   end
 
   def handle_event("clear", _params, socket) do
@@ -204,7 +235,7 @@ defmodule Flicker.Components.Select do
       |> assign(selected: nil, query: "", cursor: nil, open: false)
       |> notify_selection(nil)
 
-    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
+    {:noreply, focus_input(socket, "")}
   end
 
   def handle_event("close", _params, socket) do
@@ -348,10 +379,10 @@ defmodule Flicker.Components.Select do
 
     # `apply_query/3`'s default `cursor: nil` is deliberate here, not an
     # oversight: the browser resets the caret to the end of the input's
-    # value once this render programmatically sets it (standard `<input>`
-    # behaviour), so the server's notion of "where the caret is" should
-    # fall back to end-of-text too, matching what the DOM will actually do.
-    {:noreply, push_event(apply_query(socket, new_text), "focusElementById", %{id: input_id(socket)})}
+    # value once `focus_input/2` sets it, so the server's notion of "where
+    # the caret is" should fall back to end-of-text too, matching what the
+    # DOM will actually do.
+    {:noreply, focus_input(apply_query(socket, new_text), new_text)}
   end
 
   defp select_result(result, _raw_value, %{assigns: %{multiple: true}} = socket) do
@@ -367,7 +398,7 @@ defmodule Flicker.Components.Select do
         socket
       end
 
-    {:noreply, push_event(socket, "focusElementById", %{id: input_id(socket)})}
+    {:noreply, focus_input(socket)}
   end
 
   # `result` is nil when the clicked value no longer matches anything in
@@ -378,11 +409,14 @@ defmodule Flicker.Components.Select do
   defp select_result(nil, _raw_value, socket), do: {:noreply, socket}
 
   defp select_result(result, _raw_value, socket) do
+    text = display_text(result)
+
     socket =
       socket
-      |> assign(selected: result, query: display_text(result), open: false)
+      |> assign(selected: result, query: text, open: false)
       |> notify_selection(result)
       |> maybe_navigate(result)
+      |> focus_input(text)
 
     {:noreply, socket}
   end
@@ -790,6 +824,27 @@ defmodule Flicker.Components.Select do
 
   defp unused_marker_name(field), do: "#{field.form.name}[_unused_#{field.field}]"
 
+  # Phoenix.LiveView's DOM patching deliberately never touches a focused
+  # text input's `value` (`DOM.mergeFocusedInput` in `dom.ts` excludes it
+  # unconditionally, focused or not dirty) — the standard guard against a
+  # server round trip clobbering what the user is mid-typing. But every
+  # caller here is re-pointing `@query` to something the user did *not*
+  # just type (a selection's label, a cleared/inserted facet token), while
+  # the input typically keeps DOM focus throughout (no blur happens), so
+  # that guard silently leaves the visible input showing stale or blank
+  # text even though the server-side `query` assign (and the hidden field)
+  # are correct (caught by Spec 007's browser suite: `ExUnit`/`PhoenixTest`
+  # simulate clicks and events directly against assigns, never actually
+  # replaying LiveView's client-side "skip the focused input" DOM patch
+  # logic). `focus_input/2` force-sets the value via a `push_event`
+  # (`phx:focusElementById`, handled in the `.Nav` hook below) instead of
+  # relying on the render diff.
+  defp focus_input(socket, value \\ nil)
+
+  defp focus_input(socket, nil), do: push_event(socket, "focusElementById", %{id: input_id(socket)})
+
+  defp focus_input(socket, value), do: push_event(socket, "focusElementById", %{id: input_id(socket), value: value})
+
   defp input_id(%Phoenix.LiveView.Socket{} = socket), do: input_id_for(socket.assigns.id)
   defp input_id(assigns), do: input_id_for(assigns.id)
 
@@ -924,6 +979,16 @@ defmodule Flicker.Components.Select do
   @sr_only_style "position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; " <>
                    "overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;"
 
+  # The load-more sentinel must stay *in flow* at the tail of the listbox —
+  # `@sr_only_style`'s `position: absolute` would position it relative to
+  # the wrapper (outside the scrolling `<ul>`), so the `IntersectionObserver`
+  # rooted on the listbox would either never see it enter the scrollport or
+  # see it permanently, and scroll-to-tail windowing (Spec 010) silently
+  # breaks in a real browser (caught by Spec 007's browser-driven suite).
+  # `aria-hidden` on the row keeps it out of the accessibility tree; 1px of
+  # bare height keeps it visually invisible without breaking geometry.
+  @sentinel_style "height: 1px; padding: 0; margin: 0; border: 0; list-style: none;"
+
   @impl true
   def render(assigns) do
     assigns =
@@ -934,6 +999,7 @@ defmodule Flicker.Components.Select do
       |> assign(:at_max, at_max?(assigns))
       |> assign(:rows, rows_with_group_headers(assigns.results))
       |> assign(:sr_only_style, @sr_only_style)
+      |> assign(:sentinel_style, @sentinel_style)
       |> assign(
         :aria_keyshortcuts,
         assigns.activate_with_keyboard && chord_aria_keyshortcuts(assigns.activate_with_keyboard)
@@ -978,7 +1044,7 @@ defmodule Flicker.Components.Select do
             class={@theme.chip_remove}
             disabled={!@connected?}
             phx-click="remove_chip"
-            phx-value-value={to_string(result.value)}
+            phx-value-result={to_string(result.value)}
             phx-target={@myself}
             aria-label={message(assigns, :remove_chip, %{label: result.label})}
           >
@@ -1073,7 +1139,7 @@ defmodule Flicker.Components.Select do
                     type="button"
                     tabindex="-1"
                     phx-click="select"
-                    phx-value-value={to_string(result.value)}
+                    phx-value-result={to_string(result.value)}
                     phx-target={@myself}
                     disabled={!@connected?}
                   >
@@ -1089,7 +1155,7 @@ defmodule Flicker.Components.Select do
           <li :if={@show_loading_more} class={@theme.loading_more} aria-hidden="true">
             {message(assigns, :loading_more)}
           </li>
-          <li :if={@show_sentinel} data-flicker-sentinel aria-hidden="true" style={@sr_only_style}></li>
+          <li :if={@show_sentinel} data-flicker-sentinel aria-hidden="true" style={@sentinel_style}></li>
           <li :if={@show_narrow_hint} class={@theme.hint}>{message(assigns, :keep_typing)}</li>
         <% end %>
       </ul>
@@ -1119,13 +1185,32 @@ defmodule Flicker.Components.Select do
         // A generic focus-target listener (extraction notes #6): the
         // component `push_event`s "focusElementById" whenever DOM focus
         // needs to be moved explicitly (e.g. after opening or clearing,
-        // since the element that had focus may be gone from the DOM).
-        // Guarded so re-importing the module (multiple Nav instances on a
-        // page) only attaches it once.
+        // since the element that had focus may be gone from the DOM), and
+        // optionally a `value` to force onto the input. LiveView's own DOM
+        // patching deliberately skips a focused input's `value` on every
+        // diff (`DOM.mergeFocusedInput` in `dom.ts`, unconditionally,
+        // regardless of whether the client's text is actually "dirty") —
+        // so a selection/clear/facet-insert that reassigns `@query` while
+        // the input keeps DOM focus throughout never reaches the browser
+        // through the ordinary render diff; setting `.value` here,
+        // directly, is what actually gets it there (caught by Spec 007's
+        // browser suite — `ExUnit`/`PhoenixTest` never replay LiveView's
+        // client-side DOM patching, so no prior test saw the input stay
+        // stale/blank after a real selection). Guarded so re-importing the
+        // module (multiple Nav instances on a page) only attaches it once
+        // — and shared with `Flicker.Components.Search`'s own copy of this
+        // exact block (see its comment): `Flicker.search/1` and
+        // `Flicker.select/1` can both be mounted on the same page (Spec
+        // 005's dev playground layout), and only the first hook to mount
+        // would otherwise win this registration, silently leaving the
+        // other's `push_event`s handled by a stale/mismatched listener.
         if (!window.__flickerFocusListenerAttached) {
           window.__flickerFocusListenerAttached = true
           window.addEventListener("phx:focusElementById", e => {
-            document.getElementById(e.detail.id)?.focus()
+            const el = document.getElementById(e.detail.id)
+            if (!el) return
+            if (e.detail.value !== undefined) el.value = e.detail.value
+            el.focus()
           })
         }
 
@@ -1150,8 +1235,14 @@ defmodule Flicker.Components.Select do
         // chords across components are detected: first registration wins,
         // later ones just warn.
         function flickerIsMac() {
+          // Case-insensitive: Chromium's `userAgentData.platform` reports
+          // "macOS" (lowercase `m`), which a case-sensitive `/Mac/` test
+          // never matches — so `mod+k` silently resolved to `ctrl` instead
+          // of `meta` on every Mac running Chrome/Edge (Cmd+K did nothing,
+          // Ctrl+K worked). `navigator.platform` ("MacIntel") happened to
+          // match the old regex, so Safari/Firefox masked the bug.
           const platform = navigator.userAgentData?.platform || navigator.platform || ""
-          return /Mac|iPhone|iPad/.test(platform)
+          return /mac|iphone|ipad/i.test(platform)
         }
 
         function flickerResolveModifier(modifier) {
@@ -1437,11 +1528,17 @@ defmodule Flicker.Components.Select do
           render() {
             const input = this.input()
             const activeClass = this.activeClass()
+            // `option_active` theme values are class *lists* ("bg-indigo-100
+            // text-indigo-900" in the Tailwind preset) — classList.toggle
+            // takes one token at a time and throws on whitespace, so split
+            // (caught by Spec 007's browser suite: the highlight crashed the
+            // hook on every multi-class theme).
+            const activeClasses = activeClass ? activeClass.split(/\s+/).filter(Boolean) : []
             this.options().forEach((option, i) => {
               const active = i === this.activeIndex
               option.setAttribute("aria-selected", active ? "true" : "false")
               const button = option.querySelector("button")
-              if (button && activeClass) button.classList.toggle(activeClass, active)
+              if (button) activeClasses.forEach(cls => button.classList.toggle(cls, active))
               if (active) {
                 input?.setAttribute("aria-activedescendant", option.id)
                 option.scrollIntoView({ block: "nearest" })

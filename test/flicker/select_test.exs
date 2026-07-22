@@ -137,7 +137,7 @@ defmodule Flicker.SelectTest do
       # for a value that no longer matches anything in @results.
       session.view
       |> Phoenix.LiveViewTest.element("#picker")
-      |> Phoenix.LiveViewTest.render_hook("select", %{"value" => "does-not-exist"})
+      |> Phoenix.LiveViewTest.render_hook("select", %{"result" => "does-not-exist"})
 
       assert_has(session, "#selection", text: "Casey Cassidy")
     end
