@@ -17,6 +17,7 @@ Update the status here **and** in the spec's frontmatter when it changes.
 | [008](./spec-008-command-palette.md) | `Flicker.palette`: ⌘K fullscreen site-search overlay, grouped results, navigate-on-select | shipped |
 | [009](./spec-009-cinder-interop.md) | Cinder interop: `Flicker.search` drives a Cinder collection (recipe → adapter → upstream) | shipped |
 | [010](./spec-010-windowed-search.md) | Windowed search: opt-in infinite scroll in the listbox, `:offset` provider opt, capped windows | shipped |
+| [011](./spec-011-router-navigation-provider.md) | Router navigation provider: palette navigates the host's Phoenix routes with one config flag | draft |
 
 Build order is 004 → 001 (005 starts alongside) → 002 → 003; the playground
 gains a page as each spec ships (see [DESIGN.md](../DESIGN.md#sequencing)).
