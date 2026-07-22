@@ -94,7 +94,7 @@ defmodule Dev.Live.WindowedSearch do
           actor={%{label: nil}}
           search={[:name]}
           option_label={:name}
-          option_sublabel={fn artist -> artist.label || "public" end}
+          option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
           on_select={:artist_selected}
           theme={Flicker.Theme.tailwind()}
           paginate

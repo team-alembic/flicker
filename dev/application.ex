@@ -15,6 +15,12 @@ defmodule Dev.Application do
   @doc "Starts `Dev.PubSub` and `Dev.Endpoint` under a one-for-one supervisor."
   @spec start(Application.start_type(), term()) :: {:ok, pid()} | {:error, term()}
   def start(_type, _args) do
+    # The playground's default look: the polished Tailwind preset instead of
+    # bare `flicker-*` classes. Runtime (not config.exs) because config is
+    # evaluated before this project compiles, so `Flicker.Theme` isn't
+    # callable there. Pages demoing other presets override per component.
+    Application.put_env(:flicker, :default_theme, Flicker.Theme.tailwind())
+
     children = [
       {Phoenix.PubSub, name: Dev.PubSub},
       Dev.Endpoint

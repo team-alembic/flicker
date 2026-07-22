@@ -147,6 +147,14 @@ defmodule Dev.Live.CinderInterop do
   # intercepts that, so the params it reads back here are always whatever
   # the browser's current URL — the one source of truth both libraries'
   # `push_patch` calls share — actually carries, not a stale copy from the
+  defp status_badge(:active), do: "bg-green-100 text-green-800"
+  defp status_badge(:on_hiatus), do: "bg-amber-100 text-amber-800"
+  defp status_badge(_status), do: "bg-gray-100 text-gray-600"
+
+  defp format_listeners(n) when n >= 1_000_000, do: "#{Float.round(n / 1_000_000, 1)}M"
+  defp format_listeners(n) when n >= 1_000, do: "#{div(n, 1_000)}k"
+  defp format_listeners(n), do: to_string(n)
+
   # last `handle_params/3`.
   defp current_params(socket) do
     case get_in(socket.assigns, [:url_state, :uri]) do
@@ -192,11 +200,17 @@ defmodule Dev.Live.CinderInterop do
             actor={@actor}
             show_filters={false}
             url_state={@url_state}
+            theme="modern"
+            page_size={10}
           >
             <:col :let={artist} field="name" sort>{artist.name}</:col>
-            <:col :let={artist} field="status">{artist.status}</:col>
+            <:col :let={artist} field="status">
+              <span class={["rounded-full px-2 py-0.5 text-xs", status_badge(artist.status)]}>
+                {artist.status}
+              </span>
+            </:col>
             <:col :let={artist} field="tier">{artist.tier}</:col>
-            <:col :let={artist} field="monthly_listeners" sort>{artist.monthly_listeners}</:col>
+            <:col :let={artist} field="monthly_listeners" sort>{format_listeners(artist.monthly_listeners)}</:col>
           </Cinder.collection>
         </div>
       </.section>

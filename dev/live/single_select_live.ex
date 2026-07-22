@@ -45,6 +45,23 @@ defmodule Dev.Live.SingleSelect do
   defp normalize_label(""), do: nil
   defp normalize_label(label), do: label
 
+  defp sublabel(artist) do
+    "formed #{artist.formed_on.year} · #{format_listeners(artist.monthly_listeners)} listeners"
+  end
+
+  defp format_listeners(n) when n >= 1_000_000, do: "#{Float.round(n / 1_000_000, 1)}M"
+  defp format_listeners(n) when n >= 1_000, do: "#{div(n, 1_000)}k"
+  defp format_listeners(n), do: to_string(n)
+
+  defp tier_badge(%{tier: :legendary}), do: "bg-amber-100 text-amber-800"
+  defp tier_badge(%{tier: :established}), do: "bg-indigo-100 text-indigo-800"
+  defp tier_badge(_artist), do: "bg-gray-100 text-gray-600"
+
+  defp controlled_message(:none), do: "— none yet, pick an artist —"
+  defp controlled_message(nil), do: "{:controlled_selected, nil} (cleared)"
+
+  defp controlled_message(result), do: "{:controlled_selected, %Flicker.Result{label: #{inspect(result.label)}, ...}}"
+
   @impl true
   @doc "Receives the controlled-mode picker's selection, and applies the form-mode picker's."
   @spec handle_info(
@@ -89,6 +106,13 @@ defmodule Dev.Live.SingleSelect do
 
       <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
         <.section label="Form mode">
+          <p class="mb-3 text-sm text-gray-500">
+            <code>field={"{@form[:artist_id]}"}</code> makes the picker act like a
+            native input: it renders a hidden input inside your
+            <code>&lt;.form&gt;</code>, the value submits with the form's params,
+            and required/validation integrate. Default option rendering:
+            label + muted sublabel.
+          </p>
           <.form for={@form} id="artist-form">
             <Flicker.select
               id="artist-form-select"
@@ -97,24 +121,45 @@ defmodule Dev.Live.SingleSelect do
               actor={@actor}
               search={[:name]}
               option_label={:name}
-              option_sublabel={fn artist -> artist.label || "public" end}
+              option_sublabel={&sublabel/1}
             />
           </.form>
+          <div class="mt-3 rounded-md bg-gray-50 px-3 py-2 font-mono text-xs text-gray-600">
+            would submit: {inspect(@form.params, pretty: false)}
+          </div>
         </.section>
 
         <.section label="Controlled mode">
+          <p class="mb-3 text-sm text-gray-500">
+            No <code>field</code>, no form inputs — <code>on_select</code> sends
+            your LiveView a message with the picked result instead. This one
+            also demos the <code>:option</code> slot: custom option markup with
+            a right-aligned tier badge read from <code>result.meta.record</code>.
+          </p>
           <Flicker.select
             id="artist-controlled-select"
             resource={Artist}
             actor={@actor}
             search={[:name]}
             option_label={:name}
-            option_sublabel={fn artist -> artist.label || "public" end}
+            option_sublabel={&sublabel/1}
             on_select={:controlled_selected}
-          />
-          <p :if={@selected_result != :none} class="mt-2 text-sm text-gray-700">
-            Selected: {if @selected_result, do: @selected_result.label, else: "cleared"}
-          </p>
+          >
+            <:option :let={result}>
+              <span class="flex w-full items-center justify-between gap-2">
+                <span>
+                  <span class="font-medium">{result.label}</span>
+                  <span class="ml-2 text-xs text-gray-400">{result.sublabel}</span>
+                </span>
+                <span class={["rounded-full px-2 py-0.5 text-xs", tier_badge(result.meta.record)]}>
+                  {result.meta.record.tier}
+                </span>
+              </span>
+            </:option>
+          </Flicker.select>
+          <div class="mt-3 rounded-md bg-gray-50 px-3 py-2 font-mono text-xs text-gray-600">
+            last message: {controlled_message(@selected_result)}
+          </div>
         </.section>
       </div>
     </.page>

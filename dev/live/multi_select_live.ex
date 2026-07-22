@@ -68,7 +68,7 @@ defmodule Dev.Live.MultiSelect do
               resource={Artist}
               search={[:name]}
               option_label={:name}
-              option_sublabel={fn artist -> artist.label || "public" end}
+              option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
               actor={@actor}
             />
           </.form>
@@ -82,7 +82,7 @@ defmodule Dev.Live.MultiSelect do
             max_selections={4}
             search={[:name]}
             option_label={:name}
-            option_sublabel={fn artist -> artist.label || "public" end}
+            option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
             on_select={:controlled_selected}
             actor={@actor}
           />
