@@ -1,10 +1,11 @@
 defmodule Dev.Live.MultiSelect do
   @moduledoc """
   Playground page (Spec 005): `Flicker.select/1 multiple` in form-field mode
-  and controlled mode, side by side, both reading `Dev.Music.Artist` —
+  and controlled mode, stacked vertically, both reading `Dev.Music.Artist` —
   exercises Spec 002's chips, `max_selections` cap, and batch `fetch/2`
   label resolution (an edit-form picker mounts with three artists
-  preselected).
+  preselected). Each picker's own chip list shows the current selection, so
+  neither demo needs a separate readout.
   """
 
   use Phoenix.LiveView
@@ -39,11 +40,22 @@ defmodule Dev.Live.MultiSelect do
   end
 
   @impl true
-  @doc "Receives the controlled-mode picker's full selection list on every change."
-  @spec handle_info({atom(), [Flicker.Result.t()]}, Phoenix.LiveView.Socket.t()) ::
-          {:noreply, Phoenix.LiveView.Socket.t()}
+  @doc "Receives the controlled picker's selection list, and the form picker's field-value updates."
+  @spec handle_info(
+          {atom(), [Flicker.Result.t()]} | {module(), :selected, String.t(), [String.t()]},
+          Phoenix.LiveView.Socket.t()
+        ) :: {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_info({:controlled_selected, results}, socket) do
     {:noreply, assign(socket, :selected_results, results)}
+  end
+
+  # Form-field mode notifies the host with the field's new value (the full
+  # id list) on every change so it can merge it into its own form params —
+  # the same mechanic `single_select_live.ex` handles for its scalar field.
+  # Without this clause every form-mode selection crashed this LiveView.
+  def handle_info({Flicker.Components.Select, :selected, "artists[artist_ids]", value}, socket) do
+    params = Map.put(socket.assigns.form.source || %{}, "artist_ids", value)
+    {:noreply, assign(socket, :form, to_form(params, as: "artists"))}
   end
 
   @impl true
@@ -58,7 +70,7 @@ defmodule Dev.Live.MultiSelect do
         resolves all three chips. The controlled picker caps at 4 selections.
       </:description>
 
-      <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div class="space-y-6">
         <.section label="Form mode (preselected)">
           <.form for={@form} id="artists-form">
             <Flicker.select
@@ -86,9 +98,6 @@ defmodule Dev.Live.MultiSelect do
             on_select={:controlled_selected}
             actor={@actor}
           />
-          <p class="mt-2 text-sm text-gray-700">
-            Selected: {@selected_results |> Enum.map(& &1.label) |> Enum.join(", ")}
-          </p>
         </.section>
       </div>
     </.page>

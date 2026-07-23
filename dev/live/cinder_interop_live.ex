@@ -30,10 +30,9 @@ defmodule Dev.Live.CinderInterop do
   struct is lossy, see `Flicker.Query.t()`'s `:input` field) and feeds
   `Flicker.search/1`'s new `text` attr, adopted once on mount.
 
-  An actor toggle proves the recipe is actor-scoped end to end: both the
-  search's own suggestions and the query it composes run under
-  `@actor`, and Cinder reads the resulting query under the same actor —
-  so a labelled artist that actor can't see never reaches the table.
+  The page reads under a fixed public actor (`%{label: nil}`): both the
+  search's own suggestions and the query it composes run under `@actor`,
+  and Cinder reads the resulting query under the same actor.
   """
 
   use Phoenix.LiveView
@@ -55,12 +54,6 @@ defmodule Dev.Live.CinderInterop do
   # `<:col sort>` on a faceted field is fine (ordering isn't filtering).
   @cinder_filter_fields []
 
-  @actors [
-    {"Public (no label)", nil},
-    {"Indie label", "indie"},
-    {"Major label", "major"}
-  ]
-
   @doc "The fields this page lets Cinder's own column filters manage — exposed for the double-filter drift test."
   @spec cinder_filter_fields() :: [atom()]
   def cinder_filter_fields, do: @cinder_filter_fields
@@ -77,8 +70,7 @@ defmodule Dev.Live.CinderInterop do
 
     socket =
       socket
-      |> assign(:actors, @actors)
-      |> assign(:actor_label, nil)
+      |> assign(:actor, %{label: nil})
       |> assign(:facets, FlickerCinder.facets(%{resource: Artist, facets: @facet_keys}))
 
     {:ok, socket}
@@ -96,13 +88,13 @@ defmodule Dev.Live.CinderInterop do
   @spec handle_params(map(), String.t(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_params(params, uri, socket) do
-    {text, _query, filter} = FlickerCinder.restore(params, socket.assigns.facets)
+    {text, query, filter} = FlickerCinder.restore(params, socket.assigns.facets)
 
     socket =
       params
       |> Cinder.UrlSync.handle_params(uri, socket)
       |> assign(:search_text, text)
-      |> assign(:filtered_query, FlickerCinder.query(base_query(), filter))
+      |> assign(:filtered_query, filtered(filter, query.text))
 
     {:noreply, socket}
   end
@@ -112,16 +104,17 @@ defmodule Dev.Live.CinderInterop do
   # Cinder's first page is arbitrary too.
   defp base_query, do: Ash.Query.sort(Artist, :name)
 
-  @impl true
-  @doc "Switches the acting actor's `:label`, changing which artists Cinder can read."
-  @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
-          {:noreply, Phoenix.LiveView.Socket.t()}
-  def handle_event("set_actor", %{"label" => label}, socket) do
-    {:noreply, assign(socket, :actor_label, normalize_label(label))}
+  defp filtered(filter, text) do
+    base_query()
+    |> FlickerCinder.query(filter)
+    |> apply_text_search(text)
   end
 
-  defp normalize_label(""), do: nil
-  defp normalize_label(label), do: label
+  defp apply_text_search(query, text) when text in [nil, ""], do: query
+
+  defp apply_text_search(query, text) do
+    Ash.Query.filter_input(query, %{"name" => %{"contains" => Ash.CiString.new(text)}})
+  end
 
   @impl true
   @doc """
@@ -136,7 +129,7 @@ defmodule Dev.Live.CinderInterop do
   def handle_info({:artist_query_changed, query, filter}, socket) do
     socket =
       socket
-      |> assign(:filtered_query, FlickerCinder.query(base_query(), filter))
+      |> assign(:filtered_query, filtered(filter, query.text))
       |> FlickerCinder.push_patch(@path, query, current_params(socket))
 
     {:noreply, socket}
@@ -164,11 +157,9 @@ defmodule Dev.Live.CinderInterop do
   end
 
   @impl true
-  @doc "Renders the actor toggle, the search bar, and the Cinder collection it drives."
+  @doc "Renders the search bar and the Cinder collection it drives."
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
-    assigns = assign(assigns, :actor, %{label: assigns.actor_label})
-
     ~H"""
     <.page title="Cinder interop (Level 2)" current_path="/cinder-interop" spec="docs/specs/spec-009-cinder-interop.md">
       <:description>
@@ -180,8 +171,6 @@ defmodule Dev.Live.CinderInterop do
         and reloading (or pasting the URL fresh) reproduces the exact same
         narrowed, sorted table.
       </:description>
-
-      <.actor_toggle actors={@actors} selected={@actor_label} />
 
       <.section label="Search + Cinder table">
         <Flicker.search

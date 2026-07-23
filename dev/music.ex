@@ -36,7 +36,7 @@ defmodule Dev.Music do
 
   @doc """
   Seeds the domain with deterministic data: `count` artists (default 50,
-  varying status, formation date, monthly listeners, label, and genre) and
+  varying status, formation date, monthly listeners, label, tier, and genre) and
   a handful of albums per artist.
 
   Deterministic — no randomness — so the same call always produces the
@@ -105,6 +105,7 @@ defmodule Dev.Music do
           formed_on: artist_formed_on(index),
           monthly_listeners: artist_monthly_listeners(index),
           label: artist_label(index),
+          tier: artist_tier(index),
           genre_id: Enum.at(genres, rem(index, length(genres))).id
         },
         authorize?: false
@@ -162,6 +163,18 @@ defmodule Dev.Music do
       0 -> nil
       1 -> "indie"
       2 -> "major"
+    end
+  end
+
+  # Offset by 2 and taken mod 5 (rather than reusing status/label's mod 3) so
+  # tier isn't perfectly predictable from status or label. Only one of the
+  # five residues is `:legendary`, so it comes up half as often as the other
+  # two tiers — a prestige tier should be rarer.
+  defp artist_tier(index) do
+    case rem(index + 2, 5) do
+      4 -> :legendary
+      r when r in [2, 3] -> :established
+      r when r in [0, 1] -> :emerging
     end
   end
 

@@ -2,8 +2,9 @@ defmodule Dev.Live.SingleSelect do
   @moduledoc """
   Playground page (Spec 005): `Flicker.select/1` in form-field mode and
   controlled mode, side by side, both reading `Dev.Music.Artist` — the
-  seeded domain's policy-bearing resource. An actor toggle switches who's
-  searching, so the label-based visibility policy is visibly exercised.
+  seeded domain's policy-bearing resource, read here under a fixed public
+  actor (`%{label: nil}`). A third, full-width section demos a richer
+  `:option` slot — an avatar plus two lines of info per option.
   """
 
   use Phoenix.LiveView
@@ -11,12 +12,6 @@ defmodule Dev.Live.SingleSelect do
   import Dev.UI
 
   alias Dev.Music.Artist
-
-  @actors [
-    {"Public (no label)", nil},
-    {"Indie label", "indie"},
-    {"Major label", "major"}
-  ]
 
   @impl true
   @doc "Seeds `Dev.Music` (private ETS, scoped to this LiveView process) and sets up both picker's state."
@@ -26,24 +21,13 @@ defmodule Dev.Live.SingleSelect do
 
     socket =
       socket
-      |> assign(:actors, @actors)
-      |> assign(:actor_label, nil)
+      |> assign(:actor, %{label: nil})
       |> assign(:selected_result, :none)
+      |> assign(:rich_result, :none)
       |> assign(:form, to_form(%{}, as: "artist"))
 
     {:ok, socket}
   end
-
-  @impl true
-  @doc "Switches the acting actor's `:label`, changing which artists are visible."
-  @spec handle_event(String.t(), map(), Phoenix.LiveView.Socket.t()) ::
-          {:noreply, Phoenix.LiveView.Socket.t()}
-  def handle_event("set_actor", %{"label" => label}, socket) do
-    {:noreply, assign(socket, :actor_label, normalize_label(label))}
-  end
-
-  defp normalize_label(""), do: nil
-  defp normalize_label(label), do: label
 
   defp sublabel(artist) do
     "formed #{artist.formed_on.year} · #{format_listeners(artist.monthly_listeners)} listeners"
@@ -62,6 +46,35 @@ defmodule Dev.Live.SingleSelect do
 
   defp controlled_message(result), do: "{:controlled_selected, %Flicker.Result{label: #{inspect(result.label)}, ...}}"
 
+  defp rich_message(:none), do: "— none yet, pick an artist —"
+  defp rich_message(nil), do: "{:rich_selected, nil} (cleared)"
+
+  defp rich_message(result), do: "{:rich_selected, %Flicker.Result{label: #{inspect(result.label)}, ...}}"
+
+  @avatar_palette [
+    "bg-rose-500 text-white",
+    "bg-orange-500 text-white",
+    "bg-amber-500 text-black",
+    "bg-emerald-500 text-white",
+    "bg-teal-500 text-white",
+    "bg-sky-500 text-white",
+    "bg-indigo-500 text-white",
+    "bg-violet-500 text-white",
+    "bg-fuchsia-500 text-white"
+  ]
+
+  defp avatar_initials(name) do
+    name
+    |> String.split(" ", trim: true)
+    |> Enum.take(2)
+    |> Enum.map_join("", &String.first/1)
+    |> String.upcase()
+  end
+
+  defp avatar_color(name) do
+    Enum.at(@avatar_palette, :erlang.phash2(name, length(@avatar_palette)))
+  end
+
   @impl true
   @doc "Receives the controlled-mode picker's selection, and applies the form-mode picker's."
   @spec handle_info(
@@ -71,6 +84,10 @@ defmodule Dev.Live.SingleSelect do
         ) :: {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_info({:controlled_selected, result}, socket) do
     {:noreply, assign(socket, :selected_result, result)}
+  end
+
+  def handle_info({:rich_selected, result}, socket) do
+    {:noreply, assign(socket, :rich_result, result)}
   end
 
   # Form-field mode notifies the host with the field's new value so it can
@@ -89,20 +106,15 @@ defmodule Dev.Live.SingleSelect do
   end
 
   @impl true
-  @doc "Renders the actor toggle and both pickers."
+  @doc "Renders both pickers."
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
-    assigns = assign(assigns, :actor, %{label: assigns.actor_label})
-
     ~H"""
     <.page title="Single select" current_path="/single-select" spec="docs/specs/spec-001-portable-single-select.md">
       <:description>
         Both pickers read <code>Dev.Music.Artist</code>, the policy-bearing
-        resource — switch the actor and watch labelled artists appear or
-        disappear from search results.
+        resource, under a fixed public actor.
       </:description>
-
-      <.actor_toggle actors={@actors} selected={@actor_label} />
 
       <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
         <.section label="Form mode">
@@ -162,6 +174,46 @@ defmodule Dev.Live.SingleSelect do
           </div>
         </.section>
       </div>
+
+      <.section label="Rich option slot (avatar + two lines)">
+        <p class="mb-3 text-sm text-gray-500">
+          The <code>:option</code> slot can render arbitrarily complex option UI —
+          here each row shows an avatar (initials, deterministic colour) plus
+          two stacked lines of info and a tier badge.
+        </p>
+        <Flicker.select
+          id="artist-rich-select"
+          resource={Artist}
+          actor={@actor}
+          search={[:name]}
+          option_label={:name}
+          on_select={:rich_selected}
+        >
+          <:option :let={result}>
+            <span class="flex w-full items-center gap-3">
+              <span class={[
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+                avatar_color(result.label)
+              ]}>
+                {avatar_initials(result.label)}
+              </span>
+              <span class="flex flex-col">
+                <span class="font-medium">{result.label}</span>
+                <span class="text-xs text-gray-400">{sublabel(result.meta.record)}</span>
+              </span>
+              <span class={[
+                "ml-auto rounded-full px-2 py-0.5 text-xs",
+                tier_badge(result.meta.record)
+              ]}>
+                {result.meta.record.tier}
+              </span>
+            </span>
+          </:option>
+        </Flicker.select>
+        <div class="mt-3 rounded-md bg-gray-50 px-3 py-2 font-mono text-xs text-gray-600">
+          last message: {rich_message(@rich_result)}
+        </div>
+      </.section>
     </.page>
     """
   end

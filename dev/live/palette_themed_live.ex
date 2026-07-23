@@ -25,7 +25,9 @@ defmodule Dev.Live.PaletteThemed do
     group_header: "px-3 py-2 text-xs font-semibold uppercase tracking-widest text-emerald-400",
     footer: "mt-auto flex items-center gap-4 border-t border-slate-800 py-4 text-xs text-slate-500",
     kbd_hint: "rounded border border-slate-700 px-1.5 text-slate-400",
-    clear_button: "text-slate-400 hover:text-white"
+    footer_hint: "rounded border border-slate-700 px-1.5 text-slate-400",
+    clear_button: "text-slate-400 hover:text-white",
+    palette_close: "text-slate-400 hover:text-white"
   }
 
   # The public actor (no `:label`) — same reasoning as `Dev.Live.Palette`.
@@ -88,7 +90,7 @@ defmodule Dev.Live.PaletteThemed do
         on_close={:palette_closed}
         on_select={:palette_selected}
         theme={@brand_theme}
-        activate_with_keyboard="mod+j"
+        activate_with_keyboard="mod+k"
       />
     </.page>
     """

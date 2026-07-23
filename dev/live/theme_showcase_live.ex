@@ -63,7 +63,7 @@ defmodule Dev.Live.ThemeShowcase do
 
       <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
         <.section :for={{name, theme} <- @presets} label={name |> to_string() |> String.replace("_", " ")}>
-          <p class="mb-3 text-xs text-gray-400">{preset_blurb(name)}</p>
+          <p class="mb-3 text-xs text-gray-500">{preset_blurb(name)}</p>
           <div :if={name == :daisy_ui} class="mb-3">
             <form phx-change="set_daisy_theme">
               <label for="daisy-theme-picker" class="mr-2 text-xs text-gray-500">daisyUI theme</label>
