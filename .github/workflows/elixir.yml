@@ -164,17 +164,12 @@ jobs:
           WALLABY_CHROMEDRIVER_PATH: ${{ steps.chrome.outputs.chromedriver-path }}
 
   docs:
-    name: Build & deploy docs
+    name: Build HexDocs
     needs: latest
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     env:
       MIX_ENV: dev
     steps:
@@ -185,11 +180,6 @@ jobs:
           version-type: strict
       - run: mix deps.get
       - run: mix docs
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: doc/
-      - id: deployment
-        uses: actions/deploy-pages@v5
 
   release:
     name: git_ops.release
