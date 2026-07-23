@@ -10,6 +10,12 @@ Logger.configure(level: :info)
 {:ok, _pubsub} = Phoenix.PubSub.Supervisor.start_link(name: Flicker.Test.PubSub)
 {:ok, _endpoint} = Flicker.Test.Endpoint.start_link()
 
+# Ash's shared ETS table manager registers before its table is ready. Seed
+# before ExUnit starts so async tests cannot observe that startup window.
+if Code.ensure_loaded?(Dev.Music) do
+  Dev.Music.seed!()
+end
+
 # Spec 007's browser-driven suite (`test/flicker/browser/`, `@moduletag
 # :browser`) needs a real browser + chromedriver most contributors don't
 # have installed, so it's excluded here by default. `mix test --only
