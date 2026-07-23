@@ -299,6 +299,22 @@ accessibility work is the manual VoiceOver, NVDA, and JAWS matrix tracked in
 [Spec 007](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-007-screen-reader-support.md). Read the
 [accessibility statement and manual test script](guides/accessibility.md).
 
+## Documentation
+
+Flicker’s API reference and user guides are built with ExDoc and are ready
+for HexDocs. Until the first Hex release, generate the same documentation
+locally:
+
+```bash
+mix deps.get
+mix docs
+```
+
+Open `doc/index.html` to browse the complete guide set, grouped public API,
+providers, integrations, test helpers, and source links. Hex publishes this
+documentation automatically with the package; the canonical address will be
+`https://hexdocs.pm/flicker`.
+
 ## Playground
 
 The repository includes a database-free Phoenix app backed by seeded Ash ETS

@@ -81,6 +81,7 @@ defmodule Flicker.MixProject do
       licenses: ["Apache-2.0"],
       links: %{
         "GitHub" => @source_url,
+        "HexDocs" => "https://hexdocs.pm/flicker",
         "Changelog" => "#{@source_url}/blob/main/CHANGELOG.md"
       },
       # `README.template.md` is the template-only file; rename.sh promotes
@@ -219,8 +220,12 @@ defmodule Flicker.MixProject do
   defp docs do
     [
       main: "readme",
+      logo: "assets/flicker-logo.png",
+      favicon: "assets/flicker-logo.png",
       source_ref: "v#{@version}",
-      source_url_pattern: "#{@source_url}/blob/main/%{path}#L%{line}",
+      source_url_pattern: "#{@source_url}/blob/v#{@version}/%{path}#L%{line}",
+      filter_modules: ~r/^Elixir\.(Flicker|Mix\.Tasks\.Flicker\.)/,
+      skip_code_autolink_to: &String.starts_with?(&1, "Dev."),
       extra_section: "GUIDES",
       extras: extras(),
       groups_for_extras: [
@@ -236,10 +241,28 @@ defmodule Flicker.MixProject do
         Accessibility: ["guides/accessibility.md"],
         Integrations: ["guides/cinder-integration.md"]
       ],
-      before_closing_head_tag: fn
-        :html -> ~s|<link rel="icon" href="data:,">|
-        _ -> ""
-      end
+      groups_for_modules: [
+        "Public API": [
+          Flicker,
+          Flicker.Facet,
+          Flicker.Messages,
+          Flicker.Provider,
+          Flicker.Query,
+          Flicker.Result,
+          Flicker.Theme
+        ],
+        Providers: [
+          Flicker.Providers.AshResource,
+          Flicker.Providers.Static
+        ],
+        Integrations: [
+          Flicker.AshPhoenixForm,
+          Flicker.Integrations.Cinder
+        ],
+        Testing: [Flicker.Test],
+        "Mix tasks": [Mix.Tasks.Flicker.Install],
+        "Component internals": ~r/^Flicker\.(Components|CursorContext|FacetSuggest|Keyboard|Messages\.English)/
+      ]
     ]
   end
 
