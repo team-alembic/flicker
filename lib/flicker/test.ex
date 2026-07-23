@@ -9,7 +9,21 @@ defmodule Flicker.Test do
   """
 
   import Phoenix.LiveViewTest,
-    only: [element: 2, render_async: 1, render_focus: 1, render_keyup: 2]
+    only: [element: 2, render_async: 1, render_focus: 1, render_hook: 2, render_keyup: 2]
+
+  @doc """
+  Opens the palette identified by `palette_id`.
+
+  Returns the `session`, ready for `search/3` assertions or `search_select/3`.
+  """
+  @spec open_palette(struct(), String.t()) :: struct()
+  def open_palette(session, palette_id) do
+    session.view
+    |> element("##{palette_id}")
+    |> render_hook("open")
+
+    session
+  end
 
   @doc """
   Opens the picker identified by `select_id` and types `query` into it.

@@ -79,6 +79,7 @@ defmodule Flicker.Components.Palette do
     <div
       id={@id}
       phx-hook=".Palette"
+      phx-target={@myself}
       data-open={to_string(@panel_open)}
       data-activate-with-keyboard={@activate_with_keyboard}
     >

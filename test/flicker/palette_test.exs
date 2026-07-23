@@ -39,6 +39,12 @@ defmodule Flicker.PaletteTest do
   end
 
   describe "controlled open/close" do
+    test "the test helper opens a palette", %{conn: conn} do
+      session = conn |> visit_palette() |> Flicker.Test.open_palette("cmdk")
+
+      assert_has(session, "[role='dialog'][aria-modal='true']")
+    end
+
     test "does not require host notification tags for navigation-only palettes", %{conn: conn} do
       session = conn |> visit_palette(%{"silent" => true, "open" => true}) |> click_button("Close")
 
