@@ -199,8 +199,8 @@ if Code.ensure_loaded?(Ash) do
     defp to_result(record, opts) do
       %Result{
         value: primary_key_value(record),
-        label: field_value(record, Keyword.fetch!(opts, :option_label)),
-        sublabel: opts |> Keyword.get(:option_sublabel) |> optional_field_value(record),
+        label: record |> field_value(Keyword.fetch!(opts, :option_label)) |> display_value(),
+        sublabel: opts |> Keyword.get(:option_sublabel) |> optional_field_value(record) |> display_value(),
         meta: %{record: record}
       }
     end
@@ -215,6 +215,9 @@ if Code.ensure_loaded?(Ash) do
 
     defp optional_field_value(nil, _record), do: nil
     defp optional_field_value(field_or_fun, record), do: field_value(record, field_or_fun)
+
+    defp display_value(nil), do: nil
+    defp display_value(value), do: to_string(value)
 
     # -- Facet registry ---------------------------------------------------
     #

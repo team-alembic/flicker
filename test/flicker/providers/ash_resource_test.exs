@@ -46,6 +46,14 @@ if Code.ensure_loaded?(Ash) do
         assert [%Flicker.Result{label: "Casey Cassidy"}] = results
       end
 
+      test "normalizes Ash string-like display values" do
+        assert {:ok, [%Flicker.Result{label: "Casey Cassidy"}]} =
+                 AshResource.search(
+                   %Query{text: "casey cassidy"},
+                   base_opts(option_label: &Ash.CiString.new(&1.name))
+                 )
+      end
+
       test "passes typed text to a configured read-action argument" do
         assert {:ok, [%Flicker.Result{label: "Casey Cassidy"}]} =
                  AshResource.search(
