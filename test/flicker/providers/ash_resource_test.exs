@@ -10,6 +10,8 @@ if Code.ensure_loaded?(Ash) do
     alias Flicker.Providers.AshResource
     alias Flicker.Query
 
+    require Ash.Expr
+
     @moduletag :ash
 
     setup do
@@ -97,6 +99,20 @@ if Code.ensure_loaded?(Ash) do
                  AshResource.search(
                    %Query{text: ""},
                    base_opts(limit: 50, filter: %{"status" => %{"eq" => "active"}})
+                 )
+
+        assert results != []
+
+        assert Enum.all?(results, fn %Flicker.Result{value: id} ->
+                 Ash.get!(Dev.Music.Artist, id, authorize?: false).status == :active
+               end)
+      end
+
+      test "accepts an Ash expression as a base :filter" do
+        assert {:ok, results} =
+                 AshResource.search(
+                   %Query{text: ""},
+                   base_opts(limit: 50, filter: Ash.Expr.expr(status == :active))
                  )
 
         assert results != []

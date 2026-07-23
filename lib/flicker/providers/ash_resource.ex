@@ -143,6 +143,9 @@ if Code.ensure_loaded?(Ash) do
     end
 
     defp apply_base_filter(query, nil), do: query
+
+    defp apply_base_filter(query, filter) when is_struct(filter), do: Ash.Query.do_filter(query, filter)
+
     defp apply_base_filter(query, filter), do: Ash.Query.filter_input(query, filter)
 
     defp apply_facet_filter(ash_query, %Query{facets: []}, _opts), do: ash_query
@@ -182,7 +185,7 @@ if Code.ensure_loaded?(Ash) do
       opts
       |> Keyword.get(:read_action_args, [])
       |> Map.new(fn
-        {key, :query} -> {key, text}
+        {key, :query} -> {key, text || ""}
         arg -> arg
       end)
     end
