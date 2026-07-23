@@ -62,6 +62,13 @@ defmodule Flicker.Theme do
       field name is exposed on hover (a `title`) rather than always shown.
     * `:facet_pill_value` — the pill's primary value label (e.g. "Active").
     * `:facet_pill_remove` — the pill's remove (`×`) button.
+    * `:selected_stack` — multi-select with a `:selected` slot (Spec 013): the
+      container around the custom-rendered selected items (e.g. an avatar
+      stack); replaces `:chip_list` when a `:selected` slot is given.
+    * `:selected_item` — the per-item wrapper inside `:selected_stack`
+      (positioning context for its remove control).
+    * `:selected_overflow` — the "+N" token shown when the selection exceeds
+      `max_visible`.
     * `:kbd_hint` — the `<kbd>` discoverability hint rendered when
       `activate_with_keyboard` is set (Spec 006); also used for the
       footer's ↑↓/↵/esc hints in `Flicker.palette/1` (Spec 008).
@@ -133,7 +140,10 @@ defmodule Flicker.Theme do
           facet_pill_list: String.t(),
           facet_pill: String.t(),
           facet_pill_value: String.t(),
-          facet_pill_remove: String.t()
+          facet_pill_remove: String.t(),
+          selected_stack: String.t(),
+          selected_item: String.t(),
+          selected_overflow: String.t()
         }
 
   @typedoc "An override: a full theme, or a partial map/keyword list of parts."
@@ -171,7 +181,10 @@ defmodule Flicker.Theme do
             facet_pill_list: "flicker-facet-pill-list",
             facet_pill: "flicker-facet-pill",
             facet_pill_value: "flicker-facet-pill-value",
-            facet_pill_remove: "flicker-facet-pill-remove"
+            facet_pill_remove: "flicker-facet-pill-remove",
+            selected_stack: "flicker-selected-stack",
+            selected_item: "flicker-selected-item",
+            selected_overflow: "flicker-selected-overflow"
 
   @doc "The default preset: plain, framework-free `flicker-*` class names."
   @spec vanilla() :: t()
@@ -228,7 +241,11 @@ defmodule Flicker.Theme do
         "inline-flex items-center gap-1 rounded-md bg-indigo-50 py-1 pl-2 pr-1 text-sm text-indigo-900 focus-within:ring-2 focus-within:ring-indigo-400",
       facet_pill_value: "font-medium",
       facet_pill_remove:
-        "rounded p-0.5 leading-none text-indigo-400 hover:bg-indigo-100 hover:text-indigo-700 focus:outline-none"
+        "rounded p-0.5 leading-none text-indigo-400 hover:bg-indigo-100 hover:text-indigo-700 focus:outline-none",
+      selected_stack: "flex flex-wrap items-center gap-1",
+      selected_item: "relative inline-flex items-center",
+      selected_overflow:
+        "inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
     }
   end
 
@@ -283,7 +300,10 @@ defmodule Flicker.Theme do
         "inline-flex items-center gap-1 rounded-md bg-primary/10 py-1 pl-2 pr-1 text-sm text-primary focus-within:ring-2 focus-within:ring-primary/50",
       facet_pill_value: "font-medium",
       facet_pill_remove:
-        "rounded p-0.5 leading-none text-primary/60 hover:bg-primary/20 hover:text-primary focus:outline-none"
+        "rounded p-0.5 leading-none text-primary/60 hover:bg-primary/20 hover:text-primary focus:outline-none",
+      selected_stack: "flex flex-wrap items-center gap-1",
+      selected_item: "relative inline-flex items-center",
+      selected_overflow: "badge badge-neutral badge-sm"
     }
   end
 

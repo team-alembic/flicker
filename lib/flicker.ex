@@ -214,6 +214,13 @@ defmodule Flicker do
     doc: "Multi-select only: caps the number of selected values; further picking is disabled at the cap."
   )
 
+  attr(:max_visible, :integer,
+    default: nil,
+    doc:
+      "Multi-select with a `:selected` slot: shows at most this many selected items, collapsing the rest " <>
+        "into a \"+N\" overflow token. Defaults to showing all."
+  )
+
   attr(:limit, :integer,
     default: nil,
     doc: "Max results shown. Defaults to `config :flicker, :default_limit` (25)."
@@ -264,6 +271,12 @@ defmodule Flicker do
 
   slot(:option, doc: "Custom option rendering, given the `Flicker.Result` as the slot argument.")
 
+  slot(:selected,
+    doc:
+      "Multi-select only: custom rendering of each *selected* item (given its `Flicker.Result`), " <>
+        "e.g. an avatar. Without it, selected values render as text chips. Pairs with `max_visible`."
+  )
+
   @spec select(map()) :: Phoenix.LiveView.Rendered.t()
   def select(assigns) do
     provider = resolve_provider(assigns)
@@ -307,6 +320,8 @@ defmodule Flicker do
       paginate={@paginate}
       max_windows={@max_windows}
       option={@option}
+      selected_slot={@selected}
+      max_visible={@max_visible}
     />
     """
   end

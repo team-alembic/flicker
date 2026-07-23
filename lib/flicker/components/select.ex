@@ -114,6 +114,8 @@ defmodule Flicker.Components.Select do
       |> assign_new(:window_head, fn -> nil end)
       |> assign_new(:last_appended_count, fn -> nil end)
       |> assign_new(:current_query, fn -> nil end)
+      |> assign_new(:selected_slot, fn -> [] end)
+      |> assign_new(:max_visible, fn -> nil end)
 
     socket =
       socket
@@ -989,6 +991,14 @@ defmodule Flicker.Components.Select do
   # 008). Every result's group is `nil` for a groupless provider, so this
   # always returns exactly `[{:option, result, index}, ...]` in that case —
   # bit-for-bit the rows the pre-Spec-008 markup rendered.
+  # `max_visible` (Spec 013) caps how many selected items the `:selected` slot
+  # renders before the rest collapse into a "+N" token; `nil` shows them all.
+  defp visible_selected(selected, nil), do: selected
+  defp visible_selected(selected, max_visible), do: Enum.take(selected, max_visible)
+
+  defp overflow_count(_selected, nil), do: 0
+  defp overflow_count(selected, max_visible), do: max(length(selected) - max_visible, 0)
+
   defp rows_with_group_headers(results) do
     {rows, _last_group} =
       results
@@ -1112,7 +1122,47 @@ defmodule Flicker.Components.Select do
         button, unchanged.
       --%>
       <div :if={@multiple} class={@theme.multi_field}>
-        <div class={@theme.chip_list} role="list" aria-label={message(assigns, :selected_items)}>
+        <%!--
+          A `:selected` slot (Spec 013) renders each selected item's own
+          visual (e.g. an avatar), laid out in `:selected_stack` with a "+N"
+          overflow past `max_visible` — otherwise the default text chips.
+          Either way the library owns the remove control so removal can target
+          this component.
+        --%>
+        <div
+          :if={@selected_slot != []}
+          class={@theme.selected_stack}
+          role="list"
+          aria-label={message(assigns, :selected_items)}
+        >
+          <span :for={result <- visible_selected(@selected, @max_visible)} class={@theme.selected_item} role="listitem">
+            {render_slot(@selected_slot, result)}
+            <button
+              type="button"
+              class={@theme.chip_remove}
+              disabled={!@connected?}
+              phx-click="remove_chip"
+              phx-value-result={to_string(result.value)}
+              phx-target={@myself}
+              aria-label={message(assigns, :remove_chip, %{label: result.label})}
+            >
+              {message(assigns, :remove_icon)}
+            </button>
+          </span>
+          <span
+            :if={overflow_count(@selected, @max_visible) > 0}
+            class={@theme.selected_overflow}
+            aria-label={message(assigns, :selected_overflow, %{count: overflow_count(@selected, @max_visible)})}
+          >
+            +{overflow_count(@selected, @max_visible)}
+          </span>
+        </div>
+        <div
+          :if={@selected_slot == []}
+          class={@theme.chip_list}
+          role="list"
+          aria-label={message(assigns, :selected_items)}
+        >
           <span :for={result <- @selected} class={@theme.chip} role="listitem">
             <span>{result.label}</span>
             <button

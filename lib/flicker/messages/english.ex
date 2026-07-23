@@ -108,6 +108,7 @@ defmodule Flicker.Messages.English do
   def message(:facet_value_suggestions_count, %{count: 0}), do: "No matching values"
   def message(:facet_value_suggestions_count, %{count: 1}), do: "1 matching value"
   def message(:facet_value_suggestions_count, %{count: count}), do: "#{count} matching values"
+  def message(:selected_overflow, %{count: count}), do: "#{count} more selected"
   def message(:facet_search_placeholder, _bindings), do: "Filter... (try status:active)"
   def message(:facet_free_value_hint, _bindings), do: "Type a value, then Space to add"
 
