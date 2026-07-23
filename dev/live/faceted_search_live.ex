@@ -57,6 +57,16 @@ defmodule Dev.Live.FacetedSearch do
   @doc "Renders the facet search bar and the live-filtered artist list beneath it."
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
+    assigns =
+      assign(assigns, :example_code, ~S"""
+      <Flicker.search
+        id="artist-search"
+        resource={MyApp.Music.Artist}
+        facets={[:status, :tier, :monthly_listeners, after: [attribute: :formed_on, op: :>=]]}
+        on_change={:artist_query_changed}
+      />
+      """)
+
     ~H"""
     <.page title="Faceted search" current_path="/faceted-search" spec="docs/specs/spec-003-faceted-search.md">
       <:description>
@@ -67,13 +77,15 @@ defmodule Dev.Live.FacetedSearch do
       </:description>
 
       <.section label="Facet search">
-        <Flicker.search
-          id="artist-search"
-          resource={Dev.Music.Artist}
-          actor={@actor}
-          facets={[:status, :tier, :monthly_listeners, after: [attribute: :formed_on, op: :>=]]}
-          on_change={:artist_query_changed}
-        />
+        <.code_example id="faceted-search-code" code={@example_code}>
+          <Flicker.search
+            id="artist-search"
+            resource={Dev.Music.Artist}
+            actor={@actor}
+            facets={[:status, :tier, :monthly_listeners, after: [attribute: :formed_on, op: :>=]]}
+            on_change={:artist_query_changed}
+          />
+        </.code_example>
       </.section>
 
       <.section label="Filtered artists">

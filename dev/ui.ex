@@ -205,6 +205,54 @@ defmodule Dev.UI do
     """
   end
 
+  @doc """
+  Wraps a live example with its source in a copy-to-clipboard code block
+  (Spec 014) — the component-library "here's the component, here's the code"
+  pattern. `code` is the source shown (kept next to the live example so the
+  two stay in sync); the `inner_block` is the live render.
+  """
+  attr(:id, :string, required: true)
+  attr(:code, :string, required: true)
+  slot(:inner_block, required: true)
+
+  @spec code_example(map()) :: Phoenix.LiveView.Rendered.t()
+  def code_example(assigns) do
+    ~H"""
+    <div>
+      {render_slot(@inner_block)}
+      <div class="relative mt-3 overflow-hidden rounded-md bg-gray-900">
+        <button
+          id={@id}
+          phx-hook=".CopyCode"
+          data-code={@code}
+          type="button"
+          class="absolute right-2 top-2 rounded border border-gray-600 bg-gray-800 px-2 py-1 text-xs font-medium text-gray-200 hover:bg-gray-700"
+        >
+          Copy
+        </button>
+        <pre class="overflow-x-auto p-4 text-xs leading-relaxed text-gray-100"><code>{@code}</code></pre>
+      </div>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyCode">
+        export default {
+          mounted() {
+            this.onClick = () => {
+              navigator.clipboard.writeText(this.el.dataset.code).then(() => {
+                const original = this.el.textContent
+                this.el.textContent = "Copied"
+                setTimeout(() => { this.el.textContent = original }, 1500)
+              })
+            }
+            this.el.addEventListener("click", this.onClick)
+          },
+          destroyed() {
+            this.el.removeEventListener("click", this.onClick)
+          }
+        }
+      </script>
+    </div>
+    """
+  end
+
   @doc "One linked card in the home page's capability grid."
   attr(:path, :string, required: true)
   attr(:title, :string, required: true)

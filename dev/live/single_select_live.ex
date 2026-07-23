@@ -109,6 +109,19 @@ defmodule Dev.Live.SingleSelect do
   @doc "Renders both pickers."
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
+    assigns =
+      assign(assigns, :form_code, ~S"""
+      <.form for={@form} id="artist-form">
+        <Flicker.select
+          id="artist-form-select"
+          field={@form[:artist_id]}
+          resource={MyApp.Music.Artist}
+          search={[:name]}
+          option_label={:name}
+        />
+      </.form>
+      """)
+
     ~H"""
     <.page title="Single select" current_path="/single-select" spec="docs/specs/spec-001-portable-single-select.md">
       <:description>
@@ -125,17 +138,19 @@ defmodule Dev.Live.SingleSelect do
             and required/validation integrate. Default option rendering:
             label + muted sublabel.
           </p>
-          <.form for={@form} id="artist-form">
-            <Flicker.select
-              id="artist-form-select"
-              field={@form[:artist_id]}
-              resource={Artist}
-              actor={@actor}
-              search={[:name]}
-              option_label={:name}
-              option_sublabel={&sublabel/1}
-            />
-          </.form>
+          <.code_example id="single-form-code" code={@form_code}>
+            <.form for={@form} id="artist-form">
+              <Flicker.select
+                id="artist-form-select"
+                field={@form[:artist_id]}
+                resource={Artist}
+                actor={@actor}
+                search={[:name]}
+                option_label={:name}
+                option_sublabel={&sublabel/1}
+              />
+            </.form>
+          </.code_example>
           <div class="mt-3 rounded-md bg-gray-50 px-3 py-2 font-mono text-xs text-gray-600">
             would submit: {inspect(@form.params, pretty: false)}
           </div>
