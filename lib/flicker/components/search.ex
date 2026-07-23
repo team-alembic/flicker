@@ -44,10 +44,18 @@ defmodule Flicker.Components.Search do
   def update(assigns, socket) do
     {initial_text, assigns} = Map.pop(assigns, :text)
 
+    socket = assign(socket, assigns)
+    facets = socket.assigns.facets
+
     socket =
       socket
-      |> assign(assigns)
-      |> assign_new(:text, fn -> initial_text || "" end)
+      # A restored input (Spec 009 Level 2's `text` attr) is split on first
+      # mount: its already-complete facet tokens become committed pills, only
+      # its free-text remainder stays in the input buffer — same end state a
+      # user reaches by typing them. `assign_new/3` means later renders never
+      # re-split (they'd clobber what the user has typed since).
+      |> assign_new(:committed, fn -> initial_committed(initial_text, facets) end)
+      |> assign_new(:text, fn -> initial_buffer(initial_text, facets) end)
       |> assign_new(:cursor, fn -> nil end)
       |> assign_new(:open, fn -> false end)
       |> assign_new(:suggestions_loading, fn -> false end)
@@ -56,6 +64,12 @@ defmodule Flicker.Components.Search do
 
     {:ok, socket}
   end
+
+  defp initial_committed(nil, _facets), do: []
+  defp initial_committed(text, facets), do: Query.parse(text, facets).facets
+
+  defp initial_buffer(nil, _facets), do: ""
+  defp initial_buffer(text, facets), do: Query.parse(text, facets).text
 
   # `phx-keyup` fires for *every* key — including the Enter/Escape keydowns
   # the `.FlickerSearchNav` hook has already turned into a
@@ -69,6 +83,8 @@ defmodule Flicker.Components.Search do
   def handle_event("query", %{"key" => key}, socket) when key in ["Enter", "Escape", "Tab"], do: {:noreply, socket}
 
   def handle_event("query", %{"value" => text} = params, socket) do
+    committed_before = socket.assigns.committed
+
     socket =
       socket
       |> assign(
@@ -76,8 +92,17 @@ defmodule Flicker.Components.Search do
         cursor: CursorContext.parse_selection_start(params["cursor"]),
         open: true
       )
+      |> absorb_committed()
       |> refresh_context()
       |> notify_change()
+
+    # If a completed facet token was just lifted out of the buffer into a
+    # pill, the input's DOM value still carries it — push the trimmed buffer
+    # back so the token visibly moves from the input into the pill row.
+    socket =
+      if socket.assigns.committed == committed_before,
+        do: socket,
+        else: focus_input(socket, socket.assigns.text)
 
     {:noreply, socket}
   end
@@ -108,11 +133,39 @@ defmodule Flicker.Components.Search do
       # actually puts in the DOM, rather than reclassifying against a
       # now-stale mid-token position.
       |> assign(text: new_text, cursor: nil, open: true)
+      |> absorb_committed()
       |> refresh_context()
       |> notify_change()
 
-    {:noreply, focus_input(socket, new_text)}
+    {:noreply, focus_input(socket, socket.assigns.text)}
   end
+
+  def handle_event("remove_facet", %{"index" => index}, socket) do
+    committed = List.delete_at(socket.assigns.committed, String.to_integer(index))
+
+    socket =
+      socket
+      |> assign(committed: committed)
+      |> refresh_context()
+      |> notify_change()
+
+    {:noreply, focus_input(socket, socket.assigns.text)}
+  end
+
+  # Backspace on an empty buffer removes the last committed pill (mirrors the
+  # multi-select chip behaviour) — the `.FlickerSearchNav` hook only pushes
+  # this when the input is empty, so ordinary Backspace still edits text.
+  def handle_event("remove_last_facet", _params, %{assigns: %{text: "", committed: [_ | _] = committed}} = socket) do
+    socket =
+      socket
+      |> assign(committed: List.delete_at(committed, -1))
+      |> refresh_context()
+      |> notify_change()
+
+    {:noreply, socket}
+  end
+
+  def handle_event("remove_last_facet", _params, socket), do: {:noreply, socket}
 
   def handle_event("focus", _params, socket), do: {:noreply, assign(socket, open: true)}
 
@@ -121,7 +174,7 @@ defmodule Flicker.Components.Search do
   def handle_event("clear", _params, socket) do
     socket =
       socket
-      |> assign(text: "", cursor: nil, open: false)
+      |> assign(text: "", committed: [], cursor: nil, open: false)
       |> refresh_context()
       |> notify_change()
 
@@ -203,11 +256,78 @@ defmodule Flicker.Components.Search do
 
   defp notify_change(socket) do
     facets = socket.assigns.facets
-    query = Query.parse(socket.assigns.text, facets)
+    query = combined_query(socket, facets)
     filter = to_filter(query, facets)
 
     send(self(), {socket.assigns.on_change, query, filter})
     socket
+  end
+
+  # The emitted query is the committed pills plus whatever's still in the
+  # buffer: committed facets first, then the buffer's own parsed facets and
+  # free text. `:input` is reconstructed (canonical committed tokens + the
+  # raw buffer) so a re-`parse/2` (Spec 009's URL round-trip) reproduces it.
+  defp combined_query(socket, facets) do
+    buffer_query = Query.parse(socket.assigns.text, facets)
+    committed = socket.assigns.committed
+
+    %Query{
+      text: buffer_query.text,
+      facets: committed ++ buffer_query.facets,
+      input: build_input(committed, socket.assigns.text)
+    }
+  end
+
+  defp build_input(committed, buffer) do
+    [Enum.map_join(committed, " ", &canonical_token/1), buffer]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join(" ")
+  end
+
+  # Lifts every complete facet token out of the buffer into `:committed`,
+  # leaving only free text (and any still-in-progress token) behind. A token
+  # is complete once the buffer ends in whitespace — the "I've finished this"
+  # signal, and exactly what the value-suggestion insert appends. Free-text-
+  # only buffers (no facets to lift) are left untouched.
+  defp absorb_committed(%{assigns: %{facets: []}} = socket), do: socket
+
+  defp absorb_committed(socket) do
+    buffer = socket.assigns.text
+
+    if buffer != "" and Regex.match?(~r/\s\z/u, buffer) do
+      parsed = Query.parse(buffer, socket.assigns.facets)
+
+      case parsed.facets do
+        [] ->
+          socket
+
+        facets ->
+          assign(socket,
+            committed: socket.assigns.committed ++ facets,
+            text: parsed.text,
+            cursor: nil
+          )
+      end
+    else
+      socket
+    end
+  end
+
+  defp canonical_token({key, op, value}), do: "#{key}#{op_token(op)}#{value_token(value)}"
+
+  defp op_token(:neq), do: "!="
+  defp op_token(:gt), do: ">"
+  defp op_token(:gte), do: ">="
+  defp op_token(:lt), do: "<"
+  defp op_token(:lte), do: "<="
+  defp op_token(_default_op), do: ":"
+
+  defp value_token(%Date{} = date), do: Date.to_iso8601(date)
+  defp value_token(value) when is_binary(value), do: quote_if_needed(value)
+  defp value_token(value), do: to_string(value)
+
+  defp quote_if_needed(value) do
+    if Regex.match?(~r/\s/u, value), do: ~s("#{value}"), else: value
   end
 
   # `Query.to_filter/2` only compiles when `ash` is present (ADR-006) — this
@@ -250,6 +370,59 @@ defmodule Flicker.Components.Search do
   defp facet_label(%{label: nil, key: key}), do: to_string(key)
   defp facet_label(%{label: label}), do: label
 
+  # A committed facet as a pill: `%{index, field, value}` where `field` is
+  # the facet's display name and `value` its human label (enum `value_labels`
+  # when present, otherwise humanised), with a non-`:eq` operator prefixed so
+  # `monthly_listeners >= 100000` reads as "≥ 100000", not just "100000".
+  defp build_pills(committed, facets) do
+    committed
+    |> Enum.with_index()
+    |> Enum.map(fn {{key, op, value}, index} ->
+      facet = Enum.find(facets, &(&1.key == key))
+      %{index: index, field: pill_field(facet, key), value: pill_value(facet, op, value)}
+    end)
+  end
+
+  defp pill_field(nil, key), do: humanize(to_string(key))
+  defp pill_field(%{label: nil, key: key}, _key), do: humanize(to_string(key))
+  defp pill_field(%{label: label}, _key), do: label
+
+  # A free-value facet (numeric/date/string, no enum picklist or relationship
+  # search) has no suggestions to offer in value position — so instead of the
+  # bare "No results" empty state, the listbox shows a hint that a value can
+  # just be typed, since that's the only way to complete these facets.
+  defp value_hint(assigns, {:value, %{related: related, type: :date}, _prefix}) when is_nil(related),
+    do: message(assigns, :facet_date_value_hint)
+
+  defp value_hint(assigns, {:value, %{related: related, type: type}, _prefix})
+       when is_nil(related) and type in [:integer, :float, :string],
+       do: message(assigns, :facet_free_value_hint)
+
+  defp value_hint(_assigns, _context), do: nil
+
+  defp pill_value(facet, op, value), do: op_prefix(op) <> value_display(facet, value)
+
+  defp op_prefix(:neq), do: "≠ "
+  defp op_prefix(:gt), do: "> "
+  defp op_prefix(:gte), do: "≥ "
+  defp op_prefix(:lt), do: "< "
+  defp op_prefix(:lte), do: "≤ "
+  defp op_prefix(_eq_or_contains), do: ""
+
+  defp value_display(%{value_labels: labels}, value) when is_map(labels) and is_atom(value),
+    do: Map.get(labels, value) || humanize(to_string(value))
+
+  defp value_display(_facet, %Date{} = date), do: Date.to_iso8601(date)
+  defp value_display(_facet, value) when is_atom(value), do: humanize(to_string(value))
+  defp value_display(_facet, value), do: to_string(value)
+
+  defp humanize(string) do
+    case String.replace(string, "_", " ") do
+      <<first::utf8, rest::binary>> -> String.upcase(<<first::utf8>>) <> rest
+      other -> other
+    end
+  end
+
   defp suggestions_count_message(assigns, {:key, _prefix}),
     do: message(assigns, :facet_key_suggestions_count, %{count: length(assigns.suggestions)})
 
@@ -289,6 +462,8 @@ defmodule Flicker.Components.Search do
       |> assign(:listbox_id, listbox_id_for(assigns.id))
       |> assign(:sr_only_style, @sr_only_style)
       |> assign(:show_suggestions, assigns.open and assigns.context != :text)
+      |> assign(:pills, build_pills(assigns.committed, assigns.facets))
+      |> assign(:value_hint, value_hint(assigns, assigns.context))
 
     assigns = assign(assigns, :announcement, announcement(assigns))
 
@@ -301,45 +476,71 @@ defmodule Flicker.Components.Search do
       phx-click-away="close"
       data-active-class={@theme.option_active}
     >
-      <label id={"#{@input_id}-label"} for={@input_id} class="flicker-sr-only" style={@sr_only_style}>
-        {message(assigns, :facet_search_placeholder)}
-      </label>
-      <input
-        type="text"
-        id={@input_id}
-        name={"#{@id}-query"}
-        role="combobox"
-        aria-expanded={to_string(@show_suggestions)}
-        aria-controls={@listbox_id}
-        aria-autocomplete="list"
-        aria-haspopup="listbox"
-        autocomplete="off"
-        class={@theme.search_input}
-        value={@text}
-        placeholder={message(assigns, :facet_search_placeholder)}
-        disabled={!@connected?}
-        phx-keyup="query"
-        phx-debounce={@debounce}
-        phx-focus="focus"
-        phx-target={@myself}
-      />
-      <button
-        :if={@text != ""}
-        type="button"
-        class={@theme.clear_button}
-        disabled={!@connected?}
-        phx-click="clear"
-        phx-target={@myself}
-        aria-label={message(assigns, :clear_selection)}
-      >
-        {message(assigns, :clear_selection)}
-      </button>
+      <%!--
+        Committed facets are pills *inside* the field box (Spec 012), with
+        the borderless input growing beside them and "clear all" centred in
+        the box — a tokenised faceted input, not raw `key:value` text.
+      --%>
+      <div class={@theme.multi_field}>
+        <div class={@theme.facet_pill_list} role="list" aria-label={message(assigns, :selected_items)}>
+          <span :for={pill <- @pills} class={@theme.facet_pill} role="listitem" title={"#{pill.field}: #{pill.value}"}>
+            <span class={@theme.facet_pill_value}>{pill.value}</span>
+            <button
+              type="button"
+              class={@theme.facet_pill_remove}
+              disabled={!@connected?}
+              phx-click="remove_facet"
+              phx-value-index={pill.index}
+              phx-target={@myself}
+              aria-label={message(assigns, :remove_chip, %{label: "#{pill.field} #{pill.value}"})}
+            >
+              {message(assigns, :remove_icon)}
+            </button>
+          </span>
+        </div>
+        <label id={"#{@input_id}-label"} for={@input_id} class="flicker-sr-only" style={@sr_only_style}>
+          {message(assigns, :facet_search_placeholder)}
+        </label>
+        <input
+          type="text"
+          id={@input_id}
+          name={"#{@id}-query"}
+          role="combobox"
+          aria-expanded={to_string(@show_suggestions)}
+          aria-controls={@listbox_id}
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
+          autocomplete="off"
+          class={@theme.multi_input}
+          value={@text}
+          placeholder={message(assigns, :facet_search_placeholder)}
+          disabled={!@connected?}
+          phx-keyup="query"
+          phx-debounce={@debounce}
+          phx-focus="focus"
+          phx-target={@myself}
+        />
+        <button
+          :if={@text != "" or @pills != []}
+          type="button"
+          class={@theme.multi_clear}
+          disabled={!@connected?}
+          phx-click="clear"
+          phx-target={@myself}
+          aria-label={message(assigns, :clear_all)}
+        >
+          {message(assigns, :clear_all)}
+        </button>
+      </div>
       <div id={"#{@id}-announcer"} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
         {@announcement}
       </div>
       <ul :if={@show_suggestions} id={@listbox_id} role="listbox" aria-labelledby={"#{@input_id}-label"} class={@theme.listbox}>
         <li :if={@suggestions_loading} class={@theme.loading_state}>{message(assigns, :loading)}</li>
-        <li :if={!@suggestions_loading && @suggestions == []} class={@theme.empty_state}>
+        <li :if={!@suggestions_loading && @suggestions == [] && @value_hint} class={@theme.hint}>
+          {@value_hint}
+        </li>
+        <li :if={!@suggestions_loading && @suggestions == [] && !@value_hint} class={@theme.empty_state}>
           {message(assigns, :no_results)}
         </li>
         <li
@@ -482,6 +683,12 @@ defmodule Flicker.Components.Search do
                 break
               case "Escape":
                 this.pushEventTo(this.el, "close", {})
+                break
+              case "Backspace":
+                // Empty input + Backspace removes the last committed facet
+                // pill (Spec 012), mirroring multi-select's chip behaviour;
+                // with text present it's an ordinary edit, left alone.
+                if (this.inputEl()?.value === "") this.pushEventTo(this.el, "remove_last_facet", {})
                 break
               default:
                 break

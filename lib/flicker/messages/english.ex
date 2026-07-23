@@ -109,6 +109,10 @@ defmodule Flicker.Messages.English do
   def message(:facet_value_suggestions_count, %{count: 1}), do: "1 matching value"
   def message(:facet_value_suggestions_count, %{count: count}), do: "#{count} matching values"
   def message(:facet_search_placeholder, _bindings), do: "Filter... (try status:active)"
+  def message(:facet_free_value_hint, _bindings), do: "Type a value, then Space to add"
+
+  def message(:facet_date_value_hint, _bindings), do: "Type a date (YYYY-MM-DD), then Space to add"
+
   def message(:palette_label, _bindings), do: "Command palette"
   def message(:close_palette, _bindings), do: "Close"
   def message(:footer_navigate_hint, _bindings), do: "navigate"
