@@ -22,6 +22,15 @@ defmodule Flicker.TestSearchSelectTest do
     assert_has(session, "#selection", text: "Casey Cassidy")
   end
 
+  test "searches without selecting an option", %{conn: conn} do
+    session =
+      conn
+      |> visit_mode(%{"mode" => "controlled"})
+      |> Flicker.Test.search("picker", "Casey Cassidy")
+
+    assert_has(session, "[role='option']", text: "Casey Cassidy")
+  end
+
   test "form-field mode: the hidden input carries the selection into submitted params", %{conn: conn} do
     session =
       conn

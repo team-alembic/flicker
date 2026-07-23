@@ -12,6 +12,26 @@ defmodule Flicker.Test do
     only: [element: 2, render_async: 1, render_focus: 1, render_keyup: 2]
 
   @doc """
+  Opens the picker identified by `select_id` and types `query` into it.
+
+  Returns the `session` after the provider's asynchronous search completes.
+  Use this when asserting result-list contents without choosing an option.
+  """
+  @spec search(struct(), String.t(), String.t()) :: struct()
+  def search(session, select_id, query) do
+    session.view
+    |> element("##{select_id}-input")
+    |> render_focus()
+
+    session.view
+    |> element("##{select_id}-input")
+    |> render_keyup(%{"value" => query})
+
+    render_async(session.view)
+    session
+  end
+
+  @doc """
   Opens the picker identified by its required component `id`, types
   `option_text` into it to filter, then clicks the resulting option of
   the same text.
@@ -26,16 +46,8 @@ defmodule Flicker.Test do
   """
   @spec search_select(struct(), String.t(), String.t()) :: struct()
   def search_select(session, select_id, option_text) do
-    session.view
-    |> element("##{select_id}-input")
-    |> render_focus()
-
-    session.view
-    |> element("##{select_id}-input")
-    |> render_keyup(%{"value" => option_text})
-
-    render_async(session.view)
-
-    apply(PhoenixTest, :click_button, [session, option_text])
+    session
+    |> search(select_id, option_text)
+    |> then(&apply(PhoenixTest, :click_button, [&1, option_text]))
   end
 end
