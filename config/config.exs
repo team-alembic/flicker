@@ -79,7 +79,10 @@ if config_env() == :test do
   config :wallaby,
     otp_app: :flicker,
     driver: Wallaby.Chrome,
-    chromedriver: [headless: true],
+    chromedriver: [
+      headless: true,
+      path: System.get_env("WALLABY_CHROMEDRIVER_PATH", "chromedriver")
+    ],
     max_wait_time: 8_000,
     # See the matching `:test` config above — the same private-ETS/async-task
     # mismatch shows up live in the browser too.

@@ -151,16 +151,17 @@ jobs:
 
       - run: mix deps.get
 
-      # Puts a matching Chrome + chromedriver on `PATH` — Wallaby's Chrome
-      # driver shells out to a bare `chromedriver` by default
-      # (`Wallaby.Chrome.find_chromedriver_executable/0`), so nothing
-      # further needs wiring in `config/config.exs`.
+      # Install a matched pair and pass the exact driver path to Wallaby;
+      # hosted runners can have a different preinstalled driver on `PATH`.
       - name: Install Chrome for Testing + matching chromedriver
+        id: chrome
         uses: browser-actions/setup-chrome@v2
         with:
           install-chromedriver: true
 
       - run: mix test --only browser
+        env:
+          WALLABY_CHROMEDRIVER_PATH: ${{ steps.chrome.outputs.chromedriver-path }}
 
   docs:
     name: Build & deploy docs
