@@ -14,6 +14,21 @@ defmodule Dev.Live.MultiSelect do
 
   alias Dev.Music.Artist
 
+  # Overlapping avatar stack (Spec 013): overrides only the selected-item
+  # parts on top of the tailwind preset — negative spacing overlaps the
+  # avatars, the "+N" token and each avatar carry a white ring, and the
+  # library's remove control becomes a small × revealed on hover.
+  @stack_theme %{
+    selected_stack: "flex items-center -space-x-2",
+    selected_item: "group relative",
+    selected_overflow:
+      "z-10 ml-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-600 ring-2 ring-white",
+    chip_remove:
+      "absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-gray-700 text-[10px] leading-none text-white group-hover:flex"
+  }
+
+  defp avatar_url(name), do: "https://api.dicebear.com/9.x/thumbs/svg?seed=" <> URI.encode(name)
+
   @impl true
   @doc "Seeds `Dev.Music` and preselects three artists on the form-mode picker, so batch `fetch/2` resolution is visible on load."
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
@@ -35,6 +50,7 @@ defmodule Dev.Live.MultiSelect do
       # A public actor (`label: nil`, same shape `single_select_live.ex`
       # uses) is enough for the policy to resolve normally.
       |> assign(:actor, %{label: nil})
+      |> assign(:stack_theme, @stack_theme)
 
     {:ok, socket}
   end
@@ -57,6 +73,8 @@ defmodule Dev.Live.MultiSelect do
     params = Map.put(socket.assigns.form.source || %{}, "artist_ids", value)
     {:noreply, assign(socket, :form, to_form(params, as: "artists"))}
   end
+
+  def handle_info({:stack_selected, _results}, socket), do: {:noreply, socket}
 
   @impl true
   @doc "Renders both pickers."
@@ -98,6 +116,41 @@ defmodule Dev.Live.MultiSelect do
             on_select={:controlled_selected}
             actor={@actor}
           />
+        </.section>
+
+        <.section label="Avatar stack (:selected slot + max_visible)">
+          <p class="mb-3 text-sm text-gray-500">
+            A <code>:selected</code> slot renders each chosen record however you like —
+            here as an avatar. With <code>max_visible={"{3}"}</code> the rest collapse
+            into a "+N" token. Search and add a few artists to build the stack; hover an
+            avatar to remove it.
+          </p>
+          <Flicker.select
+            id="artist-stack-multiselect"
+            resource={Artist}
+            multiple
+            max_visible={3}
+            search={[:name]}
+            option_label={:name}
+            on_select={:stack_selected}
+            actor={@actor}
+            theme={@stack_theme}
+          >
+            <:option :let={result}>
+              <span class="flex items-center gap-2">
+                <img src={avatar_url(result.label)} alt="" class="h-6 w-6 rounded-full bg-gray-100" />
+                <span class="font-medium">{result.label}</span>
+              </span>
+            </:option>
+            <:selected :let={result}>
+              <img
+                src={avatar_url(result.label)}
+                alt={result.label}
+                title={result.label}
+                class="h-8 w-8 rounded-full bg-gray-100 ring-2 ring-white"
+              />
+            </:selected>
+          </Flicker.select>
         </.section>
       </div>
     </.page>
