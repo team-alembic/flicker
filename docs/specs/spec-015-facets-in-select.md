@@ -6,6 +6,14 @@ depends_on: [spec-003, spec-012] # faceted parser; facet pills
 
 # Spec 015: Inline facets in `Flicker.select`
 
+> **Status note (2026-07-23):** deferred by decision. `Flicker.select` already
+> *parses and filters* by facets today (Spec 003) — a select given `facets={…}`
+> narrows its record search on `status:active` etc. Only the **pill cosmetics**
+> (lifting committed tokens out of the input into pills) are outstanding, and
+> that reworks the shipped select's central query flow with an unresolved
+> pills-vs-chips layout question, so it's held as `draft` rather than built for
+> now. Revisit when the cosmetic parity is worth that change.
+
 `Flicker.search/1` renders committed facets as removable pills (Spec 012) and
 `Flicker.select/1` already *parses* facets for filtering its record search
 (Spec 003's "facets in select"), but the select shows facet tokens as raw text
