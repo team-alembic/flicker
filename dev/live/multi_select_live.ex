@@ -27,7 +27,9 @@ defmodule Dev.Live.MultiSelect do
       "absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-gray-700 text-[10px] leading-none text-white group-hover:flex"
   }
 
-  defp avatar_url(name), do: "https://api.dicebear.com/9.x/thumbs/svg?seed=" <> URI.encode(name)
+  # pravatar serves real photographic avatars, keyed by `u` so each artist
+  # gets a stable face (DiceBear's illustrated blobs read as placeholders).
+  defp avatar_url(name), do: "https://i.pravatar.cc/80?u=" <> URI.encode(name)
 
   @impl true
   @doc "Seeds `Dev.Music` and preselects three artists on the form-mode picker, so batch `fetch/2` resolution is visible on load."

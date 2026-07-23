@@ -24,6 +24,10 @@ defmodule Dev.Live.KeyboardActivation do
       socket
       |> assign(:selected_result, :none)
       |> assign(:duplicate_selected_result, :none)
+      # `Dev.Music.Artist`'s read policy is actor-scoped, so a (public) actor
+      # is required or every search errors ("Something went wrong") — same as
+      # every other Ash-backed playground page.
+      |> assign(:actor, %{label: nil})
 
     {:ok, socket}
   end
@@ -68,6 +72,7 @@ defmodule Dev.Live.KeyboardActivation do
         <Flicker.select
           id="keyboard-select"
           resource={Artist}
+          actor={@actor}
           search={[:name]}
           option_label={:name}
           on_select={:keyboard_selected}
@@ -87,6 +92,7 @@ defmodule Dev.Live.KeyboardActivation do
         <Flicker.select
           id="keyboard-duplicate-select"
           resource={Artist}
+          actor={@actor}
           search={[:name]}
           option_label={:name}
           on_select={:keyboard_duplicate_selected}
