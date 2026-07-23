@@ -201,14 +201,34 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: erlef/setup-beam@v1
+
+      - id: release-check
+        name: Check release eligibility
+        shell: bash
+        run: |
+          git fetch origin main --tags
+
+          if [[ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]]; then
+            echo "A newer main commit exists; skipping this stale release."
+          elif [[ -z "$(git tag --list 'v*')" ]]; then
+            echo "No release baseline tag exists; run the initial release manually."
+          else
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: ${{ steps.release-check.outputs.eligible == 'true' }}
+        uses: erlef/setup-beam@v1
         with:
           version-file: .tool-versions
           version-type: strict
-      - run: mix deps.get
+
+      - if: ${{ steps.release-check.outputs.eligible == 'true' }}
+        run: mix deps.get
+
       - name: git-ops release
+        if: ${{ steps.release-check.outputs.eligible == 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          mix git_ops.release --yes || echo "no release needed"
+          mix git_ops.release --yes
           git push --follow-tags
