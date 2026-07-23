@@ -156,9 +156,9 @@ jobs:
       # (`Wallaby.Chrome.find_chromedriver_executable/0`), so nothing
       # further needs wiring in `config/config.exs`.
       - name: Install Chrome for Testing + matching chromedriver
-        uses: browser-actions/setup-chrome@v1
+        uses: browser-actions/setup-chrome@v2
         with:
-          chromedriver: true
+          install-chromedriver: true
 
       - run: mix test --only browser
 
