@@ -77,7 +77,10 @@ if Code.ensure_loaded?(Ash) do
 
         session = click_button(session, "Active")
 
-        assert_has(session, "#artist-search-input[value='status:active ']")
+        # Spec 012: the completed facet lifts out of the input into a pill and
+        # the input clears — but the emitted query still carries the facet.
+        assert_has(session, "[role='listitem']", text: "Active")
+        assert_has(session, "#artist-search-input[value='']")
         assert_has(session, "#last-facets", text: "{:status, :eq, :active}")
       end
     end

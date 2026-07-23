@@ -40,9 +40,46 @@ if Code.ensure_loaded?(Ash) do
 
         session = click_button(session, "Active")
 
-        assert_has(session, "#artist-search-input[value='status:active ']")
+        # Spec 012: the completed facet lifts out of the input into a pill and
+        # the input clears — the emitted query + filter are unchanged.
+        assert_has(session, "[role='listitem']", text: "Active")
+        assert_has(session, "#artist-search-input[value='']")
         assert_has(session, "#last-facets", text: "{:status, :eq, :active}")
         assert_has(session, "#last-filter", text: ~s(%{"status" => %{"eq" => :active}}))
+      end
+    end
+
+    describe "committed facet pills (Spec 012)" do
+      test "completing a facet (trailing space) lifts it into a removable pill and clears the input", %{conn: conn} do
+        session =
+          conn
+          |> visit_as(%{label: nil})
+          |> type_search("artist-search-input", "status:active ")
+
+        # The token is gone from the input; it's now a pill, and the emitted
+        # query still carries the facet.
+        assert_has(session, "[role='listitem']", text: "Active")
+        assert_has(session, "#artist-search-input[value='']")
+        assert_has(session, "#last-facets", text: "{:status, :eq, :active}")
+
+        # Removing the pill drops the facet from the emitted query.
+        session.view
+        |> Phoenix.LiveViewTest.element("button[aria-label='Remove Status Active']")
+        |> Phoenix.LiveViewTest.render_click()
+
+        assert_has(session, "#last-facets", text: "[]")
+        refute_has(session, "[role='listitem']")
+      end
+
+      test "free text alongside a committed facet stays in the input", %{conn: conn} do
+        session =
+          conn
+          |> visit_as(%{label: nil})
+          |> type_search("artist-search-input", "status:active rock ")
+
+        assert_has(session, "[role='listitem']", text: "Active")
+        assert_has(session, "#artist-search-input[value='rock']")
+        assert_has(session, "#last-facets", text: "{:status, :eq, :active}")
       end
     end
 

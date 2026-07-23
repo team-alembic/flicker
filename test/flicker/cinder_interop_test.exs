@@ -12,9 +12,9 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
     Seed indices used below (see `Dev.Music.seed!/0`'s deterministic
     naming/status/label derivation): "Casey Cassidy" (index 0, public,
     `monthly_listeners: 12_345`) and "Jordan Rivers" (index 12, public,
-    `monthly_listeners: 160_485`) are both visible to the public actor;
-    "Alex Cassidy" (index 1, `label: "indie"`) is only visible once the
-    actor toggle switches to the indie label.
+    `monthly_listeners: 160_485`) are both visible to the fixed public
+    actor (`%{label: nil}`) this page reads under; "Alex Cassidy" (index 1,
+    `label: "indie"`) never reaches the table under that actor.
 
     Typing now also patches the URL (the Level 2 adapter's `push_patch/4`),
     and every patch re-runs `handle_params/3` → a fresh Cinder reload —
@@ -72,16 +72,22 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
     test "the composed query is actor-scoped end to end", %{conn: conn} do
       session = conn |> visit("/cinder-interop") |> await_table()
 
-      refute_has(session, "td", text: "Alex Cassidy")
+      session = type_search(session, "artist-search-input", "Cassidy")
 
-      session = click_button(session, "Indie label")
-
-      assert_has(session, "td", text: "Alex Cassidy", timeout: @await)
-
-      session = type_search(session, "artist-search-input", "monthly_listeners>=100000")
-
+      assert_has(session, "td", text: "Casey Cassidy", timeout: @await)
       refute_has(session, "td", text: "Alex Cassidy", timeout: @await)
-      assert_has(session, "td", text: "Casey Rivers", timeout: @await)
+    end
+
+    test "free-text search filters the Cinder table", %{conn: conn} do
+      session = conn |> visit("/cinder-interop") |> await_table()
+
+      assert_has(session, "td", text: "Casey Cassidy")
+      assert_has(session, "td", text: "Jordan Rivers")
+
+      session = type_search(session, "artist-search-input", "Casey")
+
+      assert_has(session, "td", text: "Casey Cassidy", timeout: @await)
+      refute_has(session, "td", text: "Jordan Rivers", timeout: @await)
     end
 
     describe "URL state (the Level 2 adapter)" do
@@ -109,13 +115,16 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
         |> assert_path("/cinder-interop", query_params: %{}, timeout: @await)
       end
 
-      test "visiting a shared URL restores the narrowed table and pre-fills the input", %{conn: conn} do
+      test "visiting a shared URL restores the narrowed table and its facet pill", %{conn: conn} do
         session =
           conn
           |> visit("/cinder-interop?flicker_q=" <> URI.encode_www_form("monthly_listeners>=100000"))
           |> await_table()
 
-        assert_has(session, "input#artist-search-input[value='monthly_listeners>=100000']")
+        # Spec 012: the restored facet lands as a pill (not raw text in the
+        # input); the narrowed table is unchanged.
+        assert_has(session, "[role='listitem']", text: "100000")
+        assert_has(session, "input#artist-search-input[value='']")
 
         refute_has(session, "td", text: "Casey Cassidy", timeout: @await)
         assert_has(session, "td", text: "Jordan Rivers", timeout: @await)
@@ -132,7 +141,7 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
         )
       end
 
-      test "a shared URL with quoted values and unicode round-trips into the input verbatim", %{conn: conn} do
+      test "a shared URL with quoted values and unicode restores as a pill plus verbatim free text", %{conn: conn} do
         input = ~s(worker:"São Paulo" tier:legendary)
 
         session =
@@ -140,7 +149,11 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
           |> visit("/cinder-interop?flicker_q=" <> URI.encode_www_form(input))
           |> await_table()
 
-        assert_has(session, ~s(input#artist-search-input[value='#{input}']))
+        # Spec 012: the known `tier` facet lifts into a pill; `worker` is not a
+        # facet on this page, so it stays as free text in the input, quoting
+        # and unicode preserved verbatim.
+        assert_has(session, "[role='listitem']", text: "Legendary")
+        assert_has(session, ~s(input#artist-search-input[value='worker:"São Paulo"']))
       end
     end
 

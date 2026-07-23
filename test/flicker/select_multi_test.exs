@@ -163,6 +163,17 @@ defmodule Flicker.SelectMultiTest do
 
       assert_has(session, "#selection", text: ~s(["Casey Cassidy", "Alex Rivers"]))
     end
+
+    test "selecting an option clears the search text so the next pick starts fresh", %{conn: conn} do
+      session =
+        conn
+        |> visit_mode(%{"mode" => "controlled"})
+        |> type_search("picker-input", "cas")
+
+      session = click_button(session, "Casey Cassidy")
+
+      assert_has(session, "#picker-input[value='']")
+    end
   end
 
   describe "result filtering" do

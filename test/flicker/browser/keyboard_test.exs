@@ -142,6 +142,25 @@ if Code.ensure_loaded?(Ash) do
       assert active_element_identity(session) == "artist-form-select-input"
     end
 
+    # A mouse click on an option selects it and the listbox stays closed —
+    # it must not flicker back open. `mousedown` on the option would
+    # otherwise blur the input, and the selection's programmatic refocus
+    # would fire `phx-focus` and reopen it; the `.Nav` hook preventDefaults
+    # the option mousedown to keep focus on the input (same end state as the
+    # Enter path, which never loses focus).
+    feature "spec-001: clicking an option selects it and the listbox stays closed",
+            %{session: session} do
+      session = visit(session, "/single-select")
+      session = click(session, @artist_input)
+      assert_has(session, css("#artist-form-select-listbox li[role='option']", minimum: 1))
+
+      session = click(session, css("#artist-form-select-listbox li[role='option']", minimum: 1, at: 0))
+
+      assert_has(session, css("#artist-form-select-input[aria-expanded='false']"))
+      refute_has(session, css("#artist-form-select-listbox"))
+      assert Wallaby.Browser.attr(session, @artist_input, "value") != ""
+    end
+
     # | open | Escape | close the listbox, keep input text; a second
     # Escape (closed, text present) clears the input |
     feature "spec-001: two-stage Escape — first closes keeping text, second clears it",
@@ -281,15 +300,11 @@ if Code.ensure_loaded?(Ash) do
       session = send_keys(session, [:shift, :tab, :shift])
       assert active_element_identity(session) == "cmdk-select-input"
 
-      # Escape inside the palette is layered (Spec 008): the nested
-      # search's own two-stage Escape gets first refusal, so the palette
-      # itself only closes once no text is typed and no listbox is open.
-      # The nested listbox opened when `onOpen()` focused the input —
-      # close it first, then the second Escape reaches the palette.
-      session = send_keys(session, [:escape])
-      assert_has(session, css("#cmdk-select-input[aria-expanded='false']"))
-      refute_has(session, css("#cmdk-select-listbox"))
-
+      # Escape closes the whole palette on the first press: a modal overlay
+      # is expected to dismiss outright, unlike a bare inline select's
+      # two-stage Escape (Spec 001). The nested search's own `.Nav` Escape
+      # still fires on the way out (it closes its listbox), but the palette
+      # closes regardless — one press, even with the listbox open.
       session = send_keys(session, [:escape])
       assert_has(session, css("#cmdk[data-open='false']"))
       refute_has(session, css("[role='dialog']"))
