@@ -718,7 +718,7 @@ defmodule Flicker.Components.Search do
               case "Enter":
                 if (isOpen && this.activeIndex >= 0 && options[this.activeIndex]) {
                   e.preventDefault()
-                  options[this.activeIndex].querySelector("button")?.click()
+                  options[this.activeIndex].click()
                 }
                 break
               case "Escape":
@@ -742,8 +742,7 @@ defmodule Flicker.Components.Search do
             this.options().forEach((option, i) => {
               const active = i === this.activeIndex
               option.setAttribute("aria-selected", active ? "true" : "false")
-              const button = option.querySelector("button")
-              if (button) activeClasses.forEach(cls => button.classList.toggle(cls, active))
+              activeClasses.forEach(cls => option.classList.toggle(cls, active))
             })
           }
         }
