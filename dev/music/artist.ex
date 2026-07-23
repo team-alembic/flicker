@@ -85,6 +85,11 @@ defmodule Dev.Music.Artist do
   actions do
     defaults([:read])
 
+    read :named do
+      argument(:query, :string, allow_nil?: false)
+      filter(expr(contains(name, ^arg(:query))))
+    end
+
     create :create do
       primary?(true)
       accept([:name, :status, :formed_on, :monthly_listeners, :label, :tier, :genre_id])

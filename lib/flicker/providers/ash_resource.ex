@@ -25,6 +25,10 @@ if Code.ensure_loaded?(Ash) do
         `fun(record) :: String.t() | nil`, producing each result's
         `:sublabel`.
       * `:read_action` — the read action to run. Defaults to `:read`.
+      * `:read_action_args` — arguments for `:read_action`; `:query` is
+        replaced with the typed search text.
+      * `:fetch_action` — read action used by `fetch/2`. Defaults to `:read`.
+      * `:load` — loads applied to both searches and selected-value fetches.
       * `:limit` — max results for `search/2`. Defaults to `25`.
       * `:sort` — sort applied to `search/2`'s query (any `Ash.Query.sort/2`
         input). Optional.
@@ -90,7 +94,7 @@ if Code.ensure_loaded?(Ash) do
 
       ash_query =
         resource
-        |> Ash.Query.for_read(Keyword.get(opts, :read_action, @default_read_action), %{},
+        |> Ash.Query.for_read(Keyword.get(opts, :read_action, @default_read_action), action_args(opts, text),
           actor: actor,
           tenant: tenant
         )
@@ -98,6 +102,7 @@ if Code.ensure_loaded?(Ash) do
         |> apply_facet_filter(query, opts)
         |> apply_search_filter(search_fields, text)
         |> apply_sort(Keyword.get(opts, :sort))
+        |> Ash.Query.load(Keyword.get(opts, :load, []))
         |> Ash.Query.limit(limit)
         |> Ash.Query.offset(offset)
 
@@ -123,11 +128,12 @@ if Code.ensure_loaded?(Ash) do
 
       query =
         resource
-        |> Ash.Query.for_read(Keyword.get(opts, :read_action, @default_read_action), %{},
+        |> Ash.Query.for_read(Keyword.get(opts, :fetch_action, @default_read_action), %{},
           actor: actor,
           tenant: tenant
         )
         |> Ash.Query.filter_input(%{to_string(primary_key) => %{"in" => values}})
+        |> Ash.Query.load(Keyword.get(opts, :load, []))
 
       with {:ok, records} <- Ash.read(query, actor: actor, tenant: tenant) do
         {:ok, Enum.map(records, &to_result(&1, opts))}
@@ -150,6 +156,8 @@ if Code.ensure_loaded?(Ash) do
 
     defp apply_search_filter(query, _search_fields, text) when text in [nil, ""], do: query
 
+    defp apply_search_filter(query, [], _text), do: query
+
     defp apply_search_filter(query, search_fields, text) do
       # `Ash.CiString` on the right-hand side forces `contains/2`'s
       # case-insensitive overload regardless of the field's own type — the
@@ -167,6 +175,15 @@ if Code.ensure_loaded?(Ash) do
 
     defp apply_sort(query, nil), do: query
     defp apply_sort(query, sort), do: Ash.Query.sort(query, sort)
+
+    defp action_args(opts, text) do
+      opts
+      |> Keyword.get(:read_action_args, [])
+      |> Enum.map(fn
+        {key, :query} -> {key, text}
+        arg -> arg
+      end)
+    end
 
     # `meta.record` is the documented public contract for this provider:
     # an `:option` slot needs the record itself for icons/badges/avatars,

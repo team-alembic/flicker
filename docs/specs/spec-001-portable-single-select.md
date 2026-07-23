@@ -16,8 +16,8 @@ rendering, state, keyboard, forms.
 
 - **Declarative Tier 1 config** ([ADR-001](../adrs/adr-001-two-tier-provider-architecture.md)):
   `resource`, `actor`, `tenant`, `search` (field list), `option_label`,
-  `option_sublabel` (atom or 1-arity fun), `read_action`, `limit`, `sort`,
-  base `filter` — compiled at mount to the `AshResource` provider from
+  `option_sublabel` (atom or 1-arity fun), `read_action`, `read_action_args`,
+  `fetch_action`, `load`, `limit`, `sort`, base `filter` — compiled at mount to the `AshResource` provider from
   Spec 004. Custom providers via `source={MyApp.Search.Global}`.
 - **Both selection modes** ([ADR-005](../adrs/adr-005-form-field-mode-owns-hidden-inputs.md)):
   form-field mode (hidden input + `_unused_` marker, ported from the

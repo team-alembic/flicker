@@ -177,6 +177,21 @@ defmodule Flicker do
     doc: "Tier 1: the read action to run. Defaults to `:read`."
   )
 
+  attr(:read_action_args, :list,
+    default: [],
+    doc: "Tier 1: read-action arguments. Use `:query` as the typed-text placeholder."
+  )
+
+  attr(:fetch_action, :atom,
+    default: nil,
+    doc: "Tier 1: read action used to resolve selected values. Defaults to `:read`."
+  )
+
+  attr(:load, :list,
+    default: [],
+    doc: "Tier 1: Ash loads needed by option label, sublabel, or slot rendering."
+  )
+
   attr(:sort, :any, default: nil, doc: "Tier 1: sort applied to search results.")
 
   attr(:filter, :any,
@@ -689,6 +704,9 @@ defmodule Flicker do
         option_label: assigns[:option_label],
         option_sublabel: assigns[:option_sublabel],
         read_action: assigns[:read_action],
+        read_action_args: assigns[:read_action_args],
+        fetch_action: assigns[:fetch_action],
+        load: assigns[:load],
         sort: assigns[:sort],
         filter: assigns[:filter],
         # The same `facets:` attr `FacetSuggest.resolve_facets/1` expands for

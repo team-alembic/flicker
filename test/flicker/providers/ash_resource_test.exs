@@ -44,6 +44,14 @@ if Code.ensure_loaded?(Ash) do
         assert [%Flicker.Result{label: "Casey Cassidy"}] = results
       end
 
+      test "passes typed text to a configured read-action argument" do
+        assert {:ok, [%Flicker.Result{label: "Casey Cassidy"}]} =
+                 AshResource.search(
+                   %Query{text: "Casey Cassidy"},
+                   base_opts(search: [], read_action: :named, read_action_args: [query: :query])
+                 )
+      end
+
       test "blank query returns a default listing" do
         assert {:ok, results} = AshResource.search(%Query{text: ""}, base_opts(limit: 10))
         assert length(results) == 10
