@@ -39,6 +39,12 @@ defmodule Flicker.PaletteTest do
   end
 
   describe "controlled open/close" do
+    test "does not require host notification tags for navigation-only palettes", %{conn: conn} do
+      session = conn |> visit_palette(%{"silent" => true, "open" => true}) |> click_button("Close")
+
+      refute_has(session, "[role='dialog']")
+    end
+
     test "renders closed by default: no dialog", %{conn: conn} do
       session = visit_palette(conn)
       refute_has(session, "[role='dialog']")
@@ -115,7 +121,7 @@ defmodule Flicker.PaletteTest do
     test "a groupless provider renders with no group headers at all", %{conn: conn} do
       session = conn |> visit_palette(%{"grouped" => false}) |> open_and_search()
 
-      refute_has(session, "[role='presentation']")
+      refute_has(session, ".flicker-group-header")
       assert_has(session, "[role='option']", text: "Casey Cassidy")
       assert_has(session, "[role='option']", text: "Cassidy Records")
     end

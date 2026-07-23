@@ -35,6 +35,7 @@ defmodule Flicker.Test.PaletteHostLive do
   def mount(_params, session, socket) do
     grouped = Map.get(session, "grouped", true)
     results = if grouped, do: @grouped_results, else: @groupless_results
+    silent = Map.get(session, "silent", false)
 
     socket =
       socket
@@ -42,6 +43,7 @@ defmodule Flicker.Test.PaletteHostLive do
       |> assign(:palette_open, Map.get(session, "open", false))
       |> assign(:close_count, 0)
       |> assign(:selected_result, :none)
+      |> assign(:silent, silent)
 
     {:ok, socket}
   end
@@ -72,8 +74,8 @@ defmodule Flicker.Test.PaletteHostLive do
       id="cmdk"
       source={{Flicker.Providers.Static, results: @results}}
       open={@palette_open}
-      on_close={:palette_closed}
-      on_select={:palette_selected}
+      on_close={if @silent, do: nil, else: :palette_closed}
+      on_select={if @silent, do: nil, else: :palette_selected}
     />
     """
   end

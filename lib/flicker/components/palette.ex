@@ -63,7 +63,7 @@ defmodule Flicker.Components.Palette do
   def handle_event("close", _params, %{assigns: %{panel_open: false}} = socket), do: {:noreply, socket}
 
   def handle_event("close", _params, socket) do
-    send(self(), socket.assigns.on_close)
+    if socket.assigns.on_close, do: send(self(), socket.assigns.on_close)
     {:noreply, assign(socket, panel_open: false)}
   end
 

@@ -28,7 +28,8 @@ spec.
   (↑↓ navigate · ↵ select · esc close). Opens via
   `activate_with_keyboard` (default `"mod+k"`) and/or an
   `open`/`on_close` controlled API so hosts can trigger it from a navbar
-  button.
+  button. `on_close` and `on_select` are optional for navigation-only
+  palettes mounted from shared layouts.
 - **Overlay theme parts** ([ADR-002](../adrs/adr-002-rendering-via-slots-and-theme-map.md)):
   `backdrop`, `panel`, `palette-input`, `group-header`, `footer`,
   `kbd-hint` — added to `Flicker.Theme` with all presets, so restyling the
@@ -89,8 +90,9 @@ data-driven) and the `navigate_on_select` assign (`meta.href` +
 sets it). `open`/`on_close` reconcile with the host via edge-detection: a
 change in the host's `open` value is adopted on the next render either
 direction, while the component is otherwise free to open/close itself
-(the `mod+k` chord, `Escape`, backdrop click) and always fires `on_close`
-so host-side state never drifts.
+(the `mod+k` chord, `Escape`, backdrop click) and fires `on_close` when a
+host supplied one, so host-side state never drifts without forcing a
+navigation-only palette to send messages.
 
 ## Acceptance criteria
 

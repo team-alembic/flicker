@@ -564,13 +564,13 @@ defmodule Flicker do
   )
 
   attr(:on_close, :atom,
-    required: true,
-    doc: "The host receives a bare `on_close` message whenever the overlay closes. See moduledoc."
+    default: nil,
+    doc: "Optional: the host receives a bare message whenever the overlay closes. See moduledoc."
   )
 
   attr(:on_select, :atom,
-    required: true,
-    doc: "The host receives `{on_select, %Flicker.Result{}}` on selection. See moduledoc."
+    default: nil,
+    doc: "Optional: the host receives `{on_select, %Flicker.Result{}}` on selection. See moduledoc."
   )
 
   attr(:limit, :integer,
