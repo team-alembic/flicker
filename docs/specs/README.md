@@ -19,7 +19,7 @@ Update the status here **and** in the spec's frontmatter when it changes.
 | [010](./spec-010-windowed-search.md) | Windowed search: opt-in infinite scroll in the listbox, `:offset` provider opt, capped windows | shipped |
 | [011](./spec-011-router-navigation-provider.md) | Router navigation provider: palette navigates the host's Phoenix routes with one config flag | draft |
 | [012](./spec-012-facet-pills.md) | Facet pills: committed facets render as removable styled pills, tokenised faceted input | in-progress |
-| [013](./spec-013-selected-item-rendering.md) | Configurable selected-item rendering: `:selected` slot + avatar stacking with +N overflow | draft |
+| [013](./spec-013-selected-item-rendering.md) | Configurable selected-item rendering: `:selected` slot + avatar stacking with +N overflow | in-progress |
 | [014](./spec-014-copyable-example-code.md) | Copyable example code blocks in the playground, component-library style | draft |
 
 Build order is 004 → 001 (005 starts alongside) → 002 → 003; the playground
