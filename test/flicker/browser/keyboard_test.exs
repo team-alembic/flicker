@@ -224,7 +224,7 @@ if Code.ensure_loaded?(Ash) do
       assert_has(session, css("[role='dialog']"))
 
       session = send_chord(session, modifier, "k")
-      assert_has(session, css("#cmdk[data-open='false']"))
+      assert_has(session, css("#cmdk[data-open='false']", visible: :any))
       refute_has(session, css("[role='dialog']"))
     end
 
@@ -258,7 +258,7 @@ if Code.ensure_loaded?(Ash) do
       assert_has(session, css("[role='dialog']"))
 
       dispatch_chord(session, %{meta: true}, "k")
-      assert_has(session, css("#cmdk[data-open='false']"))
+      assert_has(session, css("#cmdk[data-open='false']", visible: :any))
       refute_has(session, css("[role='dialog']"))
 
       # The old (broken) resolution: `ctrl+k` must NOT also open it once
@@ -313,7 +313,7 @@ if Code.ensure_loaded?(Ash) do
       # still fires on the way out (it closes its listbox), but the palette
       # closes regardless — one press, even with the listbox open.
       session = send_keys(session, [:escape])
-      assert_has(session, css("#cmdk[data-open='false']"))
+      assert_has(session, css("#cmdk[data-open='false']", visible: :any))
       refute_has(session, css("[role='dialog']"))
       # Focus restored to what had it before the palette opened.
       assert active_element_identity(session) == "cmdk-open-trigger"
