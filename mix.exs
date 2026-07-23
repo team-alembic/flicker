@@ -37,12 +37,12 @@ defmodule Flicker.MixProject do
         plt_core_path: "priv/plts",
         plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
       ],
-      preferred_cli_env: [
-        ci: :test,
-        "test.coverage": :test
-      ],
       usage_rules: usage_rules()
     ]
+  end
+
+  def cli do
+    [preferred_envs: [ci: :test, "test.coverage": :test]]
   end
 
   # `Dev.Application` (dev/application.ex) starts the dev playground's

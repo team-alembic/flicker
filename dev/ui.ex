@@ -238,7 +238,7 @@ defmodule Dev.UI do
         >
           Copy
         </button>
-        <pre class="overflow-x-auto p-4 text-xs leading-relaxed text-gray-100"><code>{@rendered_code}</code></pre>
+        <pre tabindex="0" class="overflow-x-auto p-4 text-xs leading-relaxed text-gray-100"><code>{@rendered_code}</code></pre>
       </div>
       <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyCode">
         export default {

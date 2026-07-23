@@ -2,11 +2,11 @@
   verbose: false,
   private: false,
   skip: false,
-  router: "",
+  router: "dev/router.ex",
   exit: "low",
   format: "txt",
   out: "",
   threshold: "low",
   ignore: [],
-  ignore_files: []
+  ignore_files: ["lib/flicker/integrations/cinder.ex"]
 ]

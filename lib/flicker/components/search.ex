@@ -406,8 +406,7 @@ defmodule Flicker.Components.Search do
     do: message(assigns, :facet_date_value_hint)
 
   defp value_hint(assigns, {:value, %{related: related, type: type}, _prefix})
-       when is_nil(related) and type in [:integer, :float, :string],
-       do: message(assigns, :facet_free_value_hint)
+       when is_nil(related) and type in [:integer, :float, :string], do: message(assigns, :facet_free_value_hint)
 
   defp value_hint(_assigns, _context), do: nil
 

@@ -4,6 +4,8 @@ defmodule Flicker.Test.ErrorHTML do
   its real reason in test output instead of "no template defined".
   """
 
+  @doc "Renders the failure reason when the endpoint provides one."
+  @spec render(String.t(), map()) :: String.t()
   def render(template, %{reason: reason}) do
     "#{template}: #{Exception.format(:error, reason)}"
   end

@@ -63,8 +63,6 @@ if Code.ensure_loaded?(Ash) do
 
     alias Flicker.{Query, Result}
 
-    require Ash.Query
-
     @default_limit 25
     @default_read_action :read
 

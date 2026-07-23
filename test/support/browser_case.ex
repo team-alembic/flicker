@@ -42,12 +42,12 @@ if Code.ensure_loaded?(Ash) do
     @spec ensure_dev_endpoint_started() :: :ok
     def ensure_dev_endpoint_started do
       case Phoenix.PubSub.Supervisor.start_link(name: Dev.PubSub) do
-        {:ok, _pid} -> :ok
+        {:ok, pid} -> Process.unlink(pid)
         {:error, {:already_started, _pid}} -> :ok
       end
 
       case Dev.Endpoint.start_link() do
-        {:ok, _pid} -> :ok
+        {:ok, pid} -> Process.unlink(pid)
         {:error, {:already_started, _pid}} -> :ok
       end
     end

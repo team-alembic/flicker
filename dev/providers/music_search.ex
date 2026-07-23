@@ -27,8 +27,6 @@ defmodule Dev.Providers.MusicSearch do
   alias Dev.Music.{Album, Artist, Genre}
   alias Flicker.{Facet, Query, Result}
 
-  require Ash.Query
-
   @impl true
   @doc """
   Runs an `ilike`-equivalent search across `Dev.Music.Artist` (`:name`),

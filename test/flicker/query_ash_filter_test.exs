@@ -14,8 +14,6 @@ if Code.ensure_loaded?(Ash) do
 
     alias Flicker.Query
 
-    require Ash.Query
-
     @moduletag :ash
 
     setup do
