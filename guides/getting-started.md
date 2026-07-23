@@ -125,7 +125,7 @@ open it, type to filter, pick a result — from a `PhoenixTest` session:
 test "picks a client", %{conn: conn} do
   conn
   |> visit(~p"/clients/new")
-  |> Flicker.Test.search_select("Search...", "Casey Cassidy")
+  |> Flicker.Test.search_select("client-select", "Casey Cassidy")
   |> assert_has("#client-select-input[value='Casey Cassidy']")
 end
 ```

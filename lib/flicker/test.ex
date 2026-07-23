@@ -14,31 +14,26 @@ if Code.ensure_loaded?(PhoenixTest) do
       only: [element: 2, render_async: 1, render_focus: 1, render_keyup: 2]
 
     @doc """
-    Opens the picker identified by `trigger_text` — its placeholder prompt
-    when nothing is selected, or the currently selected option's label once
-    one is — types `option_text` into it to filter, then clicks the
-    resulting option of the same text.
+    Opens the picker identified by its required component `id`, types
+    `option_text` into it to filter, then clicks the resulting option of
+    the same text.
 
     Returns the `session` for further `PhoenixTest` chaining.
 
     ## Example
 
         session
-        |> Flicker.Test.search_select("Search...", "Casey Cassidy")
+        |> Flicker.Test.search_select("client-select", "Casey Cassidy")
         |> PhoenixTest.assert_has("#selection", text: "Casey Cassidy")
     """
     @spec search_select(struct(), String.t(), String.t()) :: struct()
-    def search_select(session, trigger_text, option_text) do
-      trigger_selector =
-        ~s(input[placeholder=#{inspect(trigger_text)}],input[value=#{inspect(trigger_text)}])
-
-      session.view |> element(trigger_selector) |> render_focus()
-
-      # Opening resets the input's value to "" (a fresh search), so the
-      # trigger selector above (matched on the pre-open placeholder/value
-      # text) no longer identifies it — `aria-expanded` does once open.
+    def search_select(session, select_id, option_text) do
       session.view
-      |> element(~s(input[role="combobox"][aria-expanded="true"]))
+      |> element("##{select_id}-input")
+      |> render_focus()
+
+      session.view
+      |> element("##{select_id}-input")
       |> render_keyup(%{"value" => option_text})
 
       render_async(session.view)

@@ -109,7 +109,7 @@ if Code.ensure_loaded?(Ash) do
         |> Ash.Query.offset(offset)
 
       with {:ok, records} <- Ash.read(ash_query, actor: actor, tenant: tenant) do
-        {:ok, Enum.map(records, &to_result(&1, opts))}
+        {:ok, records |> page_results() |> Enum.map(&to_result(&1, opts))}
       end
     end
 
@@ -138,7 +138,7 @@ if Code.ensure_loaded?(Ash) do
         |> Ash.Query.load(Keyword.get(opts, :load, []))
 
       with {:ok, records} <- Ash.read(query, actor: actor, tenant: tenant) do
-        {:ok, Enum.map(records, &to_result(&1, opts))}
+        {:ok, records |> page_results() |> Enum.map(&to_result(&1, opts))}
       end
     end
 
@@ -186,6 +186,9 @@ if Code.ensure_loaded?(Ash) do
         arg -> arg
       end)
     end
+
+    defp page_results(%{results: results}) when is_list(results), do: results
+    defp page_results(results) when is_list(results), do: results
 
     # `meta.record` is the documented public contract for this provider:
     # an `:option` slot needs the record itself for icons/badges/avatars,

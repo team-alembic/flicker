@@ -17,7 +17,7 @@ defmodule Flicker.TestSearchSelectTest do
     session =
       conn
       |> visit_mode(%{"mode" => "controlled"})
-      |> Flicker.Test.search_select("Search...", "Casey Cassidy")
+      |> Flicker.Test.search_select("picker", "Casey Cassidy")
 
     assert_has(session, "#selection", text: "Casey Cassidy")
   end
@@ -26,7 +26,7 @@ defmodule Flicker.TestSearchSelectTest do
     session =
       conn
       |> visit_mode(%{"mode" => "form"})
-      |> Flicker.Test.search_select("Search...", "Casey Cassidy")
+      |> Flicker.Test.search_select("picker", "Casey Cassidy")
 
     session = click_button(session, "Submit")
 
@@ -37,11 +37,11 @@ defmodule Flicker.TestSearchSelectTest do
     session =
       conn
       |> visit_mode(%{"mode" => "controlled"})
-      |> Flicker.Test.search_select("Search...", "Casey Cassidy")
+      |> Flicker.Test.search_select("picker", "Casey Cassidy")
 
     assert_has(session, "#selection", text: "Casey Cassidy")
 
-    session = Flicker.Test.search_select(session, "Casey Cassidy", "Alex Rivers")
+    session = Flicker.Test.search_select(session, "picker", "Alex Rivers")
 
     assert_has(session, "#selection", text: "Alex Rivers")
   end
