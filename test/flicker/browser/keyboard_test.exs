@@ -245,6 +245,13 @@ if Code.ensure_loaded?(Ash) do
         configurable: true,
         value: { platform: 'macOS' }
       })
+
+      var registry = window.__flickerChordRegistry
+      var hook = Array.from(registry.values()).find(hook => hook.el?.id === "cmdk")
+      if (!hook) throw new Error("palette chord hook is not registered")
+      if (hook.chordSignature) registry.delete(hook.chordSignature)
+      hook.chordSignature = null
+      hook.registerChord("mod+k")
       """)
 
       dispatch_chord(session, %{meta: true}, "k")
