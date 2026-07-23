@@ -68,6 +68,30 @@ defmodule Dev.Live.WindowedSearch do
   @doc "Renders both windowed pickers and the slow provider's latency control."
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
+    assigns =
+      assigns
+      |> assign(:artist_code, ~S"""
+      <Flicker.select
+        id="artist-windowed-select"
+        resource={MyApp.Music.Artist}
+        search={[:name]}
+        option_label={:name}
+        option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
+        on_select={:artist_selected}
+        theme={Flicker.Theme.tailwind()}
+        paginate
+      />
+      """)
+      |> assign(:constellation_code, ~S"""
+      <Flicker.select
+        id="constellation-windowed-select"
+        source={{MyApp.Providers.Slow, results: @results, latency_ms: @latency_ms}}
+        on_select={:constellation_selected}
+        theme={Flicker.Theme.tailwind()}
+        paginate
+      />
+      """)
+
     ~H"""
     <.page title="Windowed search" current_path="/windowed-search" spec="docs/specs/spec-010-windowed-search.md">
       <:description>
@@ -88,17 +112,19 @@ defmodule Dev.Live.WindowedSearch do
           it — an unconstrained listbox just grows, and the tail sentinel
           never has a fold to cross.
         --%>
-        <Flicker.select
-          id="artist-windowed-select"
-          resource={Artist}
-          actor={%{label: nil}}
-          search={[:name]}
-          option_label={:name}
-          option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
-          on_select={:artist_selected}
-          theme={Flicker.Theme.tailwind()}
-          paginate
-        />
+        <.code_example id="windowed-artist-code" code={@artist_code}>
+          <Flicker.select
+            id="artist-windowed-select"
+            resource={Artist}
+            actor={%{label: nil}}
+            search={[:name]}
+            option_label={:name}
+            option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
+            on_select={:artist_selected}
+            theme={Flicker.Theme.tailwind()}
+            paginate
+          />
+        </.code_example>
         <p :if={@selected_artist != :none} class="mt-2 text-sm text-gray-700">
           Selected: {if @selected_artist, do: @selected_artist.label, else: "cleared"}
         </p>
@@ -121,13 +147,15 @@ defmodule Dev.Live.WindowedSearch do
             class="w-24 rounded-md border border-gray-300 px-2 py-1"
           />
         </form>
-        <Flicker.select
-          id="constellation-windowed-select"
-          source={{Slow, results: @results, latency_ms: @latency_ms}}
-          on_select={:constellation_selected}
-          theme={Flicker.Theme.tailwind()}
-          paginate
-        />
+        <.code_example id="windowed-constellation-code" code={@constellation_code}>
+          <Flicker.select
+            id="constellation-windowed-select"
+            source={{Slow, results: @results, latency_ms: @latency_ms}}
+            on_select={:constellation_selected}
+            theme={Flicker.Theme.tailwind()}
+            paginate
+          />
+        </.code_example>
         <p :if={@selected_constellation != :none} class="mt-2 text-sm text-gray-700">
           Selected: {if @selected_constellation, do: @selected_constellation.label, else: "cleared"}
         </p>

@@ -82,6 +82,61 @@ defmodule Dev.Live.MultiSelect do
   @doc "Renders both pickers."
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
+    assigns =
+      assigns
+      |> assign(:form_code, ~S"""
+      <.form for={@form} id="artists-form">
+        <Flicker.select
+          id="artist-form-multiselect"
+          field={@form[:artist_ids]}
+          multiple
+          resource={MyApp.Music.Artist}
+          search={[:name]}
+          option_label={:name}
+          option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
+        />
+      </.form>
+      """)
+      |> assign(:controlled_code, ~S"""
+      <Flicker.select
+        id="artist-controlled-multiselect"
+        resource={MyApp.Music.Artist}
+        multiple
+        max_selections={4}
+        search={[:name]}
+        option_label={:name}
+        option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
+        on_select={:controlled_selected}
+      />
+      """)
+      |> assign(:stack_code, ~S'''
+      <Flicker.select
+        id="artist-stack-multiselect"
+        resource={MyApp.Music.Artist}
+        multiple
+        max_visible={3}
+        search={[:name]}
+        option_label={:name}
+        on_select={:stack_selected}
+        theme={@stack_theme}
+      >
+        <:option :let={result}>
+          <span class="flex items-center gap-2">
+            <img src={avatar_url(result.label)} alt="" class="h-6 w-6 rounded-full bg-gray-100" />
+            <span class="font-medium">{result.label}</span>
+          </span>
+        </:option>
+        <:selected :let={result}>
+          <img
+            src={avatar_url(result.label)}
+            alt={result.label}
+            title={result.label}
+            class="h-8 w-8 rounded-full bg-gray-100 ring-2 ring-white"
+          />
+        </:selected>
+      </Flicker.select>
+      ''')
+
     ~H"""
     <.page title="Multi-select" current_path="/multi-select" spec="docs/specs/spec-002-multi-select-chips.md">
       <:description>
@@ -92,32 +147,36 @@ defmodule Dev.Live.MultiSelect do
 
       <div class="space-y-6">
         <.section label="Form mode (preselected)">
-          <.form for={@form} id="artists-form">
-            <Flicker.select
-              id="artist-form-multiselect"
-              field={@form[:artist_ids]}
-              multiple
-              resource={Artist}
-              search={[:name]}
-              option_label={:name}
-              option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
-              actor={@actor}
-            />
-          </.form>
+          <.code_example id="multi-form-code" code={@form_code}>
+            <.form for={@form} id="artists-form">
+              <Flicker.select
+                id="artist-form-multiselect"
+                field={@form[:artist_ids]}
+                multiple
+                resource={Artist}
+                search={[:name]}
+                option_label={:name}
+                option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
+                actor={@actor}
+              />
+            </.form>
+          </.code_example>
         </.section>
 
         <.section label="Controlled mode (max 4)">
-          <Flicker.select
-            id="artist-controlled-multiselect"
-            resource={Artist}
-            multiple
-            max_selections={4}
-            search={[:name]}
-            option_label={:name}
-            option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
-            on_select={:controlled_selected}
-            actor={@actor}
-          />
+          <.code_example id="multi-controlled-code" code={@controlled_code}>
+            <Flicker.select
+              id="artist-controlled-multiselect"
+              resource={Artist}
+              multiple
+              max_selections={4}
+              search={[:name]}
+              option_label={:name}
+              option_sublabel={fn artist -> "formed #{artist.formed_on.year}" end}
+              on_select={:controlled_selected}
+              actor={@actor}
+            />
+          </.code_example>
         </.section>
 
         <.section label="Avatar stack (:selected slot + max_visible)">
@@ -127,32 +186,34 @@ defmodule Dev.Live.MultiSelect do
             into a "+N" token. Search and add a few artists to build the stack; hover an
             avatar to remove it.
           </p>
-          <Flicker.select
-            id="artist-stack-multiselect"
-            resource={Artist}
-            multiple
-            max_visible={3}
-            search={[:name]}
-            option_label={:name}
-            on_select={:stack_selected}
-            actor={@actor}
-            theme={@stack_theme}
-          >
-            <:option :let={result}>
-              <span class="flex items-center gap-2">
-                <img src={avatar_url(result.label)} alt="" class="h-6 w-6 rounded-full bg-gray-100" />
-                <span class="font-medium">{result.label}</span>
-              </span>
-            </:option>
-            <:selected :let={result}>
-              <img
-                src={avatar_url(result.label)}
-                alt={result.label}
-                title={result.label}
-                class="h-8 w-8 rounded-full bg-gray-100 ring-2 ring-white"
-              />
-            </:selected>
-          </Flicker.select>
+          <.code_example id="multi-stack-code" code={@stack_code}>
+            <Flicker.select
+              id="artist-stack-multiselect"
+              resource={Artist}
+              multiple
+              max_visible={3}
+              search={[:name]}
+              option_label={:name}
+              on_select={:stack_selected}
+              actor={@actor}
+              theme={@stack_theme}
+            >
+              <:option :let={result}>
+                <span class="flex items-center gap-2">
+                  <img src={avatar_url(result.label)} alt="" class="h-6 w-6 rounded-full bg-gray-100" />
+                  <span class="font-medium">{result.label}</span>
+                </span>
+              </:option>
+              <:selected :let={result}>
+                <img
+                  src={avatar_url(result.label)}
+                  alt={result.label}
+                  title={result.label}
+                  class="h-8 w-8 rounded-full bg-gray-100 ring-2 ring-white"
+                />
+              </:selected>
+            </Flicker.select>
+          </.code_example>
         </.section>
       </div>
     </.page>

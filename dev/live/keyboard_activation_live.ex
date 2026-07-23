@@ -48,6 +48,18 @@ defmodule Dev.Live.KeyboardActivation do
   @doc "Renders an unrelated text input (proving the chord fires while it's focused) and both selects."
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
+    assigns =
+      assign(assigns, :example_code, ~S"""
+      <Flicker.select
+        id="keyboard-select"
+        resource={MyApp.Music.Artist}
+        search={[:name]}
+        option_label={:name}
+        on_select={:keyboard_selected}
+        activate_with_keyboard="mod+k"
+      />
+      """)
+
     ~H"""
     <.page
       title="Keyboard activation"
@@ -69,15 +81,17 @@ defmodule Dev.Live.KeyboardActivation do
       </div>
 
       <.section label="mod+k search">
-        <Flicker.select
-          id="keyboard-select"
-          resource={Artist}
-          actor={@actor}
-          search={[:name]}
-          option_label={:name}
-          on_select={:keyboard_selected}
-          activate_with_keyboard="mod+k"
-        />
+        <.code_example id="keyboard-mod-k-code" code={@example_code}>
+          <Flicker.select
+            id="keyboard-select"
+            resource={Artist}
+            actor={@actor}
+            search={[:name]}
+            option_label={:name}
+            on_select={:keyboard_selected}
+            activate_with_keyboard="mod+k"
+          />
+        </.code_example>
         <p :if={@selected_result != :none} class="mt-2 text-sm text-gray-700">
           Selected: {if @selected_result, do: @selected_result.label, else: "cleared"}
         </p>

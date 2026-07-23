@@ -44,6 +44,15 @@ defmodule Dev.Live.StaticProvider do
   @doc "Renders the picker."
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
+    assigns =
+      assign(assigns, :example_code, ~S"""
+      <Flicker.select
+        id="planet-select"
+        source={{Flicker.Providers.Static, results: @results}}
+        on_select={:planet_selected}
+      />
+      """)
+
     ~H"""
     <.page title="Pure-Elixir provider" current_path="/static-provider" spec="docs/specs/spec-004-provider-contract.md">
       <:description>
@@ -52,11 +61,13 @@ defmodule Dev.Live.StaticProvider do
       </:description>
 
       <.section label="Static provider">
-        <Flicker.select
-          id="planet-select"
-          source={{Flicker.Providers.Static, results: @results}}
-          on_select={:planet_selected}
-        />
+        <.code_example id="static-provider-code" code={@example_code}>
+          <Flicker.select
+            id="planet-select"
+            source={{Flicker.Providers.Static, results: @results}}
+            on_select={:planet_selected}
+          />
+        </.code_example>
         <p :if={@selected_result != :none} class="mt-2 text-sm text-gray-700">
           Selected: {if @selected_result, do: @selected_result.label, else: "cleared"}
         </p>

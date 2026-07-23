@@ -66,6 +66,22 @@ defmodule Dev.Live.PaletteThemed do
   @doc "Renders the trigger button and the restyled palette."
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
+    assigns =
+      assign(assigns, :example_code, ~S"""
+      <button type="button" phx-click="open_palette">
+        Open themed command palette
+      </button>
+      <Flicker.palette
+        id="cmdk-themed"
+        source={MyApp.Providers.MusicSearch}
+        open={@palette_open}
+        on_close={:palette_closed}
+        on_select={:palette_selected}
+        theme={@brand_theme}
+        activate_with_keyboard="mod+k"
+      />
+      """)
+
     ~H"""
     <.page title="Command palette — themed" current_path="/palette-themed" spec="docs/specs/spec-008-command-palette.md">
       <:description>
@@ -75,23 +91,25 @@ defmodule Dev.Live.PaletteThemed do
         <code>theme</code> override map.
       </:description>
 
-      <button
-        type="button"
-        phx-click="open_palette"
-        class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
-      >
-        Open themed command palette
-      </button>
-      <Flicker.palette
-        id="cmdk-themed"
-        source={MusicSearch}
-        actor={@actor}
-        open={@palette_open}
-        on_close={:palette_closed}
-        on_select={:palette_selected}
-        theme={@brand_theme}
-        activate_with_keyboard="mod+k"
-      />
+      <.code_example id="palette-themed-code" code={@example_code}>
+        <button
+          type="button"
+          phx-click="open_palette"
+          class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+        >
+          Open themed command palette
+        </button>
+        <Flicker.palette
+          id="cmdk-themed"
+          source={MusicSearch}
+          actor={@actor}
+          open={@palette_open}
+          on_close={:palette_closed}
+          on_select={:palette_selected}
+          theme={@brand_theme}
+          activate_with_keyboard="mod+k"
+        />
+      </.code_example>
     </.page>
     """
   end

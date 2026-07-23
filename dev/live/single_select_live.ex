@@ -110,7 +110,8 @@ defmodule Dev.Live.SingleSelect do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     assigns =
-      assign(assigns, :form_code, ~S"""
+      assigns
+      |> assign(:form_code, ~S"""
       <.form for={@form} id="artist-form">
         <Flicker.select
           id="artist-form-select"
@@ -121,6 +122,52 @@ defmodule Dev.Live.SingleSelect do
         />
       </.form>
       """)
+      |> assign(:controlled_code, ~S'''
+      <Flicker.select
+        id="artist-controlled-select"
+        resource={MyApp.Music.Artist}
+        search={[:name]}
+        option_label={:name}
+        option_sublabel={&sublabel/1}
+        on_select={:controlled_selected}
+      >
+        <:option :let={result}>
+          <span class="flex w-full items-center justify-between gap-2">
+            <span>
+              <span class="font-medium">{result.label}</span>
+              <span class="ml-2 text-xs text-gray-400">{result.sublabel}</span>
+            </span>
+            <span class={["rounded-full px-2 py-0.5 text-xs", tier_badge(result.meta.record)]}>
+              {result.meta.record.tier}
+            </span>
+          </span>
+        </:option>
+      </Flicker.select>
+      ''')
+      |> assign(:rich_code, ~S'''
+      <Flicker.select
+        id="artist-rich-select"
+        resource={MyApp.Music.Artist}
+        search={[:name]}
+        option_label={:name}
+        on_select={:rich_selected}
+      >
+        <:option :let={result}>
+          <span class="flex w-full items-center gap-3">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+              {avatar_initials(result.label)}
+            </span>
+            <span class="flex flex-col">
+              <span class="font-medium">{result.label}</span>
+              <span class="text-xs text-gray-400">{sublabel(result.meta.record)}</span>
+            </span>
+            <span class="ml-auto rounded-full px-2 py-0.5 text-xs">
+              {result.meta.record.tier}
+            </span>
+          </span>
+        </:option>
+      </Flicker.select>
+      ''')
 
     ~H"""
     <.page title="Single select" current_path="/single-select" spec="docs/specs/spec-001-portable-single-select.md">
@@ -163,27 +210,29 @@ defmodule Dev.Live.SingleSelect do
             also demos the <code>:option</code> slot: custom option markup with
             a right-aligned tier badge read from <code>result.meta.record</code>.
           </p>
-          <Flicker.select
-            id="artist-controlled-select"
-            resource={Artist}
-            actor={@actor}
-            search={[:name]}
-            option_label={:name}
-            option_sublabel={&sublabel/1}
-            on_select={:controlled_selected}
-          >
-            <:option :let={result}>
-              <span class="flex w-full items-center justify-between gap-2">
-                <span>
-                  <span class="font-medium">{result.label}</span>
-                  <span class="ml-2 text-xs text-gray-400">{result.sublabel}</span>
+          <.code_example id="single-controlled-code" code={@controlled_code}>
+            <Flicker.select
+              id="artist-controlled-select"
+              resource={Artist}
+              actor={@actor}
+              search={[:name]}
+              option_label={:name}
+              option_sublabel={&sublabel/1}
+              on_select={:controlled_selected}
+            >
+              <:option :let={result}>
+                <span class="flex w-full items-center justify-between gap-2">
+                  <span>
+                    <span class="font-medium">{result.label}</span>
+                    <span class="ml-2 text-xs text-gray-400">{result.sublabel}</span>
+                  </span>
+                  <span class={["rounded-full px-2 py-0.5 text-xs", tier_badge(result.meta.record)]}>
+                    {result.meta.record.tier}
+                  </span>
                 </span>
-                <span class={["rounded-full px-2 py-0.5 text-xs", tier_badge(result.meta.record)]}>
-                  {result.meta.record.tier}
-                </span>
-              </span>
-            </:option>
-          </Flicker.select>
+              </:option>
+            </Flicker.select>
+          </.code_example>
           <div class="mt-3 rounded-md bg-gray-50 px-3 py-2 font-mono text-xs text-gray-600">
             last message: {controlled_message(@selected_result)}
           </div>
@@ -196,35 +245,37 @@ defmodule Dev.Live.SingleSelect do
           here each row shows an avatar (initials, deterministic colour) plus
           two stacked lines of info and a tier badge.
         </p>
-        <Flicker.select
-          id="artist-rich-select"
-          resource={Artist}
-          actor={@actor}
-          search={[:name]}
-          option_label={:name}
-          on_select={:rich_selected}
-        >
-          <:option :let={result}>
-            <span class="flex w-full items-center gap-3">
-              <span class={[
-                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
-                avatar_color(result.label)
-              ]}>
-                {avatar_initials(result.label)}
+        <.code_example id="single-rich-code" code={@rich_code}>
+          <Flicker.select
+            id="artist-rich-select"
+            resource={Artist}
+            actor={@actor}
+            search={[:name]}
+            option_label={:name}
+            on_select={:rich_selected}
+          >
+            <:option :let={result}>
+              <span class="flex w-full items-center gap-3">
+                <span class={[
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+                  avatar_color(result.label)
+                ]}>
+                  {avatar_initials(result.label)}
+                </span>
+                <span class="flex flex-col">
+                  <span class="font-medium">{result.label}</span>
+                  <span class="text-xs text-gray-400">{sublabel(result.meta.record)}</span>
+                </span>
+                <span class={[
+                  "ml-auto rounded-full px-2 py-0.5 text-xs",
+                  tier_badge(result.meta.record)
+                ]}>
+                  {result.meta.record.tier}
+                </span>
               </span>
-              <span class="flex flex-col">
-                <span class="font-medium">{result.label}</span>
-                <span class="text-xs text-gray-400">{sublabel(result.meta.record)}</span>
-              </span>
-              <span class={[
-                "ml-auto rounded-full px-2 py-0.5 text-xs",
-                tier_badge(result.meta.record)
-              ]}>
-                {result.meta.record.tier}
-              </span>
-            </span>
-          </:option>
-        </Flicker.select>
+            </:option>
+          </Flicker.select>
+        </.code_example>
         <div class="mt-3 rounded-md bg-gray-50 px-3 py-2 font-mono text-xs text-gray-600">
           last message: {rich_message(@rich_result)}
         </div>

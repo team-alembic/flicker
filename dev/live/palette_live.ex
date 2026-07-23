@@ -57,6 +57,20 @@ defmodule Dev.Live.Palette do
   @doc "Renders the trigger button and the palette."
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
+    assigns =
+      assign(assigns, :example_code, ~S"""
+      <button type="button" phx-click="open_palette">
+        Open command palette
+      </button>
+      <Flicker.palette
+        id="cmdk"
+        source={MyApp.Providers.MusicSearch}
+        open={@palette_open}
+        on_close={:palette_closed}
+        on_select={:palette_selected}
+      />
+      """)
+
     ~H"""
     <.page title="Command palette" current_path="/palette" spec="docs/specs/spec-008-command-palette.md">
       <:description>
@@ -67,22 +81,24 @@ defmodule Dev.Live.Palette do
         <code>type:album</code> for faceted narrowing.
       </:description>
 
-      <button
-        id="cmdk-open-trigger"
-        type="button"
-        phx-click="open_palette"
-        class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
-      >
-        Open command palette
-      </button>
-      <Flicker.palette
-        id="cmdk"
-        source={MusicSearch}
-        actor={@actor}
-        open={@palette_open}
-        on_close={:palette_closed}
-        on_select={:palette_selected}
-      />
+      <.code_example id="palette-code" code={@example_code}>
+        <button
+          id="cmdk-open-trigger"
+          type="button"
+          phx-click="open_palette"
+          class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+        >
+          Open command palette
+        </button>
+        <Flicker.palette
+          id="cmdk"
+          source={MusicSearch}
+          actor={@actor}
+          open={@palette_open}
+          on_close={:palette_closed}
+          on_select={:palette_selected}
+        />
+      </.code_example>
     </.page>
     """
   end
