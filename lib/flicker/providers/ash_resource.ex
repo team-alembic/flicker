@@ -94,7 +94,9 @@ if Code.ensure_loaded?(Ash) do
 
       ash_query =
         resource
-        |> Ash.Query.for_read(Keyword.get(opts, :read_action, @default_read_action), action_args(opts, text),
+        |> Ash.Query.for_read(
+          Keyword.get(opts, :read_action, @default_read_action),
+          action_args(opts, text),
           actor: actor,
           tenant: tenant
         )
