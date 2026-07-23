@@ -161,6 +161,7 @@ jobs:
 
       - run: mix test --only browser
         env:
+          WALLABY_CHROME_BINARY: ${{ steps.chrome.outputs.chrome-path }}
           WALLABY_CHROMEDRIVER_PATH: ${{ steps.chrome.outputs.chromedriver-path }}
 
   docs:

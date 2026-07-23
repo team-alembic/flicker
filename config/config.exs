@@ -26,6 +26,19 @@ config :git_ops,
 # in-process by `Phoenix.ConnTest`/PhoenixTest — never actually listening on
 # a port — so this is the full config it needs.
 if config_env() == :test do
+  # CI supplies a matched Chrome/driver pair; without explicit paths,
+  # hosted runners may mix those with their preinstalled versions.
+  wallaby_chromedriver = [
+    headless: true,
+    path: System.get_env("WALLABY_CHROMEDRIVER_PATH", "chromedriver")
+  ]
+
+  wallaby_chromedriver =
+    case System.get_env("WALLABY_CHROME_BINARY") do
+      nil -> wallaby_chromedriver
+      chrome_binary -> Keyword.put(wallaby_chromedriver, :binary, chrome_binary)
+    end
+
   # Cinder's own data load runs in a `start_async` task — a different
   # process from the one that seeded `Dev.Music`'s `private?: true` ETS
   # tables (each calling process gets its own table, see `Dev.Music`'s
@@ -79,10 +92,7 @@ if config_env() == :test do
   config :wallaby,
     otp_app: :flicker,
     driver: Wallaby.Chrome,
-    chromedriver: [
-      headless: true,
-      path: System.get_env("WALLABY_CHROMEDRIVER_PATH", "chromedriver")
-    ],
+    chromedriver: wallaby_chromedriver,
     max_wait_time: 8_000,
     # See the matching `:test` config above — the same private-ETS/async-task
     # mismatch shows up live in the browser too.
