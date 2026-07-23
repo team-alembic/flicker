@@ -85,7 +85,7 @@ defmodule Flicker.MixProject do
       },
       # `README.template.md` is the template-only file; rename.sh promotes
       # it to README.md before the first hex publish, so it isn't shipped.
-      files: ~w(lib guides .formatter.exs mix.exs README.md LICENSE* CHANGELOG* usage-rules.md)
+      files: ~w(lib guides assets .formatter.exs mix.exs README.md LICENSE* CHANGELOG* usage-rules.md)
     ]
   end
 

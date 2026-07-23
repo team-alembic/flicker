@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/team-alembic/flicker/main/assets/flicker-logo.png" alt="Flicker" width="240">
+  <img src="assets/flicker-logo.png" alt="Flicker" width="240">
 </p>
 
 <h1 align="center">Flicker</h1>
