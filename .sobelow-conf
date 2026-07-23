@@ -2,7 +2,7 @@
   verbose: false,
   private: false,
   skip: false,
-  router: "dev/router.ex",
+  router: "",
   exit: "low",
   format: "txt",
   out: "",
