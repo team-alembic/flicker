@@ -91,15 +91,17 @@ defmodule Flicker.Components.Palette do
         aria-label={message(assigns, :palette_label)}
         class={@theme.panel}
       >
-        <button
-          type="button"
-          class={@theme.clear_button}
-          phx-click="close"
-          phx-target={@myself}
-          aria-label={message(assigns, :close_palette)}
-        >
-          {message(assigns, :close_palette)}
-        </button>
+        <div style="display:flex;justify-content:flex-end">
+          <button
+            type="button"
+            class={@theme.palette_close}
+            phx-click="close"
+            phx-target={@myself}
+            aria-label={message(assigns, :close_palette)}
+          >
+            {message(assigns, :close_palette)}
+          </button>
+        </div>
         <.live_component
           module={SelectComponent}
           id={"#{@id}-select"}
@@ -120,9 +122,9 @@ defmodule Flicker.Components.Palette do
           option={@option}
         />
         <div class={@theme.footer}>
-          <span><kbd class={@theme.kbd_hint}>↑↓</kbd> {message(assigns, :footer_navigate_hint)}</span>
-          <span><kbd class={@theme.kbd_hint}>↵</kbd> {message(assigns, :footer_select_hint)}</span>
-          <span><kbd class={@theme.kbd_hint}>esc</kbd> {message(assigns, :footer_close_hint)}</span>
+          <span><kbd class={@theme.footer_hint}>↑↓</kbd> {message(assigns, :footer_navigate_hint)}</span>
+          <span><kbd class={@theme.footer_hint}>↵</kbd> {message(assigns, :footer_select_hint)}</span>
+          <span><kbd class={@theme.footer_hint}>esc</kbd> {message(assigns, :footer_close_hint)}</span>
         </div>
       </div>
       <script :type={Phoenix.LiveView.ColocatedHook} name=".Palette">
@@ -255,13 +257,15 @@ defmodule Flicker.Components.Palette do
           handleKeydown(e) {
             if (this.el.dataset.open !== "true") return
             if (e.key === "Escape") {
-              const input = this.panelInput()
-              const listboxOpen = this.el.querySelector('[role="listbox"]') !== null
-              const hasText = !!input && input.value !== ""
-              if (!hasText && !listboxOpen) {
-                e.stopPropagation()
-                this.pushEventTo(this.el, "close", {})
-              }
+              // A command palette closes whole on the first Escape — unlike a
+              // bare inline select (Spec 001's two-stage Escape: clear the
+              // listbox/text first), a modal overlay's Escape is expected to
+              // dismiss the overlay outright. The nested select's own `.Nav`
+              // Escape still fires (it sits on an inner element, closer to the
+              // target, so it runs first) and harmlessly closes its listbox on
+              // the way out; we stop propagation past this wrapper and close.
+              e.stopPropagation()
+              this.pushEventTo(this.el, "close", {})
               return
             }
             if (e.key === "Tab") this.trapFocus(e)
