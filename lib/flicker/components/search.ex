@@ -564,24 +564,36 @@ defmodule Flicker.Components.Search do
         {@announcement}
       </div>
       <ul :if={@show_suggestions} id={@listbox_id} role="listbox" aria-labelledby={"#{@input_id}-label"} class={@theme.listbox}>
-        <li :if={@suggestions_loading} class={@theme.loading_state}>{message(assigns, :loading)}</li>
-        <li :if={!@suggestions_loading && @suggestions == [] && @value_hint} class={@theme.hint}>
+        <li :if={@suggestions_loading} role="presentation" class={@theme.loading_state}>
+          {message(assigns, :loading)}
+        </li>
+        <li
+          :if={!@suggestions_loading && @suggestions == [] && @value_hint}
+          role="presentation"
+          class={@theme.hint}
+        >
           {@value_hint}
         </li>
-        <li :if={!@suggestions_loading && @suggestions == [] && !@value_hint} class={@theme.empty_state}>
+        <li
+          :if={!@suggestions_loading && @suggestions == [] && !@value_hint}
+          role="presentation"
+          class={@theme.empty_state}
+        >
           {message(assigns, :no_results)}
         </li>
         <li
           :for={{suggestion, index} <- Enum.with_index(@suggestions)}
           :if={!@suggestions_loading}
-          id={suggestion_id(assigns, index)}
-          role="option"
-          aria-selected="false"
-          class={@theme.option}
+          role="presentation"
         >
           <button
+            id={suggestion_id(assigns, index)}
             type="button"
+            role="option"
+            aria-selected="false"
             tabindex="-1"
+            class={@theme.option}
+            style="display:block;width:100%;text-align:left"
             phx-click="select_suggestion"
             phx-value-insert={suggestion.meta.insert}
             phx-target={@myself}

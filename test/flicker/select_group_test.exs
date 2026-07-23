@@ -53,7 +53,7 @@ defmodule Flicker.SelectGroupTest do
   test "a groupless result list renders with no group header at all", %{conn: conn} do
     session = conn |> visit_with_results(@groupless) |> type_search("picker-input", "cas")
 
-    refute_has(session, "[role='presentation']")
+    refute_has(session, ".flicker-group-header")
     assert_has(session, "[role='option']", text: "Casey Cassidy")
     assert_has(session, "[role='option']", text: "Casey's Album")
   end

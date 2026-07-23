@@ -1232,15 +1232,19 @@ defmodule Flicker.Components.Select do
         aria-busy={@aria_busy}
         class={@theme.listbox}
       >
-        <li :if={@loading} class={@theme.loading_state}>{message(assigns, :loading)}</li>
-        <li :if={@error} class={@theme.error_state}>{message(assigns, :error)}</li>
-        <li :if={!@loading && !@error && @at_max} class={@theme.hint}>
+        <li :if={@loading} role="presentation" class={@theme.loading_state}>{message(assigns, :loading)}</li>
+        <li :if={@error} role="presentation" class={@theme.error_state}>{message(assigns, :error)}</li>
+        <li :if={!@loading && !@error && @at_max} role="presentation" class={@theme.hint}>
           {message(assigns, :max_selections_reached, %{max: @max_selections})}
         </li>
-        <li :if={!@loading && !@error && !@at_max && @below_min_chars} class={@theme.hint}>
+        <li :if={!@loading && !@error && !@at_max && @below_min_chars} role="presentation" class={@theme.hint}>
           {message(assigns, :min_chars_hint, %{min_chars: @min_chars})}
         </li>
-        <li :if={!@loading && !@error && !@at_max && !@below_min_chars && @results == []} class={@theme.empty_state}>
+        <li
+          :if={!@loading && !@error && !@at_max && !@below_min_chars && @results == []}
+          role="presentation"
+          class={@theme.empty_state}
+        >
           {message(assigns, :no_results)}
         </li>
         <%= if !@at_max do %>
@@ -1249,11 +1253,7 @@ defmodule Flicker.Components.Select do
               <% {:header, label} -> %>
                 <li role="presentation" class={@theme.group_header}>{label}</li>
               <% {:option, result, index} -> %>
-                <li
-                  id={option_id(assigns, index)}
-                  role="option"
-                  aria-selected="false"
-                >
+                <li role="presentation">
                   <%!--
                     The themed `:option`/`:suggestion` class (padding, hover,
                     and the JS-toggled active highlight) lives on the button,
@@ -1264,7 +1264,10 @@ defmodule Flicker.Components.Select do
                     an active row did nothing unless you hit the label itself).
                   --%>
                   <button
+                    id={option_id(assigns, index)}
                     type="button"
+                    role="option"
+                    aria-selected="false"
                     tabindex="-1"
                     class={if suggestion?(result), do: @theme.suggestion, else: @theme.option}
                     style="display:block;width:100%;text-align:left"
@@ -1287,11 +1290,20 @@ defmodule Flicker.Components.Select do
                 </li>
             <% end %>
           <% end %>
-          <li :if={@show_loading_more} class={@theme.loading_more} aria-hidden="true">
+          <li :if={@show_loading_more} role="presentation" class={@theme.loading_more} aria-hidden="true">
             {message(assigns, :loading_more)}
           </li>
-          <li :if={@show_sentinel} data-flicker-sentinel aria-hidden="true" style={@sentinel_style}></li>
-          <li :if={@show_narrow_hint} class={@theme.hint}>{message(assigns, :keep_typing)}</li>
+          <li
+            :if={@show_sentinel}
+            role="presentation"
+            data-flicker-sentinel
+            aria-hidden="true"
+            style={@sentinel_style}
+          >
+          </li>
+          <li :if={@show_narrow_hint} role="presentation" class={@theme.hint}>
+            {message(assigns, :keep_typing)}
+          </li>
         <% end %>
       </ul>
       <%= if @field && @multiple do %>

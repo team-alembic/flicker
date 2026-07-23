@@ -19,7 +19,7 @@ if Code.ensure_loaded?(Ash) do
     import Wallaby.Query, only: [css: 1, css: 2]
 
     @artist_input css("#artist-form-select-input")
-    @artist_options_any css("#artist-form-select-listbox li[role='option']", count: :any)
+    @artist_options_any css("#artist-form-select-listbox [role='option']", count: :any)
 
     defp js_value(session, script) do
       Wallaby.Browser.execute_script(session, script, [], fn value -> Process.put(:flicker_js_value, value) end)
@@ -120,7 +120,7 @@ if Code.ensure_loaded?(Ash) do
       url_before = current_url(session)
 
       session = click(session, @artist_input)
-      assert_has(session, css("#artist-form-select-listbox li[role='option']", minimum: 1))
+      assert_has(session, css("#artist-form-select-listbox [role='option']", minimum: 1))
 
       session = session |> send_keys([:down_arrow]) |> send_keys([:enter])
 
@@ -152,9 +152,9 @@ if Code.ensure_loaded?(Ash) do
             %{session: session} do
       session = visit(session, "/single-select")
       session = click(session, @artist_input)
-      assert_has(session, css("#artist-form-select-listbox li[role='option']", minimum: 1))
+      assert_has(session, css("#artist-form-select-listbox [role='option']", minimum: 1))
 
-      session = click(session, css("#artist-form-select-listbox li[role='option']", minimum: 1, at: 0))
+      session = click(session, css("#artist-form-select-listbox [role='option']", minimum: 1, at: 0))
 
       assert_has(session, css("#artist-form-select-input[aria-expanded='false']"))
       refute_has(session, css("#artist-form-select-listbox"))
@@ -166,13 +166,13 @@ if Code.ensure_loaded?(Ash) do
     feature "spec-001: two-stage Escape — first closes keeping text, second clears it",
             %{session: session} do
       session = session |> visit("/single-select") |> click(@artist_input)
-      assert_has(session, css("#artist-form-select-listbox li[role='option']", minimum: 1))
+      assert_has(session, css("#artist-form-select-listbox [role='option']", minimum: 1))
 
       session = fill_in(session, @artist_input, with: "cas")
       # Wait for the narrowed results to land before Escape — an Escape
       # racing the still-debounced "cas" query would close a listbox that
       # query is about to legitimately reopen.
-      assert_has(session, css("#artist-form-select-listbox li[role='option']", text: "Cassidy", minimum: 1))
+      assert_has(session, css("#artist-form-select-listbox [role='option']", text: "Cassidy", minimum: 1))
 
       session = send_keys(session, [:escape])
       assert_has(session, css("#artist-form-select-input[aria-expanded='false']"))
@@ -187,7 +187,7 @@ if Code.ensure_loaded?(Ash) do
     # order |
     feature "spec-001: Tab closes the listbox without selecting", %{session: session} do
       session = session |> visit("/single-select") |> click(@artist_input)
-      assert_has(session, css("#artist-form-select-listbox li[role='option']", minimum: 1))
+      assert_has(session, css("#artist-form-select-listbox [role='option']", minimum: 1))
 
       session = send_keys(session, [:tab])
       assert_has(session, css("#artist-form-select-input[aria-expanded='false']"))
@@ -204,11 +204,11 @@ if Code.ensure_loaded?(Ash) do
       session = visit(session, "/multi-select")
 
       session = click(session, css("#artist-form-multiselect-input"))
-      assert_has(session, css("#artist-form-multiselect-listbox li[role='option']", minimum: 1))
+      assert_has(session, css("#artist-form-multiselect-listbox [role='option']", minimum: 1))
       refute_has(session, css("#artist-form-multiselect-listbox li", text: "Something went wrong"))
 
       session = click(session, css("#artist-controlled-multiselect-input"))
-      assert_has(session, css("#artist-controlled-multiselect-listbox li[role='option']", minimum: 1))
+      assert_has(session, css("#artist-controlled-multiselect-listbox [role='option']", minimum: 1))
       refute_has(session, css("#artist-controlled-multiselect-listbox li", text: "Something went wrong"))
     end
 
@@ -290,7 +290,7 @@ if Code.ensure_loaded?(Ash) do
       # for it to settle here — rather than racing it — keeps the
       # focus-trap assertions below about the trap, not about a coincidental
       # second render arriving mid-Tab.
-      assert_has(session, css("#cmdk-select-listbox li[role='option']", minimum: 1))
+      assert_has(session, css("#cmdk-select-listbox [role='option']", minimum: 1))
 
       # Tab from the last focusable element wraps to the first (the close
       # button); Shift+Tab wraps back — never out to the page behind.
@@ -318,7 +318,7 @@ if Code.ensure_loaded?(Ash) do
     feature "spec-010: scrolling the listbox to its tail loads the next window",
             %{session: session} do
       session = session |> visit("/windowed-search") |> click(css("#artist-windowed-select-input"))
-      assert_has(session, css("#artist-windowed-select-listbox li[role='option']", count: 25))
+      assert_has(session, css("#artist-windowed-select-listbox [role='option']", count: 25))
 
       Wallaby.Browser.execute_script(session, """
       var listbox = document.getElementById('artist-windowed-select-listbox')
@@ -328,7 +328,7 @@ if Code.ensure_loaded?(Ash) do
       # More than the first window's 25 — the sentinel can legitimately
       # keep firing as appended windows land still-scrolled-to-tail, so an
       # exact count would race the next append.
-      assert_has(session, css("#artist-windowed-select-listbox li[role='option']", minimum: 26))
+      assert_has(session, css("#artist-windowed-select-listbox [role='option']", minimum: 26))
     end
 
     # BUG 3 regression: the active (keyboard-highlighted) option must carry
@@ -344,22 +344,21 @@ if Code.ensure_loaded?(Ash) do
         # The themed showcase renders one preset at a time via `?theme=`.
         s = visit(session, "/themes?theme=#{preset}")
         s = click(s, css("#theme-select-#{preset}-input"))
-        assert_has(s, css("#theme-select-#{preset}-listbox li[role='option']", minimum: 1))
+        assert_has(s, css("#theme-select-#{preset}-listbox [role='option']", minimum: 1))
 
         s = send_keys(s, [:down_arrow])
 
         active_option =
           js_value(s, """
-          return document.querySelector("#theme-select-#{preset}-listbox li[aria-selected='true']")?.outerHTML
+          return document.querySelector("#theme-select-#{preset}-listbox [role='option'][aria-selected='true']")?.outerHTML
           """)
 
         refute is_nil(active_option), "#{preset}: no option carries aria-selected='true' after ArrowDown"
 
         active_button_classes =
           js_value(s, """
-          var opt = document.querySelector("#theme-select-#{preset}-listbox li[aria-selected='true']")
-          var button = opt && opt.querySelector('button')
-          return button ? Array.from(button.classList) : []
+          var option = document.querySelector("#theme-select-#{preset}-listbox [role='option'][aria-selected='true']")
+          return option ? Array.from(option.classList) : []
           """)
 
         refute active_button_classes == [],
@@ -375,13 +374,13 @@ if Code.ensure_loaded?(Ash) do
     feature "spec-007/bug-4: hovering a daisyUI option shows exactly one hover treatment",
             %{session: session} do
       session = session |> visit("/themes?theme=daisy_ui") |> click(css("#theme-select-daisy_ui-input"))
-      assert_has(session, css("#theme-select-daisy_ui-listbox li[role='option']", minimum: 1))
+      assert_has(session, css("#theme-select-daisy_ui-listbox [role='option']", minimum: 1))
 
-      session = hover(session, css("#theme-select-daisy_ui-listbox li[role='option']", count: :any, at: 0))
+      session = hover(session, css("#theme-select-daisy_ui-listbox [role='option']", count: :any, at: 0))
 
       li_has_hover_bg =
         js_value(session, """
-        var li = document.querySelector("#theme-select-daisy_ui-listbox li[role='option']")
+        var li = document.querySelector("#theme-select-daisy_ui-listbox [role='option']")?.closest("li")
         return li ? li.classList.contains('hover:bg-base-200') : false
         """)
 
@@ -392,14 +391,14 @@ if Code.ensure_loaded?(Ash) do
     feature "spec-010: ArrowDown on the last option loads the next window",
             %{session: session} do
       session = session |> visit("/windowed-search") |> click(css("#constellation-windowed-select-input"))
-      assert_has(session, css("#constellation-windowed-select-listbox li[role='option']", count: 25))
+      assert_has(session, css("#constellation-windowed-select-listbox [role='option']", count: 25))
 
       # 1 ArrowDown highlights the first option, 24 more walk to the last
       # (index 24 of 25), and the 26th — already sitting on the last
       # option — requests the next window.
       session = send_keys(session, List.duplicate(:down_arrow, 26))
 
-      assert_has(session, css("#constellation-windowed-select-listbox li[role='option']", minimum: 26))
+      assert_has(session, css("#constellation-windowed-select-listbox [role='option']", minimum: 26))
     end
   end
 end
