@@ -87,6 +87,9 @@ defmodule Flicker.Components.Select do
 
   @impl true
   def update(assigns, socket) do
+    prev_actor = socket.assigns[:actor]
+    prev_tenant = socket.assigns[:tenant]
+
     socket =
       socket
       |> assign(assigns)
@@ -119,9 +122,33 @@ defmodule Flicker.Components.Select do
       |> assign_new(:min_chars, fn -> @default_min_chars end)
       |> assign(:connected?, Phoenix.LiveView.connected?(socket))
       |> resolve_selected()
+      |> research_on_scope_change(prev_actor, prev_tenant)
 
     {:ok, socket}
   end
+
+  # The host swapping `actor` (or `tenant`) mid-search — e.g. the
+  # playground's "acting as" toggle — must re-run the current query against
+  # the new scope, otherwise the results sit stale (the actor change looked
+  # like it did nothing). Fires whenever there's an active query or an open
+  # listbox: re-running re-opens the listbox so the effect of switching who's
+  # searching is immediately visible, which is the whole point of exposing a
+  # live `actor`. An untouched picker (blank query, closed) is left alone —
+  # it has nothing to re-run and shouldn't pop open on an unrelated render.
+  defp research_on_scope_change(%{assigns: %{connected?: true}} = socket, prev_actor, prev_tenant) do
+    scope_changed? =
+      socket.assigns[:actor] != prev_actor or socket.assigns[:tenant] != prev_tenant
+
+    active? = socket.assigns.open or socket.assigns.query != ""
+
+    if scope_changed? and active? do
+      apply_query(socket, socket.assigns.query, socket.assigns.cursor)
+    else
+      socket
+    end
+  end
+
+  defp research_on_scope_change(socket, _prev_actor, _prev_tenant), do: socket
 
   @impl true
   def handle_event("focus", _params, socket) do
@@ -389,19 +416,24 @@ defmodule Flicker.Components.Select do
   end
 
   defp select_result(result, _raw_value, %{assigns: %{multiple: true}} = socket) do
-    socket =
-      if result && addable?(socket) do
-        new_selected = socket.assigns.selected ++ [result]
+    if result && addable?(socket) do
+      new_selected = socket.assigns.selected ++ [result]
 
+      # Clear the search text after adding a chip so the next pick starts from
+      # a fresh, full list rather than the previous term — `filter_selected/2`
+      # keeps the just-added record out of the shown results in the meantime,
+      # then the re-run empty search drops the typed filter entirely.
+      socket =
         socket
         |> assign(selected: new_selected)
         |> update_results(&filter_selected(&1, new_selected))
         |> notify_multi_selection(new_selected)
-      else
-        socket
-      end
+        |> apply_query("")
 
-    {:noreply, focus_input(socket)}
+      {:noreply, focus_input(socket, "")}
+    else
+      {:noreply, focus_input(socket)}
+    end
   end
 
   # `result` is nil when the clicked value no longer matches anything in
@@ -992,6 +1024,39 @@ defmodule Flicker.Components.Select do
   # bare height keeps it visually invisible without breaking geometry.
   @sentinel_style "height: 1px; padding: 0; margin: 0; border: 0; list-style: none;"
 
+  # The combobox `<input>` (and its visually-hidden label), rendered once and
+  # reused by both the single- and multiple-select layouts — only the class
+  # differs (`:search_input` vs the borderless `:multi_input`), passed in as
+  # `:input_class`, so the shared ARIA/`phx-*` wiring can't drift between the
+  # two. Called as `{combobox_input(assign(assigns, :input_class, ...))}`.
+  defp combobox_input(assigns) do
+    ~H"""
+    <label id={"#{@input_id}-label"} for={@input_id} class="flicker-sr-only" style={@sr_only_style}>
+      {message(assigns, :search_placeholder)}
+    </label>
+    <input
+      type="text"
+      id={@input_id}
+      name={"#{@id}-query"}
+      role="combobox"
+      aria-expanded={to_string(@open)}
+      aria-controls={@listbox_id}
+      aria-autocomplete="list"
+      aria-haspopup="listbox"
+      autocomplete="off"
+      class={@input_class}
+      value={@query}
+      placeholder={message(assigns, :search_placeholder)}
+      disabled={!@connected?}
+      aria-keyshortcuts={@aria_keyshortcuts}
+      phx-keyup="query"
+      phx-debounce={@debounce}
+      phx-focus="focus"
+      phx-target={@myself}
+    />
+    """
+  end
+
   @impl true
   def render(assigns) do
     assigns =
@@ -1039,76 +1104,67 @@ defmodule Flicker.Components.Select do
       data-activate-with-keyboard={@activate_with_keyboard}
       data-paginate={if @paginate, do: "true"}
     >
-      <div :if={@multiple} class={@theme.chip_list} role="list" aria-label={message(assigns, :selected_items)}>
-        <span :for={result <- @selected} class={@theme.chip} role="listitem">
-          <span>{result.label}</span>
-          <button
-            type="button"
-            class={@theme.chip_remove}
-            disabled={!@connected?}
-            phx-click="remove_chip"
-            phx-value-result={to_string(result.value)}
-            phx-target={@myself}
-            aria-label={message(assigns, :remove_chip, %{label: result.label})}
-          >
-            {message(assigns, :remove_icon)}
-          </button>
-        </span>
+      <%!--
+        Multiple: chips and the text input share one bordered field box
+        (`:multi_field`) so selected values sit *inside* the input, with the
+        borderless input growing to fill and "clear all" vertically centred
+        in the box. Single: the plain bordered input with an overlaid clear
+        button, unchanged.
+      --%>
+      <div :if={@multiple} class={@theme.multi_field}>
+        <div class={@theme.chip_list} role="list" aria-label={message(assigns, :selected_items)}>
+          <span :for={result <- @selected} class={@theme.chip} role="listitem">
+            <span>{result.label}</span>
+            <button
+              type="button"
+              class={@theme.chip_remove}
+              disabled={!@connected?}
+              phx-click="remove_chip"
+              phx-value-result={to_string(result.value)}
+              phx-target={@myself}
+              aria-label={message(assigns, :remove_chip, %{label: result.label})}
+            >
+              {message(assigns, :remove_icon)}
+            </button>
+          </span>
+        </div>
+        {combobox_input(assign(assigns, :input_class, @theme.multi_input))}
+        <button
+          :if={@selected != []}
+          type="button"
+          class={@theme.multi_clear}
+          disabled={!@connected?}
+          phx-click="clear"
+          phx-target={@myself}
+          aria-label={message(assigns, :clear_all)}
+        >
+          {message(assigns, :clear_all)}
+        </button>
       </div>
-      <label id={"#{@input_id}-label"} for={@input_id} class="flicker-sr-only" style={@sr_only_style}>
-        {message(assigns, :search_placeholder)}
-      </label>
-      <input
-        type="text"
-        id={@input_id}
-        name={"#{@id}-query"}
-        role="combobox"
-        aria-expanded={to_string(@open)}
-        aria-controls={@listbox_id}
-        aria-autocomplete="list"
-        aria-haspopup="listbox"
-        autocomplete="off"
-        class={@theme.search_input}
-        value={@query}
-        placeholder={message(assigns, :search_placeholder)}
-        disabled={!@connected?}
-        aria-keyshortcuts={@aria_keyshortcuts}
-        phx-keyup="query"
-        phx-debounce={@debounce}
-        phx-focus="focus"
-        phx-target={@myself}
-      />
-      <kbd
-        :if={@activate_with_keyboard}
-        class={@theme.kbd_hint}
-        aria-hidden="true"
-        title={message(assigns, :keyboard_shortcut_hint, %{chord: @kbd_hint_text})}
-        data-flicker-kbd-hint
-      >
-        {@kbd_hint_text}
-      </kbd>
-      <button
-        :if={!@multiple && @selected}
-        type="button"
-        class={@theme.clear_button}
-        disabled={!@connected?}
-        phx-click="clear"
-        phx-target={@myself}
-        aria-label={message(assigns, :clear_selection)}
-      >
-        {message(assigns, :clear_selection)}
-      </button>
-      <button
-        :if={@multiple && @selected != []}
-        type="button"
-        class={@theme.clear_button}
-        disabled={!@connected?}
-        phx-click="clear"
-        phx-target={@myself}
-        aria-label={message(assigns, :clear_all)}
-      >
-        {message(assigns, :clear_all)}
-      </button>
+
+      <%= unless @multiple do %>
+        {combobox_input(assign(assigns, :input_class, @theme.search_input))}
+        <kbd
+          :if={@activate_with_keyboard}
+          class={@theme.kbd_hint}
+          aria-hidden="true"
+          title={message(assigns, :keyboard_shortcut_hint, %{chord: @kbd_hint_text})}
+          data-flicker-kbd-hint
+        >
+          {@kbd_hint_text}
+        </kbd>
+        <button
+          :if={@selected}
+          type="button"
+          class={@theme.clear_button}
+          disabled={!@connected?}
+          phx-click="clear"
+          phx-target={@myself}
+          aria-label={message(assigns, :clear_selection)}
+        >
+          {message(assigns, :clear_selection)}
+        </button>
+      <% end %>
       <div id={"#{@id}-announcer"} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
         {@announcement}
       </div>
@@ -1141,11 +1197,21 @@ defmodule Flicker.Components.Select do
                   id={option_id(assigns, index)}
                   role="option"
                   aria-selected="false"
-                  class={if suggestion?(result), do: @theme.suggestion, else: @theme.option}
                 >
+                  <%!--
+                    The themed `:option`/`:suggestion` class (padding, hover,
+                    and the JS-toggled active highlight) lives on the button,
+                    not the wrapping `<li>`, so the whole padded row is one
+                    click target — an unstyled inline button sized to just its
+                    text left the row's padding dead to clicks, and the active
+                    highlight covered only the text (caught by hand: clicking
+                    an active row did nothing unless you hit the label itself).
+                  --%>
                   <button
                     type="button"
                     tabindex="-1"
+                    class={if suggestion?(result), do: @theme.suggestion, else: @theme.option}
+                    style="display:block;width:100%;text-align:left"
                     phx-click="select"
                     phx-value-result={to_string(result.value)}
                     phx-target={@myself}
@@ -1324,6 +1390,19 @@ defmodule Flicker.Components.Select do
             // focused input to here anyway.
             this.onKeydown = e => this.handleKeydown(e)
             this.el.addEventListener("keydown", this.onKeydown)
+            // Keep the input focused when an option is clicked with the
+            // mouse: without this, `mousedown` shifts focus to the clicked
+            // option `<button>`, blurring the input; `select_result/3` then
+            // programmatically refocuses it, and that refocus fires
+            // `phx-focus`, reopening the listbox the instant after the
+            // selection closed it (the dropdown "flickers back up" on click-
+            // select, never on keyboard-select — which keeps input focus).
+            // Preventing the mousedown default keeps focus on the input, so
+            // the click still selects but no blur/refocus round trip happens.
+            this.onOptionMouseDown = e => {
+              if (e.target.closest('[role="option"]')) e.preventDefault()
+            }
+            this.el.addEventListener("mousedown", this.onOptionMouseDown)
             // No autofocus-on-mount here: an inline `Flicker.select/1` must
             // not steal page focus (or fire `phx-focus`, which would open
             // the listbox and run a search with no user interaction) just
@@ -1364,6 +1443,7 @@ defmodule Flicker.Components.Select do
           },
           destroyed() {
             this.el.removeEventListener("keydown", this.onKeydown)
+            this.el.removeEventListener("mousedown", this.onOptionMouseDown)
             this.sentinelObserver?.disconnect()
             this.detachCursorReporting()
             // Only the winning registration ever owns the registry entry
