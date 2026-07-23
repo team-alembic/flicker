@@ -58,11 +58,23 @@ defmodule Dev.Live.FacetedSearch do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
     assigns =
-      assign(assigns, :example_code, ~S"""
+      assigns
+      |> assign(:example_code, ~S"""
       <Flicker.search
         id="artist-search"
         resource={MyApp.Music.Artist}
         facets={[:status, :tier, :monthly_listeners, after: [attribute: :formed_on, op: :>=]]}
+        on_change={:artist_query_changed}
+      />
+      """)
+      |> assign(:spanish_code, ~S"""
+      # Localise every string by passing a Flicker.Messages module — no
+      # library change. See Dev.SpanishMessages for the implementation.
+      <Flicker.search
+        id="artist-search-es"
+        resource={MyApp.Music.Artist}
+        facets={[:status, :tier, :monthly_listeners]}
+        messages={MyApp.SpanishMessages}
         on_change={:artist_query_changed}
       />
       """)
@@ -83,6 +95,25 @@ defmodule Dev.Live.FacetedSearch do
             resource={Dev.Music.Artist}
             actor={@actor}
             facets={[:status, :tier, :monthly_listeners, after: [attribute: :formed_on, op: :>=]]}
+            on_change={:artist_query_changed}
+          />
+        </.code_example>
+      </.section>
+
+      <.section label="Internationalised (Spanish messages)">
+        <p class="mb-3 text-sm text-gray-500">
+          The same component with <code>messages={"{Dev.SpanishMessages}"}</code> — every
+          placeholder, hint, and announcement is localised by passing a
+          <code>Flicker.Messages</code> module, no library change. Focus it and
+          type to see Spanish strings.
+        </p>
+        <.code_example id="faceted-search-es-code" code={@spanish_code}>
+          <Flicker.search
+            id="artist-search-es"
+            resource={Dev.Music.Artist}
+            actor={@actor}
+            facets={[:status, :tier, :monthly_listeners]}
+            messages={Dev.SpanishMessages}
             on_change={:artist_query_changed}
           />
         </.code_example>
