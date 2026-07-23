@@ -91,7 +91,7 @@ defmodule Flicker.Components.Palette do
         aria-label={message(assigns, :palette_label)}
         class={@theme.panel}
       >
-        <div style="display:flex;justify-content:flex-end">
+        <div style="display:flex;justify-content:flex-end;padding:0.75rem 0.75rem 0">
           <button
             type="button"
             class={@theme.palette_close}

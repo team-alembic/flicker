@@ -226,11 +226,12 @@ defmodule Flicker.Theme do
       backdrop: "fixed inset-0 z-40 bg-gray-900/50",
       panel:
         "fixed left-1/2 top-24 z-50 w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-lg bg-white shadow-2xl",
-      palette_input: "w-full border-0 border-b border-gray-200 px-4 py-3 text-base focus:outline-none",
+      palette_input:
+        "w-full border-0 border-b border-gray-200 px-4 pb-4 pt-1 text-lg placeholder:text-gray-400 focus:outline-none",
       group_header: "px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400",
       footer: "flex items-center gap-4 border-t border-gray-100 px-4 py-2 text-xs text-gray-400",
       footer_hint: "rounded border border-gray-300 px-1.5 text-gray-500",
-      palette_close: "text-sm text-gray-400 hover:text-gray-600",
+      palette_close: "rounded px-2 py-1 text-xs font-medium text-gray-400 hover:bg-gray-100 hover:text-gray-600",
       multi_field:
         "relative flex w-full flex-wrap items-center gap-1.5 rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500",
       multi_input:
