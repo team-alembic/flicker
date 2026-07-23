@@ -400,6 +400,13 @@ defmodule Flicker.Components.Search do
 
   defp value_hint(_assigns, _context), do: nil
 
+  # A non-empty token that matches no facet key is just free text (it filters
+  # the host's list, Spec 003) — don't pop a "No results" suggestion dropdown
+  # for it. An empty key prefix (the freshly-focused input) still shows the
+  # full facet-key list, and value positions keep their picklist/hint.
+  defp free_text_key?({:key, prefix}, []) when prefix != "", do: true
+  defp free_text_key?(_context, _suggestions), do: false
+
   defp pill_value(facet, op, value), do: op_prefix(op) <> value_display(facet, value)
 
   defp op_prefix(:neq), do: "≠ "
@@ -461,7 +468,11 @@ defmodule Flicker.Components.Search do
       |> assign(:input_id, input_id_for(assigns.id))
       |> assign(:listbox_id, listbox_id_for(assigns.id))
       |> assign(:sr_only_style, @sr_only_style)
-      |> assign(:show_suggestions, assigns.open and assigns.context != :text)
+      |> assign(
+        :show_suggestions,
+        assigns.open and assigns.context != :text and
+          not free_text_key?(assigns.context, assigns.suggestions)
+      )
       |> assign(:pills, build_pills(assigns.committed, assigns.facets))
       |> assign(:value_hint, value_hint(assigns, assigns.context))
 
