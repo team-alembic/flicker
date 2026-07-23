@@ -91,6 +91,15 @@ defmodule Flicker.Test.MultiHostLive do
     """
   end
 
+  def render(%{mode: "stack"} = assigns) do
+    ~H"""
+    <Flicker.select id="picker" source={@provider} multiple max_visible={2} on_select={:workers_selected}>
+      <:selected :let={result}><span data-avatar>{result.label}</span></:selected>
+    </Flicker.select>
+    <p id="selection">{inspect(Enum.map(@selected_results, & &1.label))}</p>
+    """
+  end
+
   def render(assigns) do
     ~H"""
     <Flicker.select

@@ -176,6 +176,26 @@ defmodule Flicker.SelectMultiTest do
     end
   end
 
+  describe "selected-item rendering (spec 013)" do
+    test "a :selected slot renders custom selected items, capped by max_visible with a +N token", %{conn: conn} do
+      session = visit_mode(conn, %{"mode" => "stack"})
+
+      session =
+        session
+        |> type_search("picker-input", "cas")
+        |> click_button("Casey Cassidy")
+        |> type_search("picker-input", "riv")
+        |> click_button("Alex Rivers")
+        |> type_search("picker-input", "bla")
+        |> click_button("Jordan Blake")
+
+      # max_visible=2 → two custom items rendered, the third collapses to "+1".
+      assert_has(session, "[data-avatar]", count: 2)
+      assert_has(session, "[role='listitem']", count: 2)
+      assert_has(session, "[aria-label='1 more selected']", text: "+1")
+    end
+  end
+
   describe "result filtering" do
     test "a selected option no longer appears in search results", %{conn: conn} do
       session =
