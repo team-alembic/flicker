@@ -277,7 +277,13 @@ defmodule Flicker.Components.Select do
         {:noreply, assign(socket, open: false)}
 
       socket.assigns.query != "" ->
-        {:noreply, socket |> assign(query: "", cursor: nil) |> run_search("")}
+        socket =
+          socket
+          |> assign(query: "", cursor: nil)
+          |> run_search("")
+          |> focus_input("")
+
+        {:noreply, socket}
 
       true ->
         {:noreply, socket}
