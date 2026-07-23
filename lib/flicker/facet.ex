@@ -30,6 +30,9 @@ defmodule Flicker.Facet do
       user-facing label (an `Ash.Type.Enum`'s own `label/1`, or a humanised
       fallback for a plain `one_of`-constrained attribute). `nil` for other
       types.
+    * `:value_colors` — optional map of value atom to a host-supplied colour
+      string (any CSS colour), shown as a dot on that value's facet pill
+      (Spec 017). `nil` for no colours; unlisted values render uncoloured.
     * `:target` — the Ash filter path this facet resolves to: a list of
       atoms (an attribute name, an aggregate/calculation name, or a
       relationship path ending in an attribute, e.g. `[:worker,
@@ -74,6 +77,7 @@ defmodule Flicker.Facet do
           default_op: operator(),
           values: [atom()] | nil,
           value_labels: %{atom() => String.t()} | nil,
+          value_colors: %{atom() => String.t()} | nil,
           target: [atom()] | nil,
           related: related() | nil
         }
@@ -86,6 +90,7 @@ defmodule Flicker.Facet do
             default_op: :eq,
             values: nil,
             value_labels: nil,
+            value_colors: nil,
             target: nil,
             related: nil
 

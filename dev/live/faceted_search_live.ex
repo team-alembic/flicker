@@ -63,7 +63,13 @@ defmodule Dev.Live.FacetedSearch do
       <Flicker.search
         id="artist-search"
         resource={MyApp.Music.Artist}
-        facets={[:status, :tier, :monthly_listeners, after: [attribute: :formed_on, op: :>=]]}
+        facets={[
+          # a facet value can declare a colour, shown as a dot on its pill
+          {:status, value_colors: %{active: "#16a34a", inactive: "#9ca3af"}},
+          :tier,
+          :monthly_listeners,
+          {:after, attribute: :formed_on, op: :>=}
+        ]}
         on_change={:artist_query_changed}
       />
       """)
@@ -94,7 +100,12 @@ defmodule Dev.Live.FacetedSearch do
             id="artist-search"
             resource={Dev.Music.Artist}
             actor={@actor}
-            facets={[:status, :tier, :monthly_listeners, after: [attribute: :formed_on, op: :>=]]}
+            facets={[
+              {:status, value_colors: %{active: "#16a34a", inactive: "#9ca3af", on_hiatus: "#f59e0b"}},
+              {:tier, value_colors: %{emerging: "#64748b", established: "#4f46e5", legendary: "#d97706"}},
+              :monthly_listeners,
+              {:after, attribute: :formed_on, op: :>=}
+            ]}
             on_change={:artist_query_changed}
           />
         </.code_example>

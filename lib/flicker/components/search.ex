@@ -379,9 +379,20 @@ defmodule Flicker.Components.Search do
     |> Enum.with_index()
     |> Enum.map(fn {{key, op, value}, index} ->
       facet = Enum.find(facets, &(&1.key == key))
-      %{index: index, field: pill_field(facet, key), value: pill_value(facet, op, value)}
+
+      %{
+        index: index,
+        field: pill_field(facet, key),
+        value: pill_value(facet, op, value),
+        color: value_color(facet, value)
+      }
     end)
   end
+
+  # Spec 017: a facet may declare a colour per value; the pill shows it as a
+  # leading dot. Host-supplied strings (any CSS colour) — no built-in palette.
+  defp value_color(%{value_colors: colors}, value) when is_map(colors), do: Map.get(colors, value)
+  defp value_color(_facet, _value), do: nil
 
   defp pill_field(nil, key), do: humanize(to_string(key))
   defp pill_field(%{label: nil, key: key}, _key), do: humanize(to_string(key))
@@ -495,6 +506,13 @@ defmodule Flicker.Components.Search do
       <div class={@theme.multi_field}>
         <div class={@theme.facet_pill_list} role="list" aria-label={message(assigns, :selected_items)}>
           <span :for={pill <- @pills} class={@theme.facet_pill} role="listitem" title={"#{pill.field}: #{pill.value}"}>
+            <span
+              :if={pill.color}
+              aria-hidden="true"
+              style={"background-color:#{pill.color}"}
+              class="mr-1 inline-block h-2 w-2 shrink-0 rounded-full"
+            >
+            </span>
             <span class={@theme.facet_pill_value}>{pill.value}</span>
             <button
               type="button"

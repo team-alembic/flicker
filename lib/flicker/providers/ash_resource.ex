@@ -448,10 +448,15 @@ if Code.ensure_loaded?(Ash) do
       |> apply_label_override(Keyword.get(overrides, :label))
       |> apply_type_override(Keyword.get(overrides, :type))
       |> apply_op_override(Keyword.get(overrides, :op))
+      |> apply_value_colors_override(Keyword.get(overrides, :value_colors))
     end
 
     defp apply_label_override(facet, nil), do: facet
     defp apply_label_override(facet, label), do: %{facet | label: label}
+
+    defp apply_value_colors_override(facet, nil), do: facet
+
+    defp apply_value_colors_override(facet, colors) when is_map(colors), do: %{facet | value_colors: colors}
 
     defp apply_type_override(facet, nil), do: facet
 

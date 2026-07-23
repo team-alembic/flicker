@@ -71,6 +71,15 @@ if Code.ensure_loaded?(Ash) do
         refute_has(session, "[role='listitem']")
       end
 
+      test "a facet value with a configured colour shows a colour dot on its pill (spec 017)", %{conn: conn} do
+        session =
+          conn
+          |> visit_as(%{label: nil})
+          |> type_search("artist-search-input", "status:active ")
+
+        assert_has(session, "[role='listitem'] span[style*='background-color:#16a34a']")
+      end
+
       test "free text alongside a committed facet stays in the input", %{conn: conn} do
         session =
           conn
