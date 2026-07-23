@@ -47,6 +47,21 @@ defmodule Flicker.Theme do
     * `:chip_list` — multi-select: the wrapper around the selected chips.
     * `:chip` — multi-select: a single selected-value chip.
     * `:chip_remove` — multi-select: the per-chip remove button.
+    * `:multi_field` — the bordered field box that holds tokens (multi-select
+      chips, or `Flicker.search/1`'s committed facet pills) and the text
+      input together, so the tokens sit *inside* the input, not above it.
+      Replaces `:wrapper`+`:search_input`'s border for those cases.
+    * `:multi_input` — the borderless text input inside `:multi_field` (the
+      box owns the border; the input just grows to fill).
+    * `:multi_clear` — multi-select: the "clear all" button inside
+      `:multi_field`, vertically centred in the box (in normal flow, unlike
+      the single-select `:clear_button` which overlays its input).
+    * `:facet_pill_list` — `Flicker.search/1` (Spec 012): the wrapper around
+      the committed-facet pills inside `:multi_field`.
+    * `:facet_pill` — `Flicker.search/1`: a single committed-facet pill. Its
+      field name is exposed on hover (a `title`) rather than always shown.
+    * `:facet_pill_value` — the pill's primary value label (e.g. "Active").
+    * `:facet_pill_remove` — the pill's remove (`×`) button.
     * `:kbd_hint` — the `<kbd>` discoverability hint rendered when
       `activate_with_keyboard` is set (Spec 006); also used for the
       footer's ↑↓/↵/esc hints in `Flicker.palette/1` (Spec 008).
@@ -60,6 +75,15 @@ defmodule Flicker.Theme do
       in the list carries a `:group`.
     * `:footer` — `Flicker.palette/1`: the panel's footer row of keyboard
       hints.
+    * `:footer_hint` — `Flicker.palette/1`: the individual `<kbd>` chips
+      inside the footer (↑↓/↵/esc). Distinct from `:kbd_hint`, which
+      overlays the select input and is absolutely positioned — the footer
+      chips sit in normal flow, so reusing `:kbd_hint` piled them all at the
+      panel's right edge.
+    * `:palette_close` — `Flicker.palette/1`: the panel's close control.
+      Distinct from `:clear_button` (which overlays the select input, absolute
+      positioned) so the close control doesn't land on top of the palette
+      input.
 
   ## Resolution
 
@@ -100,7 +124,16 @@ defmodule Flicker.Theme do
           panel: String.t(),
           palette_input: String.t(),
           group_header: String.t(),
-          footer: String.t()
+          footer: String.t(),
+          footer_hint: String.t(),
+          palette_close: String.t(),
+          multi_field: String.t(),
+          multi_input: String.t(),
+          multi_clear: String.t(),
+          facet_pill_list: String.t(),
+          facet_pill: String.t(),
+          facet_pill_value: String.t(),
+          facet_pill_remove: String.t()
         }
 
   @typedoc "An override: a full theme, or a partial map/keyword list of parts."
@@ -129,7 +162,16 @@ defmodule Flicker.Theme do
             panel: "flicker-panel",
             palette_input: "flicker-palette-input",
             group_header: "flicker-group-header",
-            footer: "flicker-footer"
+            footer: "flicker-footer",
+            footer_hint: "flicker-footer-hint",
+            palette_close: "flicker-palette-close",
+            multi_field: "flicker-multi-field",
+            multi_input: "flicker-multi-input",
+            multi_clear: "flicker-multi-clear",
+            facet_pill_list: "flicker-facet-pill-list",
+            facet_pill: "flicker-facet-pill",
+            facet_pill_value: "flicker-facet-pill-value",
+            facet_pill_remove: "flicker-facet-pill-remove"
 
   @doc "The default preset: plain, framework-free `flicker-*` class names."
   @spec vanilla() :: t()
@@ -167,13 +209,26 @@ defmodule Flicker.Theme do
       chip: "inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-xs text-indigo-700",
       chip_remove: "text-indigo-400 hover:text-indigo-700",
       kbd_hint:
-        "pointer-events-none absolute inset-y-0 right-2 flex items-center rounded border border-gray-300 px-1.5 text-xs text-gray-400",
+        "pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-gray-300 px-1.5 text-xs text-gray-400",
       backdrop: "fixed inset-0 z-40 bg-gray-900/50",
       panel:
         "fixed left-1/2 top-24 z-50 w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-lg bg-white shadow-2xl",
       palette_input: "w-full border-0 border-b border-gray-200 px-4 py-3 text-base focus:outline-none",
       group_header: "px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400",
-      footer: "flex items-center gap-4 border-t border-gray-100 px-4 py-2 text-xs text-gray-400"
+      footer: "flex items-center gap-4 border-t border-gray-100 px-4 py-2 text-xs text-gray-400",
+      footer_hint: "rounded border border-gray-300 px-1.5 text-gray-500",
+      palette_close: "text-sm text-gray-400 hover:text-gray-600",
+      multi_field:
+        "relative flex w-full flex-wrap items-center gap-1.5 rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500",
+      multi_input:
+        "min-w-[6rem] flex-1 border-0 bg-transparent p-0 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-0",
+      multi_clear: "ml-auto shrink-0 self-center text-gray-400 hover:text-gray-600",
+      facet_pill_list: "contents",
+      facet_pill:
+        "inline-flex items-center gap-1 rounded-md bg-indigo-50 py-1 pl-2 pr-1 text-sm text-indigo-900 focus-within:ring-2 focus-within:ring-indigo-400",
+      facet_pill_value: "font-medium",
+      facet_pill_remove:
+        "rounded p-0.5 leading-none text-indigo-400 hover:bg-indigo-100 hover:text-indigo-700 focus:outline-none"
     }
   end
 
@@ -217,7 +272,18 @@ defmodule Flicker.Theme do
       panel: "modal-box fixed left-1/2 top-24 z-50 w-full max-w-xl -translate-x-1/2 p-0",
       palette_input: "input input-ghost w-full border-0 border-b border-base-200 text-base focus:outline-none",
       group_header: "px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/50",
-      footer: "flex items-center gap-4 border-t border-base-200 px-4 py-2 text-xs text-base-content/50"
+      footer: "flex items-center gap-4 border-t border-base-200 px-4 py-2 text-xs text-base-content/50",
+      footer_hint: "kbd kbd-sm",
+      palette_close: "btn btn-ghost btn-xs",
+      multi_field: "input input-bordered flex h-auto w-full flex-wrap items-center gap-1.5 py-1.5",
+      multi_input: "min-w-[6rem] flex-1 border-0 bg-transparent p-0 focus:outline-none",
+      multi_clear: "ml-auto shrink-0 self-center cursor-pointer",
+      facet_pill_list: "contents",
+      facet_pill:
+        "inline-flex items-center gap-1 rounded-md bg-primary/10 py-1 pl-2 pr-1 text-sm text-primary focus-within:ring-2 focus-within:ring-primary/50",
+      facet_pill_value: "font-medium",
+      facet_pill_remove:
+        "rounded p-0.5 leading-none text-primary/60 hover:bg-primary/20 hover:text-primary focus:outline-none"
     }
   end
 
