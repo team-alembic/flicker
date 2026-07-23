@@ -230,7 +230,7 @@ defmodule Dev.UI do
         >
           Copy
         </button>
-        <pre class="overflow-x-auto p-4 text-xs leading-relaxed text-gray-100"><code>{@code}</code></pre>
+        <pre class="overflow-x-auto p-4 text-xs leading-relaxed text-gray-100"><code>{highlight_heex(@code)}</code></pre>
       </div>
       <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyCode">
         export default {
@@ -252,6 +252,53 @@ defmodule Dev.UI do
     </div>
     """
   end
+
+  # A small, dependency-free HEEx syntax highlighter for the playground's code
+  # blocks (Spec 014). Makeup ships only Elixir/Erlang lexers, which mangle
+  # component markup, so this does a single alternation pass and wraps each
+  # recognised token in an inline-coloured span (inline styles keep it
+  # self-contained — the playground ships no syntax-highlight stylesheet).
+  # Deliberately approximate: good enough to read, never executed.
+  @heex_token ~r/(<%!--.*?--%>|"[^"]*"|\{[^{}]*\}|<\/?[A-Za-z][\w.]*|[A-Za-z_][\w-]*(?==)|:[a-z][\w?]*)/s
+
+  @heex_colors %{
+    tag: "#7ee787",
+    attr: "#79c0ff",
+    string: "#a5d6ff",
+    expr: "#d2a8ff",
+    atom: "#ffa657",
+    comment: "#8b949e"
+  }
+
+  @spec highlight_heex(String.t()) :: Phoenix.HTML.safe()
+  def highlight_heex(code) do
+    @heex_token
+    |> Regex.split(code, include_captures: true, trim: false)
+    |> Enum.map_join("", &highlight_piece/1)
+    |> Phoenix.HTML.raw()
+  end
+
+  defp highlight_piece(piece) do
+    case token_type(piece) do
+      nil -> escape_code(piece)
+      type -> ~s(<span style="color:#{@heex_colors[type]}">#{escape_code(piece)}</span>)
+    end
+  end
+
+  defp token_type(piece) do
+    cond do
+      piece == "" -> nil
+      String.starts_with?(piece, "<%!--") -> :comment
+      String.starts_with?(piece, "\"") -> :string
+      String.starts_with?(piece, "{") -> :expr
+      String.match?(piece, ~r/^<\/?[A-Za-z]/) -> :tag
+      String.starts_with?(piece, ":") -> :atom
+      String.match?(piece, ~r/^[A-Za-z_][\w-]*$/) -> :attr
+      true -> nil
+    end
+  end
+
+  defp escape_code(text), do: text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
 
   @doc "One linked card in the home page's capability grid."
   attr(:path, :string, required: true)
