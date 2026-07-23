@@ -181,7 +181,7 @@ if Code.ensure_loaded?(Ash) do
     defp action_args(opts, text) do
       opts
       |> Keyword.get(:read_action_args, [])
-      |> Enum.map(fn
+      |> Map.new(fn
         {key, :query} -> {key, text}
         arg -> arg
       end)
