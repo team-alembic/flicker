@@ -89,7 +89,9 @@ defmodule Flicker do
   mode**: no form inputs are rendered; instead the host's `handle_info/2`
   receives `{on_select, %Flicker.Result{} | nil}` (`nil` on clear).
 
-  Exactly one of `field` or `on_select` is required.
+  In form-field mode, `on_select` is optional. The component still owns the
+  hidden input, and also sends the same notification so the host can refresh
+  dependent fields immediately after a selection changes.
 
   ## Multi-select
 
@@ -202,7 +204,10 @@ defmodule Flicker do
     doc: "Form-field mode: marks the hidden input `required`."
   )
 
-  attr(:on_select, :atom, default: nil, doc: "Selects controlled mode. See moduledoc.")
+  attr(:on_select, :atom,
+    default: nil,
+    doc: "Required in controlled mode; optional form-mode notification tag. See moduledoc."
+  )
 
   attr(:multiple, :boolean,
     default: false,
@@ -663,13 +668,6 @@ defmodule Flicker do
   defp validate_mode!(%{field: nil, on_select: nil}) do
     raise ArgumentError, """
     Flicker.select/1 requires either `field` (form-field mode) or `on_select` (controlled mode).
-    """
-  end
-
-  defp validate_mode!(%{field: field, on_select: on_select}) when not is_nil(field) and not is_nil(on_select) do
-    raise ArgumentError, """
-    Flicker.select/1 requires exactly one of `field` (form-field mode) or `on_select` \
-    (controlled mode), not both.
     """
   end
 

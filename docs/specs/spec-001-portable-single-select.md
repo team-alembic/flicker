@@ -21,7 +21,9 @@ rendering, state, keyboard, forms.
   Spec 004. Custom providers via `source={MyApp.Search.Global}`.
 - **Both selection modes** ([ADR-005](../adrs/adr-005-form-field-mode-owns-hidden-inputs.md)):
   form-field mode (hidden input + `_unused_` marker, ported from the
-  origin app) and controlled mode (`on_select`). Optional AshPhoenix.Form
+  origin app) and controlled mode (`on_select`). Form-field mode can also
+  set `on_select` to notify its host after a selection changes, for dependent
+  fields that must refresh before form submission. Optional AshPhoenix.Form
   `attach/2` adapter.
 - **Theme system** ([ADR-002](../adrs/adr-002-rendering-via-slots-and-theme-map.md)):
   `Flicker.Theme` class-map, vanilla + Tailwind + daisyUI presets, `:option`
@@ -124,7 +126,8 @@ accidentally submits it — regression-tested, it's a classic combobox bug.
   engaged; value survives a LiveSocket reconnect; the hidden input carries
   the selection into params.
 - In controlled mode: no form inputs rendered; `on_select` fires with the
-  `%Flicker.Result{}`.
+  `%Flicker.Result{}`. In form mode, an optional `on_select` fires with the
+  same result while Flicker continues to own the hidden field inputs.
 - Typing before the socket connects cannot lose input (controls gated on
   `connected?/1`).
 - A stale response (slower query for an earlier keystroke) never overwrites

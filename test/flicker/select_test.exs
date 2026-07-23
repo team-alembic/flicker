@@ -27,6 +27,16 @@ defmodule Flicker.SelectTest do
   end
 
   describe "form-field mode" do
+    test "optionally notifies the host when a selection changes", %{conn: conn} do
+      session =
+        conn
+        |> visit_mode(%{"mode" => "both"})
+        |> type_search("picker-input", "cas")
+        |> click_button("Casey Cassidy")
+
+      assert_has(session, "#selection", text: "Casey Cassidy")
+    end
+
     test "hidden input carries the selection into params", %{conn: conn} do
       session =
         conn

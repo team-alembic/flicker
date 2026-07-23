@@ -835,6 +835,12 @@ defmodule Flicker.Components.Select do
 
   defp notify_selection(socket, result) do
     case {socket.assigns[:field], socket.assigns[:on_select]} do
+      {field, tag} when not is_nil(field) and not is_nil(tag) ->
+        value = result && to_string(result.value)
+        send(self(), {__MODULE__, :selected, field.name, value})
+        send(self(), {tag, result})
+        socket
+
       {nil, tag} when not is_nil(tag) ->
         send(self(), {tag, result})
         socket
