@@ -1421,6 +1421,7 @@ defmodule Flicker.Components.Select do
         export default {
           mounted() {
             this.activeIndex = -1
+            this.optionsSignature = this.options().map(o => o.id).join("|")
             // Set when ArrowDown opens a closed listbox (spec 001:
             // "ArrowDown also makes the first option active"; Alt+ArrowDown
             // opens without activating) — consumed the first time options
@@ -1474,6 +1475,7 @@ defmodule Flicker.Components.Select do
             // `load-more` window is landing (Spec 010, see `pendingLoadMore`
             // above).
             const options = this.options()
+            const signature = options.map(o => o.id).join("|")
             if (this.pendingActivateFirst) {
               if (options.length > 0) {
                 this.activeIndex = 0
@@ -1484,9 +1486,17 @@ defmodule Flicker.Components.Select do
             } else if (this.pendingLoadMore) {
               this.pendingLoadMore = false
               this.activeIndex = Math.min(this.activeIndex, options.length - 1)
+            } else if (signature === this.optionsSignature) {
+              // Same option set — this re-render wasn't caused by results
+              // changing (a cursor sync, an unrelated parent assign, an
+              // identical re-search). Keep the highlight where the arrow keys
+              // left it instead of snapping back to none, which read as the
+              // down-arrow "catching" and jumping to the top of the list.
+              this.activeIndex = Math.min(this.activeIndex, options.length - 1)
             } else {
               this.activeIndex = -1
             }
+            this.optionsSignature = signature
             this.render()
             this.setupSentinelObserver()
             this.attachCursorReporting()
