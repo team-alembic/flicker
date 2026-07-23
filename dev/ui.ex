@@ -213,10 +213,18 @@ defmodule Dev.UI do
   """
   attr(:id, :string, required: true)
   attr(:code, :string, required: true)
+
+  attr(:lang, :string,
+    default: "heex",
+    doc: "\"heex\" syntax-highlights; anything else renders plain."
+  )
+
   slot(:inner_block, required: true)
 
   @spec code_example(map()) :: Phoenix.LiveView.Rendered.t()
   def code_example(assigns) do
+    assigns = assign(assigns, :rendered_code, render_code(assigns.code, assigns.lang))
+
     ~H"""
     <div>
       {render_slot(@inner_block)}
@@ -230,7 +238,7 @@ defmodule Dev.UI do
         >
           Copy
         </button>
-        <pre class="overflow-x-auto p-4 text-xs leading-relaxed text-gray-100"><code>{highlight_heex(@code)}</code></pre>
+        <pre class="overflow-x-auto p-4 text-xs leading-relaxed text-gray-100"><code>{@rendered_code}</code></pre>
       </div>
       <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyCode">
         export default {
@@ -269,6 +277,9 @@ defmodule Dev.UI do
     atom: "#ffa657",
     comment: "#8b949e"
   }
+
+  defp render_code(code, "heex"), do: highlight_heex(code)
+  defp render_code(code, _lang), do: Phoenix.HTML.raw(escape_code(code))
 
   @spec highlight_heex(String.t()) :: Phoenix.HTML.safe()
   def highlight_heex(code) do

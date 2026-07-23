@@ -340,24 +340,23 @@ if Code.ensure_loaded?(Ash) do
     # the option even though `aria-selected` still flipped correctly.
     feature "spec-007/bug-3: ArrowDown gives the active option aria-selected and its theme's visual class, in every preset",
             %{session: session} do
-      session = visit(session, "/themes")
-
       for preset <- ~w(vanilla tailwind daisy_ui) do
-        input = css("##{"theme-select-#{preset}-input"}")
-        session = click(session, input)
-        assert_has(session, css("#theme-select-#{preset}-listbox li[role='option']", minimum: 1))
+        # The themed showcase renders one preset at a time via `?theme=`.
+        s = visit(session, "/themes?theme=#{preset}")
+        s = click(s, css("#theme-select-#{preset}-input"))
+        assert_has(s, css("#theme-select-#{preset}-listbox li[role='option']", minimum: 1))
 
-        session = send_keys(session, [:down_arrow])
+        s = send_keys(s, [:down_arrow])
 
         active_option =
-          js_value(session, """
+          js_value(s, """
           return document.querySelector("#theme-select-#{preset}-listbox li[aria-selected='true']")?.outerHTML
           """)
 
         refute is_nil(active_option), "#{preset}: no option carries aria-selected='true' after ArrowDown"
 
         active_button_classes =
-          js_value(session, """
+          js_value(s, """
           var opt = document.querySelector("#theme-select-#{preset}-listbox li[aria-selected='true']")
           var button = opt && opt.querySelector('button')
           return button ? Array.from(button.classList) : []
@@ -375,7 +374,7 @@ if Code.ensure_loaded?(Ash) do
     # once.
     feature "spec-007/bug-4: hovering a daisyUI option shows exactly one hover treatment",
             %{session: session} do
-      session = session |> visit("/themes") |> click(css("#theme-select-daisy_ui-input"))
+      session = session |> visit("/themes?theme=daisy_ui") |> click(css("#theme-select-daisy_ui-input"))
       assert_has(session, css("#theme-select-daisy_ui-listbox li[role='option']", minimum: 1))
 
       session = hover(session, css("#theme-select-daisy_ui-listbox li[role='option']", count: :any, at: 0))

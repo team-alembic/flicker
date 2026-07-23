@@ -1,5 +1,5 @@
 ---
-status: draft # draft | ready | in-progress | shipped
+status: in-progress # draft | ready | in-progress | shipped
 date: 2026-07-23
 depends_on: [spec-005, adr-002] # dev playground; class-per-part theme
 ---

@@ -22,7 +22,7 @@ Update the status here **and** in the spec's frontmatter when it changes.
 | [013](./spec-013-selected-item-rendering.md) | Configurable selected-item rendering: `:selected` slot + avatar stacking with +N overflow | in-progress |
 | [014](./spec-014-copyable-example-code.md) | Copyable example code blocks in the playground, component-library style | in-progress |
 | [015](./spec-015-facets-in-select.md) | Inline facets in `Flicker.select`: committed facet pills + filtering in the select, not just search | draft |
-| [016](./spec-016-themed-showcase.md) | Per-theme showcase pages + theme picker + copyable per-theme adoption code | draft |
+| [016](./spec-016-themed-showcase.md) | Per-theme showcase pages + theme picker + copyable per-theme adoption code | in-progress |
 | [017](./spec-017-facet-value-colors.md) | Configurable facet value colours (e.g. a red dot/pill for `status:active`) | draft |
 
 Build order is 004 → 001 (005 starts alongside) → 002 → 003; the playground
