@@ -203,7 +203,7 @@ defmodule Flicker.Theme do
       wrapper: "relative w-full",
       search_input:
         "w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50",
-      clear_button: "absolute inset-y-0 right-2 flex items-center text-gray-400 hover:text-gray-600",
+      clear_button: "absolute inset-y-0 right-2 flex cursor-pointer items-center text-gray-400 hover:text-gray-600",
       listbox:
         "absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-sm shadow-lg ring-1 ring-black/5 focus:outline-none",
       option: "cursor-pointer select-none px-3 py-2 text-gray-900 hover:bg-indigo-50",
@@ -236,7 +236,7 @@ defmodule Flicker.Theme do
         "relative flex w-full flex-wrap items-center gap-1.5 rounded-md border border-gray-300 px-2 py-1.5 text-sm shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500",
       multi_input:
         "min-w-[6rem] flex-1 border-0 bg-transparent p-0 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-0",
-      multi_clear: "ml-auto shrink-0 self-center text-gray-400 hover:text-gray-600",
+      multi_clear: "ml-auto shrink-0 cursor-pointer self-center text-gray-400 hover:text-gray-600",
       facet_pill_list: "contents",
       facet_pill:
         "inline-flex items-center gap-1 rounded-md bg-indigo-50 py-1 pl-2 pr-1 text-sm text-indigo-900 focus-within:ring-2 focus-within:ring-indigo-400",
@@ -260,19 +260,40 @@ defmodule Flicker.Theme do
   @spec daisy_ui() :: t()
   def daisy_ui do
     %__MODULE__{
-      wrapper: "dropdown w-full",
+      # `relative` is explicit so the absolutely-positioned clear button and
+      # keyboard hint anchor to the control even in daisyUI builds that don't
+      # ship a `.dropdown { position: relative }` rule.
+      wrapper: "dropdown relative w-full",
       search_input: "input input-bordered w-full",
-      clear_button: "btn btn-ghost btn-xs absolute right-2 top-1/2 -translate-y-1/2",
+      # Sized past the glyph and given its own hover/focus disc: at icon size
+      # with only a colour shift the clear control reads as static text rather
+      # than the button it is, and keyboard users get no focus affordance at
+      # all (daisyUI's `.input` focus ring belongs to the input, not to this
+      # overlaid sibling).
+      clear_button:
+        "absolute right-2 top-1/2 flex size-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-lg leading-none text-base-content/50 transition-colors hover:bg-base-300 hover:text-base-content focus-visible:bg-base-300 focus-visible:text-base-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+      # `!w-full`/`!flex-nowrap` beat daisyUI's own `.menu` rules
+      # (`width: fit-content` and `flex-wrap: wrap`) — without the `!`, an
+      # overflowing result list wraps into extra columns and the dropdown
+      # shrinks to its content width instead of filling the control.
       listbox:
-        "menu dropdown-content menu-sm z-10 mt-1 max-h-60 w-full flex-nowrap overflow-auto rounded-box bg-base-100 p-2 shadow",
+        "menu dropdown-content menu-sm z-10 mt-1 max-h-60 !w-full !flex-nowrap overflow-auto rounded-box bg-base-100 p-2 shadow",
       # No `hover:bg-*` here: daisyUI's `menu` component (applied to the
       # listbox `<ul>`) already paints its own hover background on each
       # `<li>`'s interactive child (the option `<button>`) — adding a
       # second Tailwind `hover:bg-base-200` utility on the `<li>` itself
       # stacked a second, differently-positioned hover highlight on top of
       # daisyUI's own (BUG 4: double hover on option rows).
-      option: "cursor-pointer rounded-md px-3 py-2",
-      option_active: "bg-primary text-primary-content",
+      #
+      # The `active:!` pair *does* have to fight daisyUI: `.menu li > *:active`
+      # paints the `--menu-active-bg` neutral colour, so holding the pointer
+      # down on a result flashes the whole row near-black. An option is being
+      # picked, not toggled into a selected menu item — keep the press looking
+      # like the hover it continues.
+      option: "cursor-pointer rounded-md px-3 py-2 active:!bg-base-content/10 active:!text-base-content",
+      # Matches daisyUI's own `.menu` item hover background so keyboard-active
+      # and pointer-hover look identical.
+      option_active: "bg-base-content/10 text-base-content",
       option_label: "font-medium",
       option_sublabel: "ml-2 text-xs opacity-60",
       suggestion: "cursor-pointer rounded-md px-3 py-2",
@@ -285,7 +306,7 @@ defmodule Flicker.Theme do
       chip_list: "flex flex-wrap gap-1",
       chip: "badge badge-primary gap-1",
       chip_remove: "cursor-pointer",
-      kbd_hint: "kbd kbd-sm pointer-events-none absolute right-2 top-1/2 -translate-y-1/2",
+      kbd_hint: "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-base-content/40",
       backdrop: "fixed inset-0 z-40 bg-black/40",
       panel: "modal-box fixed left-1/2 top-24 z-50 w-full max-w-xl -translate-x-1/2 p-0",
       palette_input: "input input-ghost w-full border-0 border-b border-base-200 text-base focus:outline-none",

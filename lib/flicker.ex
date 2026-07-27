@@ -248,6 +248,11 @@ defmodule Flicker do
 
   attr(:min_chars, :integer, default: 0, doc: "Minimum typed characters before a search runs.")
 
+  attr(:placeholder, :string,
+    default: nil,
+    doc: "Input placeholder. Defaults to the `:search_placeholder` message."
+  )
+
   attr(:debounce, :integer,
     default: nil,
     doc: "Input debounce (ms). Defaults to `config :flicker, :default_debounce` (150)."
@@ -293,8 +298,9 @@ defmodule Flicker do
 
   slot(:selected,
     doc:
-      "Multi-select only: custom rendering of each *selected* item (given its `Flicker.Result`), " <>
-        "e.g. an avatar. Without it, selected values render as text chips. Pairs with `max_visible`."
+      "Custom rendering of a *selected* item (given its `Flicker.Result`), e.g. an avatar. " <>
+        "Multi-select: each chip's visual, defaulting to text chips; pairs with `max_visible`. " <>
+        "Single-select: the collapsed selection display, defaulting to the `:option` rendering."
   )
 
   @spec select(map()) :: Phoenix.LiveView.Rendered.t()
@@ -332,6 +338,7 @@ defmodule Flicker do
       tenant={@tenant}
       limit={@limit}
       min_chars={@min_chars}
+      placeholder={@placeholder}
       debounce={@debounce}
       theme={@theme}
       messages={@messages}

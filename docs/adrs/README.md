@@ -16,3 +16,4 @@ number sequentially.
 | [007](./adr-007-colocated-js-hook.md) | JS ships as a colocated LiveView hook; no npm package | accepted |
 | [008](./adr-008-version-floors.md) | Version floors (LiveView ≥ 1.1, Ash ≥ 3.0 optional) + oldest/latest/no-ash CI matrix | accepted |
 | [009](./adr-009-messages-module-for-user-facing-text.md) | All user-facing text through one overridable messages module; gettext optional | accepted |
+| [010](./adr-010-installer-patches-files-without-igniter-css.md) | Installer wires JS with igniter_js, CSS/config with plain text patches; no igniter_css | accepted |

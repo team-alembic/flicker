@@ -9,7 +9,15 @@ defmodule Flicker.Test do
   """
 
   import Phoenix.LiveViewTest,
-    only: [element: 2, render_async: 1, render_focus: 1, render_hook: 2, render_keyup: 2]
+    only: [
+      element: 2,
+      has_element?: 2,
+      render_async: 1,
+      render_click: 1,
+      render_focus: 1,
+      render_hook: 2,
+      render_keyup: 2
+    ]
 
   @doc """
   Opens the palette identified by `palette_id`.
@@ -33,6 +41,14 @@ defmodule Flicker.Test do
   """
   @spec search(struct(), String.t(), String.t()) :: struct()
   def search(session, select_id, query) do
+    # A single-select showing its selected value renders a rich display button
+    # instead of the search input; click it to re-open the search first.
+    if !has_element?(session.view, "##{select_id}-input") do
+      session.view
+      |> element("##{select_id} button[phx-click=\"focus\"]")
+      |> render_click()
+    end
+
     session.view
     |> element("##{select_id}-input")
     |> render_focus()

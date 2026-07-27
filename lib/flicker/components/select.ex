@@ -122,6 +122,7 @@ defmodule Flicker.Components.Select do
       |> assign_new(:selected, fn -> if socket.assigns.multiple, do: [] end)
       |> assign_new(:limit, fn -> @default_limit end)
       |> assign_new(:min_chars, fn -> @default_min_chars end)
+      |> assign_new(:placeholder, fn -> nil end)
       |> assign(:connected?, Phoenix.LiveView.connected?(socket))
       |> resolve_selected()
       |> research_on_scope_change(prev_actor, prev_tenant)
@@ -1070,7 +1071,7 @@ defmodule Flicker.Components.Select do
       autocomplete="off"
       class={@input_class}
       value={@query}
-      placeholder={message(assigns, :search_placeholder)}
+      placeholder={@placeholder || message(assigns, :search_placeholder)}
       disabled={!@connected?}
       aria-keyshortcuts={@aria_keyshortcuts}
       phx-keyup="query"
@@ -1149,7 +1150,11 @@ defmodule Flicker.Components.Select do
           role="list"
           aria-label={message(assigns, :selected_items)}
         >
-          <span :for={result <- visible_selected(@selected, @max_visible)} class={@theme.selected_item} role="listitem">
+          <span
+            :for={result <- visible_selected(@selected, @max_visible)}
+            class={@theme.selected_item}
+            role="listitem"
+          >
             {render_slot(@selected_slot, result)}
             <button
               type="button"
@@ -1166,7 +1171,9 @@ defmodule Flicker.Components.Select do
           <span
             :if={overflow_count(@selected, @max_visible) > 0}
             class={@theme.selected_overflow}
-            aria-label={message(assigns, :selected_overflow, %{count: overflow_count(@selected, @max_visible)})}
+            aria-label={
+              message(assigns, :selected_overflow, %{count: overflow_count(@selected, @max_visible)})
+            }
           >
             +{overflow_count(@selected, @max_visible)}
           </span>
@@ -1207,16 +1214,47 @@ defmodule Flicker.Components.Select do
       </div>
 
       <%= unless @multiple do %>
-        {combobox_input(assign(assigns, :input_class, @theme.search_input))}
-        <kbd
-          :if={@activate_with_keyboard}
-          class={@theme.kbd_hint}
-          aria-hidden="true"
-          title={message(assigns, :keyboard_shortcut_hint, %{chord: @kbd_hint_text})}
-          data-flicker-kbd-hint
-        >
-          {@kbd_hint_text}
-        </kbd>
+        <%!-- A single selection is shown as a static rich display, not editable
+        text: you don't keep typing after picking one value. The `:selected`
+        slot renders it when given — a selected row usually wants a more compact
+        layout than a dropdown row — otherwise the `:option` slot does. Clicking
+        it re-opens the search; the clear button removes it. Falls back to the
+        plain search input when neither slot is given. --%>
+        <% single_display = if @selected_slot != [], do: @selected_slot, else: @option %>
+        <%= if @selected && !@open && single_display != [] do %>
+          <button
+            type="button"
+            class={[@theme.search_input, "flex cursor-pointer items-center pr-9 text-left"]}
+            disabled={!@connected?}
+            phx-click="focus"
+            phx-target={@myself}
+            aria-label={message(assigns, :change_selection)}
+          >
+            {render_slot(single_display, @selected)}
+          </button>
+        <% else %>
+          {combobox_input(assign(assigns, :input_class, @theme.search_input))}
+          <svg
+            :if={!@selected && !@activate_with_keyboard}
+            class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-base-content/40"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" d="m6 8 4 4 4-4" />
+          </svg>
+          <kbd
+            :if={@activate_with_keyboard}
+            class={@theme.kbd_hint}
+            aria-hidden="true"
+            title={message(assigns, :keyboard_shortcut_hint, %{chord: @kbd_hint_text})}
+            data-flicker-kbd-hint
+          >
+            {@kbd_hint_text}
+          </kbd>
+        <% end %>
         <button
           :if={@selected}
           type="button"
@@ -1226,7 +1264,7 @@ defmodule Flicker.Components.Select do
           phx-target={@myself}
           aria-label={message(assigns, :clear_selection)}
         >
-          {message(assigns, :clear_selection)}
+          <span aria-hidden="true">&times;</span>
         </button>
       <% end %>
       <div id={"#{@id}-announcer"} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
@@ -1240,12 +1278,20 @@ defmodule Flicker.Components.Select do
         aria-busy={@aria_busy}
         class={@theme.listbox}
       >
-        <li :if={@loading} role="presentation" class={@theme.loading_state}>{message(assigns, :loading)}</li>
-        <li :if={@error} role="presentation" class={@theme.error_state}>{message(assigns, :error)}</li>
+        <li :if={@loading} role="presentation" class={@theme.loading_state}>
+          {message(assigns, :loading)}
+        </li>
+        <li :if={@error} role="presentation" class={@theme.error_state}>
+          {message(assigns, :error)}
+        </li>
         <li :if={!@loading && !@error && @at_max} role="presentation" class={@theme.hint}>
           {message(assigns, :max_selections_reached, %{max: @max_selections})}
         </li>
-        <li :if={!@loading && !@error && !@at_max && @below_min_chars} role="presentation" class={@theme.hint}>
+        <li
+          :if={!@loading && !@error && !@at_max && @below_min_chars}
+          role="presentation"
+          class={@theme.hint}
+        >
           {message(assigns, :min_chars_hint, %{min_chars: @min_chars})}
         </li>
         <li
@@ -1298,7 +1344,12 @@ defmodule Flicker.Components.Select do
                 </li>
             <% end %>
           <% end %>
-          <li :if={@show_loading_more} role="presentation" class={@theme.loading_more} aria-hidden="true">
+          <li
+            :if={@show_loading_more}
+            role="presentation"
+            class={@theme.loading_more}
+            aria-hidden="true"
+          >
             {message(assigns, :loading_more)}
           </li>
           <li
@@ -1333,8 +1384,19 @@ defmodule Flicker.Components.Select do
         <input :if={@selected == []} type="hidden" name={unused_marker_name(@field)} value="" />
       <% end %>
       <%= if @field && !@multiple do %>
-        <input type="hidden" name={@field.name} id={@field.id} value={selected_value(@selected)} required={@required} />
-        <input :if={blank?(selected_value(@selected))} type="hidden" name={unused_marker_name(@field)} value="" />
+        <input
+          type="hidden"
+          name={@field.name}
+          id={@field.id}
+          value={selected_value(@selected)}
+          required={@required}
+        />
+        <input
+          :if={blank?(selected_value(@selected))}
+          type="hidden"
+          name={unused_marker_name(@field)}
+          value=""
+        />
       <% end %>
       <script :type={Phoenix.LiveView.ColocatedHook} name=".Nav">
         // A generic focus-target listener (extraction notes #6): the

@@ -174,6 +174,12 @@ defmodule Flicker.MixProject do
       # optional, not a hard runtime dep.
       {:igniter, "~> 0.6", optional: true, only: [:dev, :test], runtime: false},
 
+      # AST-based JS codemods (Rust NIF parser) — the installer uses this to
+      # wire Flicker's colocated hook into `assets/js/app.js` via a real JS
+      # parse (`extend_hook_object`/`insert_imports`) rather than fragile
+      # regex string-patching. Optional and dev/test-only, same as igniter.
+      {:igniter_js, "~> 0.4", optional: true, only: [:dev, :test], runtime: false},
+
       # HTTP server for the dev playground's endpoint (Spec 005) — never
       # shipped. Also `:test`-only (not started there, just compiled) so the
       # browser suite (Spec 007) can boot `Dev.Endpoint` for real over HTTP

@@ -90,6 +90,7 @@ defmodule Flicker.Messages.English do
   def message(:results_count, %{count: count}), do: "#{count} results available"
   def message(:item_selected, %{label: label}), do: "#{label} selected"
   def message(:clear_selection, _bindings), do: "Clear selection"
+  def message(:change_selection, _bindings), do: "Change selection"
   def message(:selected_items, _bindings), do: "Selected items"
   def message(:remove_chip, %{label: label}), do: "Remove #{label}"
   def message(:remove_icon, _bindings), do: "✕"

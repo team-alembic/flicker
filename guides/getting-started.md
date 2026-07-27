@@ -5,6 +5,31 @@ reads directly off an Ash resource — no options plumbing, no host web
 module, no `~p`. This guide takes you from a fresh dependency to a working
 select in a form.
 
+## Requirements
+
+- **Phoenix 1.8+.** Flicker's client-side JS ships as a
+  `Phoenix.LiveView.ColocatedHook`, which requires Phoenix `~> 1.8`. A
+  1.7-era app fails to compile Flicker with a `ColocatedHook requires at
+  least {:phoenix, "~> 1.8"}` error — bump Phoenix first.
+- **esbuild that can resolve `phoenix-colocated/*`.** The colocated-hook
+  manifest is written under `_build/<env>/phoenix-colocated`, so esbuild's
+  `NODE_PATH` must include the build directory. New Phoenix 1.8 apps set
+  this up for you; if your `config/config.exs` doesn't already have it, add
+  the build path to `NODE_PATH`:
+
+  ```elixir
+  config :esbuild,
+    my_app: [
+      args: ~w(js/app.js --bundle ...),
+      cd: Path.expand("../assets", __DIR__),
+      # ↓ include the build dir so `phoenix-colocated/flicker` resolves
+      env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
+    ]
+  ```
+
+  Without it, `mix assets.build` fails with
+  `Could not resolve "phoenix-colocated/flicker"`.
+
 ## Install
 
 The fastest path is [Igniter](https://hex.pm/packages/igniter):
@@ -15,8 +40,21 @@ mix igniter.install flicker
 
 This adds `flicker` to `mix.exs`, imports it into your `.formatter.exs`,
 adds `config :flicker, default_limit: 25, default_debounce: 150` to
-`config/config.exs`, and wires the keyboard-nav colocated hook into your
-`assets/js/app.js` — no manual JS wiring needed.
+`config/config.exs`, wires the keyboard-nav colocated hook into your
+`assets/js/app.js` (via [igniter_js](https://hex.pm/packages/igniter_js)
+AST codemods — no manual JS wiring needed), and registers Flicker's
+templates as a Tailwind source so its utility classes survive the content
+purge (an `@source` directive on Tailwind v4, a `content` glob on v3).
+
+Using the `Flicker.Theme.daisy_ui/0` preset? Pass `--daisyui` to also add
+`@plugin "daisyui";` to a Tailwind v4 `app.css`:
+
+```bash
+mix igniter.install flicker --daisyui
+```
+
+It's off by default — daisyUI is an opt-in preset, not a Flicker
+requirement, so the installer never forces a CSS framework on your app.
 
 Installing by hand instead? Add the dependency:
 
@@ -26,9 +64,10 @@ def deps do
 end
 ```
 
-then wire the colocated hook into `assets/js/app.js` yourself — it ships
-as a `Phoenix.LiveView.ColocatedHook` (requires Phoenix 1.8+), aggregated
-per-dependency under its own manifest:
+then make the two edits the installer would have. First, wire the
+colocated hook into `assets/js/app.js` — it ships as a
+`Phoenix.LiveView.ColocatedHook`, aggregated per-dependency under its own
+manifest:
 
 ```javascript
 import {hooks as flickerHooks} from "phoenix-colocated/flicker"
@@ -39,6 +78,23 @@ const liveSocket = new LiveSocket("/live", Socket, {
   // hooks: {...colocatedHooks, ...flickerHooks},
   ...
 })
+```
+
+Second, register Flicker's templates with Tailwind so its classes aren't
+purged. On Tailwind v4, add to `assets/css/app.css`:
+
+```css
+@source "../../deps/flicker";
+```
+
+On Tailwind v3, add the glob to the `content` array in
+`assets/tailwind.config.js`:
+
+```javascript
+content: [
+  "../deps/flicker/**/*.*ex",
+  // ...your existing globs
+]
 ```
 
 ## Your first select
