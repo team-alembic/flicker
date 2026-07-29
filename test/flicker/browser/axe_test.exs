@@ -22,7 +22,7 @@ if Code.ensure_loaded?(Ash) do
 
     use Flicker.Test.BrowserCase, async: false
 
-    import Wallaby.Query, only: [css: 1, css: 2, text: 1]
+    import Wallaby.Query, only: [css: 1, css: 2]
 
     feature "/ has zero axe violations", %{session: session} do
       session |> visit("/") |> A11yAudit.Wallaby.assert_no_violations()
@@ -61,28 +61,39 @@ if Code.ensure_loaded?(Ash) do
     # scanning the page at rest never sees them. Each is driven into existence
     # before the scan.
     feature "/faceted-search with a facet editor open has zero axe violations", %{session: session} do
-      session
-      |> visit("/faceted-search")
-      |> fill_in(css("#artist-search-input"), with: "stat")
-      |> click(text("status:"))
-      |> assert_has(css("[role='dialog']"))
-      |> A11yAudit.Wallaby.assert_no_violations()
+      session =
+        session
+        |> visit("/faceted-search")
+        |> fill_in(css("#artist-search-input"), with: "stat")
+        |> click(css("[role='option']", text: "status:"))
+
+      # `assert_has/2` is a macro and can't be piped into, so the wait for the
+      # conditional markup is its own statement.
+      assert_has(session, css("[role='dialog']"))
+
+      A11yAudit.Wallaby.assert_no_violations(session)
     end
 
     feature "/faceted-search with an invalid facet value has zero axe violations", %{session: session} do
-      session
-      |> visit("/faceted-search")
-      |> fill_in(css("#artist-search-input"), with: "status:activ ")
-      |> assert_has(css("[aria-invalid='true']"))
-      |> A11yAudit.Wallaby.assert_no_violations()
+      session =
+        session
+        |> visit("/faceted-search")
+        |> fill_in(css("#artist-search-input"), with: "status:activ ")
+
+      assert_has(session, css("[aria-invalid='true']"))
+
+      A11yAudit.Wallaby.assert_no_violations(session)
     end
 
     feature "/faceted-search with a committed facet pill has zero axe violations", %{session: session} do
-      session
-      |> visit("/faceted-search")
-      |> fill_in(css("#artist-search-input"), with: "status:active ")
-      |> assert_has(css("[role='listitem']"))
-      |> A11yAudit.Wallaby.assert_no_violations()
+      session =
+        session
+        |> visit("/faceted-search")
+        |> fill_in(css("#artist-search-input"), with: "status:active ")
+
+      assert_has(session, css("[role='listitem']"))
+
+      A11yAudit.Wallaby.assert_no_violations(session)
     end
 
     feature "/palette (closed) has zero axe violations", %{session: session} do
