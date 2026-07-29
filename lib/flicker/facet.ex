@@ -266,6 +266,97 @@ defmodule Flicker.Facet do
   def validate_value(facet, raw, operator, opts \\ []), do: Cast.validate(facet, raw, operator, opts)
 
   @doc """
+  This facet's value candidates, as a `Flicker.Provider` source — or `nil` for
+  a facet whose values aren't drawn from a set.
+
+  Per [ADR-011](https://github.com/team-alembic/flicker/blob/main/docs/adrs/adr-011-facet-editors-are-modal-subcontexts.md),
+  a set-valued facet is edited by a nested `Flicker.select`, and the only thing
+  that differs between an enum facet and a relationship facet is the provider
+  behind it. This is the accessor that erases that difference: one editor
+  module, one counting path, one suggestion path.
+
+  `:enum` and `:boolean` resolve to a `Flicker.Providers.Static` over their own
+  closed set, with display labels from `:value_labels`, so an enum editor shows
+  `Established` rather than `established` and Spec 017's `:value_colors` key
+  off the same value atoms. A relationship facet resolves to the same
+  `Flicker.Providers.AshResource` source `Flicker.FacetSuggest.related_search/3`
+  already builds — that clause only exists when `ash` is present (ADR-006), so
+  an enum facet's `Static` source keeps working without it.
+
+  **This is about candidate values, not about controls.** Which editor opens
+  for a type is a separate mapping (Spec 019): `:boolean` appears here because
+  its `true`/`false` pair is genuinely a closed set worth suggesting, but it is
+  edited by a switch and never opens a select.
+
+  ## Examples
+
+      iex> facet =
+      ...>   Flicker.Facet.new(
+      ...>     key: :status,
+      ...>     type: :enum,
+      ...>     values: [:active],
+      ...>     value_labels: %{active: "Active"}
+      ...>   )
+      ...>
+      ...> {Flicker.Providers.Static, results: [result]} = Flicker.Facet.value_source(facet)
+      ...> {result.value, result.label}
+      {:active, "Active"}
+
+      iex> facet = Flicker.Facet.new(key: :verified?, type: :boolean)
+      ...> {Flicker.Providers.Static, results: results} = Flicker.Facet.value_source(facet)
+      ...> Enum.map(results, & &1.value)
+      [true, false]
+
+      iex> Flicker.Facet.value_source(Flicker.Facet.new(key: :created, type: :date_range))
+      nil
+  """
+  @spec value_source(t()) :: {module(), keyword()} | nil
+  def value_source(%__MODULE__{type: :enum, values: values} = facet) when is_list(values) do
+    {Flicker.Providers.Static, results: Enum.map(values, &value_result(facet, &1))}
+  end
+
+  def value_source(%__MODULE__{type: :boolean}) do
+    {Flicker.Providers.Static,
+     results: [
+       %Flicker.Result{value: true, label: "true"},
+       %Flicker.Result{value: false, label: "false"}
+     ]}
+  end
+
+  if Code.ensure_loaded?(Ash) do
+    def value_source(%__MODULE__{related: %{resource: resource} = related}) do
+      {Flicker.Providers.AshResource, resource: resource, search: related.search, option_label: related.option_label}
+    end
+  end
+
+  def value_source(%__MODULE__{}), do: nil
+
+  defp value_result(facet, value) do
+    %Flicker.Result{value: value, label: value_label(facet, value)}
+  end
+
+  @doc """
+  A single value's display label — `:value_labels` when it has an entry,
+  otherwise the value as a string.
+
+  ## Examples
+
+      iex> facet = %Flicker.Facet{key: :status, value_labels: %{active: "Currently active"}}
+      ...> Flicker.Facet.value_label(facet, :active)
+      "Currently active"
+
+      iex> Flicker.Facet.value_label(%Flicker.Facet{key: :status}, :active)
+      "active"
+  """
+  @spec value_label(t(), term()) :: String.t()
+  def value_label(%__MODULE__{value_labels: labels}, value) do
+    case labels do
+      %{^value => label} -> label
+      _ -> to_string(value)
+    end
+  end
+
+  @doc """
   The Ash filter path this facet resolves to: `facet.target`, or `[facet.key]`
   when `:target` is `nil`.
 

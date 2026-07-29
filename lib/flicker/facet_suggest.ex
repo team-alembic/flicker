@@ -95,23 +95,38 @@ defmodule Flicker.FacetSuggest do
   `related_search/4` instead).
   """
   @spec enum_value_suggestions(Facet.t(), String.t()) :: [suggestion()]
-  def enum_value_suggestions(%Facet{type: :enum, values: values, value_labels: value_labels, key: key}, prefix) do
+  def enum_value_suggestions(%Facet{type: :enum, value_labels: value_labels, key: key} = facet, prefix) do
     downcased_prefix = String.downcase(prefix)
 
-    values
+    facet
+    |> candidate_values()
     |> Enum.filter(&value_matches?(&1, value_labels, downcased_prefix))
     |> Enum.map(&enum_suggestion(key, &1, value_labels))
   end
 
-  def enum_value_suggestions(%Facet{type: :boolean, key: key}, prefix) do
+  def enum_value_suggestions(%Facet{type: :boolean, key: key} = facet, prefix) do
     downcased_prefix = String.downcase(prefix)
 
-    [true, false]
+    facet
+    |> candidate_values()
     |> Enum.filter(&String.starts_with?(to_string(&1), downcased_prefix))
     |> Enum.map(&boolean_suggestion(key, &1))
   end
 
   def enum_value_suggestions(_facet, _prefix), do: []
+
+  # The candidate list comes from `Flicker.Facet.value_source/1`, so "what are
+  # this facet's values" has one definition shared with Spec 019's editors and
+  # Spec 021's counts. Filtering stays here rather than being delegated to the
+  # provider: this matches a prefix against the value's *key or* its label,
+  # which is deliberately more generous than `Flicker.Providers.Static`'s own
+  # label-only matching, and losing that would regress typeahead.
+  defp candidate_values(facet) do
+    case Facet.value_source(facet) do
+      {Flicker.Providers.Static, results: results} -> Enum.map(results, & &1.value)
+      _other -> []
+    end
+  end
 
   defp boolean_suggestion(key, value) do
     label = to_string(value)

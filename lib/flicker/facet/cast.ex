@@ -66,6 +66,74 @@ defmodule Flicker.Facet.Cast do
   def range_types, do: @range_types
 
   @doc """
+  Every reason a value can be rejected with.
+
+  The single source of truth for the failure taxonomy, so a test can sweep it
+  and prove `Flicker.Messages` answers for each — the same way
+  `Flicker.ThemeTest` sweeps theme parts. A new reason that nobody wrote a
+  message for fails that test rather than rendering an empty error.
+
+  ## Examples
+
+      iex> :not_in_values in Flicker.Facet.Cast.reasons()
+      true
+  """
+  @spec reasons() :: [atom()]
+  def reasons do
+    [
+      :bad_integer,
+      :bad_float,
+      :bad_boolean,
+      :bad_date,
+      :bad_datetime,
+      :bad_duration,
+      :bad_range,
+      :incomplete_range,
+      :reversed_range,
+      :incomplete_list,
+      :not_in_values,
+      :out_of_bounds,
+      :constraint_violation,
+      :custom
+    ]
+  end
+
+  @doc """
+  The `Flicker.Messages` key that renders `reason`.
+
+  Unknown reasons — a host's own `:validate` returning something bespoke —
+  fall back to `:invalid_value`, so a custom reason renders a generic message
+  instead of crashing the render.
+
+  ## Examples
+
+      iex> Flicker.Facet.Cast.message_key(:bad_integer)
+      :invalid_integer
+
+      iex> Flicker.Facet.Cast.message_key(:not_in_values)
+      :invalid_not_in_values
+
+      iex> Flicker.Facet.Cast.message_key(:something_a_host_invented)
+      :invalid_value
+  """
+  @spec message_key(atom()) :: atom()
+  def message_key(:bad_integer), do: :invalid_integer
+  def message_key(:bad_float), do: :invalid_float
+  def message_key(:bad_boolean), do: :invalid_boolean
+  def message_key(:bad_date), do: :invalid_date
+  def message_key(:bad_datetime), do: :invalid_datetime
+  def message_key(:bad_duration), do: :invalid_duration
+  def message_key(:bad_range), do: :invalid_range
+  def message_key(:incomplete_range), do: :invalid_incomplete_range
+  def message_key(:reversed_range), do: :invalid_reversed_range
+  def message_key(:incomplete_list), do: :invalid_incomplete_list
+  def message_key(:not_in_values), do: :invalid_not_in_values
+  def message_key(:out_of_bounds), do: :invalid_out_of_bounds
+  def message_key(:constraint_violation), do: :invalid_constraint_violation
+  def message_key(:custom), do: :invalid_custom
+  def message_key(_reason), do: :invalid_value
+
+  @doc """
   Casts `raw` for `facet` under the requested `operator`.
 
   Returns `{:ok, resolved_operator, value}`, or `{:error, {reason, params}}`

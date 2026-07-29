@@ -24,6 +24,16 @@ defmodule Flicker.Messages.English do
       (`limit`+1 came back) — "keep typing to narrow" rather than paginate.
     * `:min_chars_hint` — %{min_chars: n} — shown while the typed text is
       shorter than the configured `min_chars`.
+    * `:invalid_<reason>` — one per validation reason a facet value can fail
+      with (Spec 018, ADR-012): `:invalid_integer`, `:invalid_float`,
+      `:invalid_boolean`, `:invalid_date`, `:invalid_datetime`,
+      `:invalid_duration`, `:invalid_range`, `:invalid_incomplete_range`,
+      `:invalid_reversed_range`, `:invalid_incomplete_list`,
+      `:invalid_not_in_values` (%{values: [...]}), `:invalid_out_of_bounds`
+      (%{min:, max:}), `:invalid_constraint_violation` (%{message:}),
+      `:invalid_custom` (%{message:}), and `:invalid_value` as the catch-all
+      for a reason this module doesn't know. Rendered against the invalid
+      facet pill; the parser itself never produces English.
     * `:press_enter_to_search` — shown, and referenced by the input's
       `aria-describedby`, while `dispatch: :enter` holds typed text that
       hasn't been searched yet (Spec 020). A search box that has silently
@@ -91,6 +101,31 @@ defmodule Flicker.Messages.English do
   def message(:min_chars_hint, %{min_chars: min_chars}), do: "Type at least #{min_chars} characters to search"
 
   def message(:press_enter_to_search, _bindings), do: "Press Enter to search"
+
+  def message(:invalid_integer, _bindings), do: "must be a whole number"
+  def message(:invalid_float, _bindings), do: "must be a number"
+  def message(:invalid_boolean, _bindings), do: "must be true or false"
+  def message(:invalid_date, _bindings), do: "expected a date like 2026-07-01, today, or 7d"
+  def message(:invalid_datetime, _bindings), do: "expected a time like 2026-07-01T09:30:00Z"
+  def message(:invalid_duration, _bindings), do: "expected a duration like 15m or 2h30m"
+  def message(:invalid_range, _bindings), do: "expected a range like 2026-07-01..2026-07-31"
+  def message(:invalid_incomplete_range, _bindings), do: "a range needs at least one endpoint"
+  def message(:invalid_reversed_range, _bindings), do: "the start is after the end"
+
+  def message(:invalid_incomplete_list, _bindings), do: "remove the trailing comma, or add another value"
+
+  def message(:invalid_not_in_values, %{values: values}) do
+    "must be one of: " <> Enum.map_join(values, ", ", &to_string/1)
+  end
+
+  def message(:invalid_out_of_bounds, %{min: nil, max: max}), do: "must be at most #{max}"
+  def message(:invalid_out_of_bounds, %{min: min, max: nil}), do: "must be at least #{min}"
+
+  def message(:invalid_out_of_bounds, %{min: min, max: max}), do: "must be between #{min} and #{max}"
+
+  def message(:invalid_constraint_violation, %{message: message}), do: message
+  def message(:invalid_custom, %{message: message}), do: message
+  def message(:invalid_value, _bindings), do: "is not valid"
 
   def message(:results_count, %{count: 0}), do: "No results available"
   def message(:results_count, %{count: 1}), do: "1 result available"

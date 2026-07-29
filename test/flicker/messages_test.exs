@@ -68,4 +68,36 @@ defmodule Flicker.MessagesTest do
       assert is_binary(Flicker.Messages.English.message(:keyboard_shortcut_hint, %{chord: "Mod+K"}))
     end
   end
+
+  describe "validation reason coverage (Spec 018 / ADR-012)" do
+    test "every reason Flicker.Facet.Cast can produce renders a non-empty message" do
+      # Swept off `reasons/0` rather than hardcoded, so a new reason with no
+      # message fails here instead of rendering an empty error to a user.
+      params = %{values: [:active, :inactive], min: 0, max: 500, message: "nope", value: "x"}
+
+      for reason <- Flicker.Facet.Cast.reasons() do
+        key = Flicker.Facet.Cast.message_key(reason)
+        message = Flicker.Messages.get(nil, key, params)
+
+        assert is_binary(message) and message != "",
+               "reason #{inspect(reason)} (key #{inspect(key)}) rendered #{inspect(message)}"
+      end
+    end
+
+    test "an unknown reason falls back to a generic message rather than crashing" do
+      key = Flicker.Facet.Cast.message_key(:invented_by_a_host)
+
+      assert key == :invalid_value
+      assert Flicker.Messages.get(nil, key, %{}) == "is not valid"
+    end
+
+    test "out_of_bounds reads correctly for one-sided bounds" do
+      assert Flicker.Messages.get(nil, :invalid_out_of_bounds, %{min: nil, max: 5}) == "must be at most 5"
+      assert Flicker.Messages.get(nil, :invalid_out_of_bounds, %{min: 5, max: nil}) == "must be at least 5"
+    end
+
+    test "not_in_values names the allowed set" do
+      assert Flicker.Messages.get(nil, :invalid_not_in_values, %{values: [:a, :b]}) == "must be one of: a, b"
+    end
+  end
 end
