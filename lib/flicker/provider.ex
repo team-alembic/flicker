@@ -122,7 +122,36 @@ defmodule Flicker.Provider do
   @doc "Renders a custom option. Optional."
   @callback render_option(result :: Result.t(), assigns :: map()) :: term()
 
-  @optional_callbacks facets: 0, render_option: 2
+  @doc """
+  Counts how many records each of `facets`' values would match
+  ([Spec 021](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-021-facet-value-counts.md)).
+  Optional.
+
+  Returns counts keyed by facet key, then by value — the same cast values
+  `Flicker.Query.parse/2` produces, so a caller needs no normalisation to look
+  one up. A value absent from the map means "not counted", which is distinct
+  from a value present with `0`.
+
+  Three requirements a correct implementation has to meet
+  ([ADR-014](https://github.com/team-alembic/flicker/blob/main/docs/adrs/adr-014-facet-counts-are-provider-computed-and-actor-scoped.md)):
+
+    * **Actor-scoped.** `opts` carries `:actor` and `:tenant` exactly as
+      `search/2` receives them, and the count must run through the same
+      authorised read. A count over records the actor can't see discloses
+      cardinality — and for a small set, existence. If counting under
+      authorisation isn't possible, return no count rather than an unscoped
+      one.
+    * **Drill-down-correct.** For each facet, apply every *other* active facet
+      and the free text, but **not** that facet's own clause. Counting against
+      the full query instead makes every sibling value read `0` the moment
+      anything is selected, which destroys the information the user wanted.
+    * **Batched.** All requested facets arrive in one call so an
+      implementation can issue one query rather than N.
+  """
+  @callback facet_counts(query :: Query.t(), facets :: [Flicker.Facet.t()], opts :: keyword()) ::
+              {:ok, %{atom() => %{term() => non_neg_integer()}}} | {:error, term()}
+
+  @optional_callbacks facets: 0, render_option: 2, facet_counts: 3
 
   @doc """
   Runs `search/2` on `provider`, normalising the result.
@@ -152,6 +181,51 @@ defmodule Flicker.Provider do
   @spec run_fetch(t(), [term()], keyword()) :: {:ok, [Result.t()]} | {:error, term()}
   def run_fetch(provider, values, opts \\ []) when is_list(values) do
     invoke(provider, :fetch, [values], opts)
+  end
+
+  @doc """
+  Runs `facet_counts/3` on `provider`, or returns `{:ok, %{}}` when the
+  provider doesn't implement it.
+
+  The empty-map fallback is deliberate: callers render counts by lookup with a
+  `nil` default, so "this provider can't count" and "this value wasn't counted"
+  collapse to the same rendering path and no call site needs a
+  `function_exported?/3` branch.
+
+  ## Examples
+
+      iex> Flicker.Provider.run_facet_counts(Flicker.Providers.Static, %Flicker.Query{text: ""}, [])
+      {:ok, %{}}
+  """
+  @spec run_facet_counts(term(), Query.t(), [Flicker.Facet.t()], keyword()) ::
+          {:ok, %{atom() => %{term() => non_neg_integer()}}} | {:error, term()}
+  def run_facet_counts(provider, query, facets, opts \\ [])
+
+  def run_facet_counts(_provider, _query, [], _opts), do: {:ok, %{}}
+
+  def run_facet_counts(provider, %Query{} = query, facets, opts) do
+    {module, _provider_opts} = normalise(provider)
+
+    if function_exported?(module, :facet_counts, 3) do
+      invoke_counts(provider, query, facets, opts)
+    else
+      {:ok, %{}}
+    end
+  end
+
+  defp invoke_counts(provider, query, facets, opts) do
+    {module, provider_opts} = normalise(provider)
+    merged_opts = Keyword.merge(provider_opts, opts)
+
+    case apply(module, :facet_counts, [query, facets, merged_opts]) do
+      {:ok, counts} when is_map(counts) -> {:ok, counts}
+      {:error, _reason} = error -> error
+      other -> {:error, {:invalid_provider_result, other}}
+    end
+  rescue
+    exception -> {:error, {:provider_raised, exception}}
+  catch
+    kind, reason -> {:error, {:provider_raised, {kind, reason}}}
   end
 
   defp invoke(provider, callback, args, opts) do

@@ -81,6 +81,9 @@ defmodule Flicker.Facet do
           optional(:step) => number()
         }
 
+  @typedoc "Whether to request a match count per value for this facet."
+  @type counted :: boolean()
+
   @typedoc "An extra validator run after a successful cast, on the cast value."
   @type validator :: (term() -> :ok | {:error, {atom(), map()}} | {:error, String.t()})
 
@@ -109,7 +112,8 @@ defmodule Flicker.Facet do
           suggested: [atom()] | nil,
           multiple?: boolean(),
           editor: module() | nil,
-          validate: validator() | nil
+          validate: validator() | nil,
+          count: counted()
         }
 
   @enforce_keys [:key]
@@ -129,7 +133,8 @@ defmodule Flicker.Facet do
             suggested: nil,
             multiple?: false,
             editor: nil,
-            validate: nil
+            validate: nil,
+            count: false
 
   @doc """
   Builds a facet, filling in the defaults implied by its `:type` for any

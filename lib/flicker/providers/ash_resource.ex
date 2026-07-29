@@ -69,6 +69,7 @@ if Code.ensure_loaded?(Ash) do
 
     @default_limit 25
     @default_read_action :read
+    @default_count_limit 50
 
     @impl true
     @doc """
@@ -147,6 +148,104 @@ if Code.ensure_loaded?(Ash) do
     defp apply_base_filter(query, filter) when is_struct(filter), do: Ash.Query.do_filter(query, filter)
 
     defp apply_base_filter(query, filter), do: Ash.Query.filter_input(query, filter)
+
+    @impl true
+    @doc """
+    Counts how many records each requested facet's values would match
+    ([Spec 021](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-021-facet-value-counts.md)).
+
+    **Drill-down semantics** ([ADR-014](https://github.com/team-alembic/flicker/blob/main/docs/adrs/adr-014-facet-counts-are-provider-computed-and-actor-scoped.md)):
+    for each counted facet, every *other* active facet and the free text apply,
+    but that facet's own clauses do not. Counting against the whole query
+    instead would make every sibling value read `0` the instant one is
+    selected — the user's own choice erasing the information they needed.
+
+    Every read is `actor:`/`tenant:`-scoped exactly as `search/2`'s is, so a
+    count can never include a record the actor couldn't have read.
+
+    An `:enum` facet is counted across **all** its declared values, zeroes
+    included, because a genuine zero and an uncounted value are different facts
+    and only the full set lets an editor show `Archived 0` rather than dropping
+    the row. Other counted facets report only the values actually present,
+    capped by `:count_limit` (default 50) — enumerating every related record to
+    discover its zeroes is unbounded work.
+    """
+    @spec facet_counts(Query.t(), [Flicker.Facet.t()], keyword()) ::
+            {:ok, %{atom() => %{term() => non_neg_integer()}}} | {:error, term()}
+    def facet_counts(%Query{} = query, facets, opts) do
+      counted = Enum.filter(facets, & &1.count)
+
+      Enum.reduce_while(counted, {:ok, %{}}, fn facet, {:ok, acc} ->
+        case count_one(query, facet, facets, opts) do
+          {:ok, counts} -> {:cont, {:ok, Map.put(acc, facet.key, counts)}}
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+      end)
+    end
+
+    defp count_one(query, facet, all_facets, opts) do
+      resource = Keyword.fetch!(opts, :resource)
+      actor = Keyword.get(opts, :actor)
+      tenant = Keyword.get(opts, :tenant)
+      limit = Keyword.get(opts, :count_limit, @default_count_limit)
+      target = Flicker.Facet.target(facet)
+
+      # The query minus this facet's own clauses — the drill-down filter.
+      others = %{
+        query
+        | facets: Enum.reject(query.facets, fn {key, _op, _value} -> key == facet.key end)
+      }
+
+      ash_query =
+        resource
+        |> Ash.Query.for_read(
+          Keyword.get(opts, :read_action, @default_read_action),
+          action_args(opts, query.text),
+          actor: actor,
+          tenant: tenant
+        )
+        |> apply_base_filter(Keyword.get(opts, :filter))
+        |> apply_facet_filter(others, opts, all_facets)
+        |> apply_search_filter(Keyword.fetch!(opts, :search), query.text)
+        |> Ash.Query.select(select_for(target))
+
+      with {:ok, records} <- Ash.read(ash_query, actor: actor, tenant: tenant) do
+        {:ok, tally(records, facet, target, limit)}
+      end
+    end
+
+    # Only a plain attribute target can be counted by reading the field off the
+    # record. A relationship or nested path would need a join-and-group, which
+    # `Ash.Query.select/2` can't express here — those report no counts rather
+    # than wrong ones.
+    defp select_for([attribute]), do: [attribute]
+    defp select_for(_path), do: []
+
+    defp tally(records, facet, [attribute], limit) do
+      tallied =
+        records
+        |> Enum.frequencies_by(&Map.get(&1, attribute))
+        |> Map.delete(nil)
+        |> Enum.sort_by(fn {_value, count} -> -count end)
+        |> Enum.take(limit)
+        |> Map.new()
+
+      # Zeroes matter for a closed set: `Archived 0` tells the user where the
+      # data went, whereas a missing row tells them nothing.
+      case facet.values do
+        nil -> tallied
+        values -> Map.new(values, &{&1, Map.get(tallied, &1, 0)})
+      end
+    end
+
+    defp tally(_records, _facet, _path, _limit), do: %{}
+
+    defp apply_facet_filter(ash_query, query, _opts, facets) do
+      case Query.to_filter(query, facets) do
+        empty when empty == %{} -> ash_query
+        filter -> Ash.Query.filter_input(ash_query, filter)
+      end
+    end
 
     defp apply_facet_filter(ash_query, %Query{facets: []}, _opts), do: ash_query
 
@@ -514,7 +613,8 @@ if Code.ensure_loaded?(Ash) do
       :validate,
       :presets,
       :suggested,
-      :scalar
+      :scalar,
+      :count
     ]
 
     defp apply_passthrough_overrides(facet, overrides) do
