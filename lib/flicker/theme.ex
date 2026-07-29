@@ -38,6 +38,38 @@ defmodule Flicker.Theme do
     * `:loading_state` — the listbox's loading row.
     * `:empty_state` — the listbox's no-results row.
     * `:error_state` — the listbox's error row.
+    * `:facet_editor` — Spec 019 facet-editor part.
+    * `:facet_editor_header` — Spec 019 facet-editor part.
+    * `:facet_editor_body` — Spec 019 facet-editor part.
+    * `:facet_editor_footer` — Spec 019 facet-editor part.
+    * `:facet_editor_sheet` — Spec 019 facet-editor part.
+    * `:preset_rail` — Spec 019 facet-editor part.
+    * `:preset_group_label` — Spec 019 facet-editor part.
+    * `:preset_row` — Spec 019 facet-editor part.
+    * `:preset_row_selected` — Spec 019 facet-editor part.
+    * `:preset_row_range` — Spec 019 facet-editor part.
+    * `:calendar` — Spec 019 facet-editor part.
+    * `:calendar_nav` — Spec 019 facet-editor part.
+    * `:calendar_nav_button` — Spec 019 facet-editor part.
+    * `:calendar_month_label` — Spec 019 facet-editor part.
+    * `:calendar_weekday` — Spec 019 facet-editor part.
+    * `:calendar_grid` — Spec 019 facet-editor part.
+    * `:calendar_day` — Spec 019 facet-editor part.
+    * `:calendar_day_today` — Spec 019 facet-editor part.
+    * `:calendar_day_selected` — Spec 019 facet-editor part.
+    * `:calendar_day_in_range` — Spec 019 facet-editor part.
+    * `:calendar_day_edge` — Spec 019 facet-editor part.
+    * `:calendar_day_disabled` — Spec 019 facet-editor part.
+    * `:dial` — Spec 019 facet-editor part.
+    * `:dial_track` — Spec 019 facet-editor part.
+    * `:dial_fill` — Spec 019 facet-editor part.
+    * `:dial_thumb` — Spec 019 facet-editor part.
+    * `:dial_input` — Spec 019 facet-editor part.
+    * `:dial_value_label` — Spec 019 facet-editor part.
+    * `:switch` — Spec 019 facet-editor part.
+    * `:switch_thumb` — Spec 019 facet-editor part.
+    * `:switch_on` — Spec 019 facet-editor part.
+    * `:editor_error` — Spec 019 facet-editor part.
     * `:facet_count` — the match count rendered beside a facet value
       (Spec 021).
     * `:facet_count_zero` — added to a value row whose count is `0`. Dimmed
@@ -144,6 +176,38 @@ defmodule Flicker.Theme do
           loading_state: String.t(),
           empty_state: String.t(),
           error_state: String.t(),
+          facet_editor: String.t(),
+          facet_editor_header: String.t(),
+          facet_editor_body: String.t(),
+          facet_editor_footer: String.t(),
+          facet_editor_sheet: String.t(),
+          preset_rail: String.t(),
+          preset_group_label: String.t(),
+          preset_row: String.t(),
+          preset_row_selected: String.t(),
+          preset_row_range: String.t(),
+          calendar: String.t(),
+          calendar_nav: String.t(),
+          calendar_nav_button: String.t(),
+          calendar_month_label: String.t(),
+          calendar_weekday: String.t(),
+          calendar_grid: String.t(),
+          calendar_day: String.t(),
+          calendar_day_today: String.t(),
+          calendar_day_selected: String.t(),
+          calendar_day_in_range: String.t(),
+          calendar_day_edge: String.t(),
+          calendar_day_disabled: String.t(),
+          dial: String.t(),
+          dial_track: String.t(),
+          dial_fill: String.t(),
+          dial_thumb: String.t(),
+          dial_input: String.t(),
+          dial_value_label: String.t(),
+          switch: String.t(),
+          switch_thumb: String.t(),
+          switch_on: String.t(),
+          editor_error: String.t(),
           facet_count: String.t(),
           facet_count_zero: String.t(),
           facet_pill_invalid: String.t(),
@@ -195,6 +259,38 @@ defmodule Flicker.Theme do
             loading_state: "flicker-loading",
             empty_state: "flicker-empty",
             error_state: "flicker-error",
+            facet_editor: "flicker-facet-editor",
+            facet_editor_header: "flicker-facet-editor-header",
+            facet_editor_body: "flicker-facet-editor-body",
+            facet_editor_footer: "flicker-facet-editor-footer",
+            facet_editor_sheet: "flicker-facet-editor-sheet",
+            preset_rail: "flicker-preset-rail",
+            preset_group_label: "flicker-preset-group-label",
+            preset_row: "flicker-preset-row",
+            preset_row_selected: "flicker-preset-row-selected",
+            preset_row_range: "flicker-preset-row-range",
+            calendar: "flicker-calendar",
+            calendar_nav: "flicker-calendar-nav",
+            calendar_nav_button: "flicker-calendar-nav-button",
+            calendar_month_label: "flicker-calendar-month-label",
+            calendar_weekday: "flicker-calendar-weekday",
+            calendar_grid: "flicker-calendar-grid",
+            calendar_day: "flicker-calendar-day",
+            calendar_day_today: "flicker-calendar-day-today",
+            calendar_day_selected: "flicker-calendar-day-selected",
+            calendar_day_in_range: "flicker-calendar-day-in-range",
+            calendar_day_edge: "flicker-calendar-day-edge",
+            calendar_day_disabled: "flicker-calendar-day-disabled",
+            dial: "flicker-dial",
+            dial_track: "flicker-dial-track",
+            dial_fill: "flicker-dial-fill",
+            dial_thumb: "flicker-dial-thumb",
+            dial_input: "flicker-dial-input",
+            dial_value_label: "flicker-dial-value-label",
+            switch: "flicker-switch",
+            switch_thumb: "flicker-switch-thumb",
+            switch_on: "flicker-switch-on",
+            editor_error: "flicker-editor-error",
             facet_count: "flicker-facet-count",
             facet_count_zero: "flicker-facet-count-zero",
             facet_pill_invalid: "flicker-facet-pill-invalid",
@@ -259,6 +355,41 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-gray-500",
       empty_state: "px-3 py-2 text-gray-500",
       error_state: "px-3 py-2 text-red-600",
+      facet_editor: "absolute z-40 mt-1 flex rounded-md border border-gray-200 bg-white shadow-lg",
+      facet_editor_header: "flex items-center justify-between border-b border-gray-200 px-3 py-2 text-sm font-medium",
+      facet_editor_body: "flex gap-4 p-3",
+      facet_editor_footer: "mt-3 flex items-center justify-between border-t border-gray-200 pt-2 text-xs text-gray-500",
+      facet_editor_sheet: "fixed inset-x-0 bottom-0 z-40 rounded-t-xl border-t border-gray-200 bg-white p-4 shadow-lg",
+      preset_rail: "flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-gray-200 pr-3",
+      preset_group_label: "px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-500",
+      preset_row:
+        "flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm hover:bg-gray-50",
+      preset_row_selected: "bg-indigo-50 font-medium text-indigo-700",
+      preset_row_range: "shrink-0 text-xs text-gray-400",
+      calendar: "w-64",
+      calendar_nav: "mb-2 flex items-center justify-between",
+      calendar_nav_button: "flex size-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100",
+      calendar_month_label: "text-sm font-semibold text-gray-900",
+      calendar_weekday: "flex h-6 items-center justify-center text-[0.6875rem] font-semibold text-gray-500",
+      calendar_grid: "grid grid-cols-7 gap-0.5",
+      calendar_day: "flex size-8 items-center justify-center rounded-full text-sm hover:bg-gray-100",
+      calendar_day_today: "ring-1 ring-indigo-500",
+      calendar_day_selected: "bg-indigo-600 font-semibold text-white hover:bg-indigo-600",
+      calendar_day_in_range: "bg-indigo-100 text-indigo-900",
+      calendar_day_edge: "rounded-none",
+      calendar_day_disabled: "size-8",
+      dial: "relative h-8 w-full",
+      dial_track: "absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-gray-200",
+      dial_fill: "absolute inset-y-0 rounded-full bg-indigo-500",
+      dial_thumb:
+        "absolute top-1/2 size-5 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 border-white bg-indigo-600 shadow",
+      dial_input: "w-24 rounded border border-gray-300 px-2 py-1 text-sm",
+      dial_value_label: "mt-1 text-xs tabular-nums text-gray-600",
+      switch: "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full bg-gray-300 transition-colors",
+      switch_thumb:
+        "pointer-events-none absolute left-0.5 top-0.5 size-4 rounded-full bg-white shadow transition-transform",
+      switch_on: "bg-indigo-600 [&>span]:translate-x-4",
+      editor_error: "px-3 pb-2 text-xs text-red-700",
       facet_count: "ml-auto pl-3 text-xs tabular-nums text-gray-500",
       facet_count_zero: "opacity-50",
       facet_pill_invalid: "border border-red-300 bg-red-50 text-red-900",
@@ -354,6 +485,41 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-base-content/60",
       empty_state: "px-3 py-2 text-base-content/60",
       error_state: "px-3 py-2 text-error",
+      facet_editor: "absolute z-40 mt-1 flex rounded-box border border-base-300 bg-base-100 shadow-lg",
+      facet_editor_header: "flex items-center justify-between border-b border-gray-200 px-3 py-2 text-sm font-medium",
+      facet_editor_body: "flex gap-4 p-3",
+      facet_editor_footer: "mt-3 flex items-center justify-between border-t border-gray-200 pt-2 text-xs text-gray-500",
+      facet_editor_sheet:
+        "fixed inset-x-0 bottom-0 z-40 rounded-t-box border-t border-base-300 bg-base-100 p-4 shadow-lg",
+      preset_rail: "flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-gray-200 pr-3",
+      preset_group_label: "px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-500",
+      preset_row:
+        "flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm hover:bg-gray-50",
+      preset_row_selected: "bg-primary/10 font-medium text-primary",
+      preset_row_range: "shrink-0 text-xs text-gray-400",
+      calendar: "w-64",
+      calendar_nav: "mb-2 flex items-center justify-between",
+      calendar_nav_button: "flex size-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100",
+      calendar_month_label: "text-sm font-semibold text-gray-900",
+      calendar_weekday: "flex h-6 items-center justify-center text-[0.6875rem] font-semibold text-gray-500",
+      calendar_grid: "grid grid-cols-7 gap-0.5",
+      calendar_day: "flex size-8 items-center justify-center rounded-full text-sm hover:bg-gray-100",
+      calendar_day_today: "ring-1 ring-primary",
+      calendar_day_selected: "bg-primary font-semibold text-primary-content",
+      calendar_day_in_range: "bg-primary/15 text-base-content",
+      calendar_day_edge: "rounded-none",
+      calendar_day_disabled: "size-8",
+      dial: "relative h-8 w-full",
+      dial_track: "absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-gray-200",
+      dial_fill: "absolute inset-y-0 rounded-full bg-primary",
+      dial_thumb:
+        "absolute top-1/2 size-5 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 border-base-100 bg-primary shadow",
+      dial_input: "input input-bordered input-sm w-24",
+      dial_value_label: "mt-1 text-xs tabular-nums text-gray-600",
+      switch: "toggle",
+      switch_thumb: "sr-only",
+      switch_on: "toggle-primary",
+      editor_error: "px-3 pb-2 text-xs text-error",
       facet_count: "ml-auto pl-3 text-xs tabular-nums text-base-content/60",
       facet_count_zero: "opacity-50",
       facet_pill_invalid: "badge badge-error badge-outline",
