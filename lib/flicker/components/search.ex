@@ -1250,6 +1250,17 @@ defmodule Flicker.Components.Search do
             this.attachCursorReporting()
           },
           updated() {
+            // Focus moves into the pop-out on open, and the day grid is where a
+            // keyboard user wants to land.
+            const editor = this.facetEditor()
+            if (editor && !editor.contains(document.activeElement)) {
+              const target =
+                editor.querySelector('[role="gridcell"][aria-selected="true"]') ||
+                editor.querySelector('[role="gridcell"]') ||
+                editor.querySelector("button:not([disabled])")
+              target && target.focus()
+            }
+
             this.activeIndex = -1
             this.render()
             this.attachCursorReporting()
@@ -1309,7 +1320,67 @@ defmodule Flicker.Components.Search do
             this.activeIndex = Math.max(0, Math.min(options.length - 1, next))
             this.render()
           },
+          // Spec 019 / ADR-011: while an editor is open it *is* the keyboard
+          // context. The picker's own model is suspended, arrow keys drive the
+          // calendar grid, and focus is trapped in the dialog — a calendar you
+          // can't drive from the keyboard is not shippable.
+          //
+          // Exercised by the browser suite (Spec 007), not by ExUnit: the
+          // server-side commit/cancel paths these events reach are covered
+          // there, but the key handling itself needs a real browser.
+          facetEditor() {
+            return this.el.querySelector('[role="dialog"]')
+          },
+          handleEditorKeydown(e, editor) {
+            const days = [...editor.querySelectorAll('[role="gridcell"]:not([disabled])')]
+            const focused = document.activeElement
+            const index = days.indexOf(focused)
+            const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key]
+
+            if (step !== undefined && index >= 0) {
+              e.preventDefault()
+              const next = days[Math.min(Math.max(index + step, 0), days.length - 1)]
+              next && next.focus()
+              return
+            }
+
+            if (e.key === "PageUp" || e.key === "PageDown") {
+              e.preventDefault()
+              const button = editor.querySelector(
+                e.key === "PageUp" ? "[aria-label='Previous month']" : "[aria-label='Next month']"
+              )
+              button && button.click()
+              return
+            }
+
+            if (e.key === "Escape") {
+              e.preventDefault()
+              this.pushEventTo(this.el, "facet_editor_cancel", {})
+              return
+            }
+
+            // A minimal focus trap: Tab cycles within the dialog rather than
+            // escaping into the page behind it.
+            if (e.key === "Tab") {
+              const focusable = [...editor.querySelectorAll("button:not([disabled]),input:not([disabled]),[tabindex='0']")]
+              if (focusable.length === 0) return
+              const first = focusable[0]
+              const last = focusable[focusable.length - 1]
+
+              if (!e.shiftKey && focused === last) {
+                e.preventDefault()
+                first.focus()
+              } else if (e.shiftKey && focused === first) {
+                e.preventDefault()
+                last.focus()
+              }
+            }
+          },
           handleKeydown(e) {
+            // The editor takes over entirely while it is open.
+            const editor = this.facetEditor()
+            if (editor) return this.handleEditorKeydown(e, editor)
+
             const options = this.options()
             const isOpen = this.el.querySelector('[role="listbox"]') !== null
             switch (e.key) {
