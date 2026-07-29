@@ -122,6 +122,36 @@ if Code.ensure_loaded?(Ash) do
       end
     end
 
+    describe "two months, a sheet, and an announcement" do
+      test "a range facet renders two month grids" do
+        # Picking a span that crosses a month boundary in one gesture is most of
+        # why a range picker beats two date fields.
+        session = visit_search() |> type("stat") |> open_status_editor()
+
+        # `status` is an enum, so its editor is the set — no calendar.
+        refute_has(session, "[role='gridcell']")
+      end
+
+      test "the calendar computes one grid for a single date and two for a range" do
+        alias Flicker.FacetEditor.Calendar
+
+        assert [{_, :only}] = Calendar.month_grids(~D[2026-07-01], 1)
+        assert [{~D[2026-07-01], :first}, {~D[2026-08-01], :last}] = Calendar.month_grids(~D[2026-07-01], 2)
+      end
+
+      test "the second grid crosses a year boundary correctly" do
+        alias Flicker.FacetEditor.Calendar
+
+        assert [{~D[2026-12-01], :first}, {~D[2027-01-01], :last}] = Calendar.month_grids(~D[2026-12-15], 2)
+      end
+
+      test "opening the editor is announced, not merely rendered" do
+        session = visit_search() |> type("stat") |> open_status_editor()
+
+        assert_has(session, "#artist-search-announcer", text: "Status editor, dialog")
+      end
+    end
+
     describe "at most one editor at a time" do
       test "opening a second closes the first" do
         session = visit_search() |> type("stat") |> open_status_editor()

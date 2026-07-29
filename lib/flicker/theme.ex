@@ -42,7 +42,11 @@ defmodule Flicker.Theme do
     * `:facet_editor_header` — Spec 019 facet-editor part.
     * `:facet_editor_body` — Spec 019 facet-editor part.
     * `:facet_editor_footer` — Spec 019 facet-editor part.
-    * `:facet_editor_sheet` — Spec 019 facet-editor part.
+    * `:facet_editor_sheet` — the bottom-sheet variant of the pop-out. The
+      shipped framework presets fold the sheet behaviour into `:facet_editor`
+      itself with `max-sm:` utilities, since a 252px calendar in a dropdown is
+      unusable on a phone; this part exists for a `vanilla` host that wants to
+      target the sheet with its own CSS.
     * `:preset_rail` — Spec 019 facet-editor part.
     * `:preset_group_label` — Spec 019 facet-editor part.
     * `:preset_row` — Spec 019 facet-editor part.
@@ -360,7 +364,8 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-gray-500",
       empty_state: "px-3 py-2 text-gray-500",
       error_state: "px-3 py-2 text-red-600",
-      facet_editor: "absolute z-40 mt-1 flex rounded-md border border-gray-200 bg-white shadow-lg",
+      facet_editor:
+        "z-40 flex border border-gray-200 bg-white shadow-lg max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:flex-col max-sm:rounded-t-xl max-sm:p-1 sm:absolute sm:mt-1 sm:rounded-md",
       facet_editor_header: "flex items-center justify-between border-b border-gray-200 px-3 py-2 text-sm font-medium",
       facet_editor_body: "flex gap-4 p-3",
       facet_editor_footer: "mt-3 flex items-center justify-between border-t border-gray-200 pt-2 text-xs text-gray-500",
@@ -491,7 +496,8 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-base-content/60",
       empty_state: "px-3 py-2 text-base-content/60",
       error_state: "px-3 py-2 text-error",
-      facet_editor: "absolute z-40 mt-1 flex rounded-box border border-base-300 bg-base-100 shadow-lg",
+      facet_editor:
+        "z-40 flex border border-base-300 bg-base-100 shadow-lg max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:flex-col max-sm:rounded-t-box max-sm:p-1 sm:absolute sm:mt-1 sm:rounded-box",
       facet_editor_header: "flex items-center justify-between border-b border-gray-200 px-3 py-2 text-sm font-medium",
       facet_editor_body: "flex gap-4 p-3",
       facet_editor_footer: "mt-3 flex items-center justify-between border-t border-gray-200 pt-2 text-xs text-gray-500",

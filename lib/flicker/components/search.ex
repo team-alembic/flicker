@@ -443,6 +443,14 @@ defmodule Flicker.Components.Search do
     {:noreply, focus_input(socket, socket.assigns.text)}
   end
 
+  # Spec 007/019: entering and leaving a modal sub-context has to be audible,
+  # not just visible.
+  defp editor_announcement(%{facet_editor: nil}), do: nil
+
+  defp editor_announcement(%{facet_editor: %{facet: facet}} = assigns) do
+    message(assigns, :facet_editor_opened, %{label: facet.label || humanize(to_string(facet.key))})
+  end
+
   defp facet_editor_label(%{facet_editor: %{facet: facet}}) do
     facet.label || humanize(to_string(facet.key))
   end
@@ -463,6 +471,11 @@ defmodule Flicker.Components.Search do
       to_percent: Flicker.FacetEditor.Dial.thumb_percent(range_part(state.value, :to), state.facet.bounds),
       bounds: state.facet.bounds,
       month: state.month,
+      month_grids:
+        Flicker.FacetEditor.Calendar.month_grids(
+          state.month,
+          if(Flicker.Facet.range?(state.facet), do: 2, else: 1)
+        ),
       today: state.today,
       draft_start: state.draft_start,
       hover: state.hover,
@@ -1024,7 +1037,8 @@ defmodule Flicker.Components.Search do
       |> then(&assign(&1, :invalid_report, invalid_report(%{assigns: &1})))
       |> then(&assign(&1, :dispatch_withheld, &1.on_invalid == :require and &1.invalid_report != nil))
 
-    assigns = assign(assigns, :announcement, announcement(assigns))
+    assigns =
+      assign(assigns, :announcement, editor_announcement(assigns) || announcement(assigns))
 
     ~H"""
     <div

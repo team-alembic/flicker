@@ -213,6 +213,30 @@ defmodule Flicker.FacetEditor.Calendar do
     Date.compare(date, low) != :lt and Date.compare(date, high) != :gt
   end
 
+  @doc """
+  The months to render, tagged `:first`/`:last` so only the outer grids carry
+  their paging control.
+
+  Two for a range type, one otherwise. A single month is both first and last.
+
+  ## Examples
+
+      iex> Flicker.FacetEditor.Calendar.month_grids(~D[2026-07-01], 1)
+      [{~D[2026-07-01], :only}]
+
+      iex> Flicker.FacetEditor.Calendar.month_grids(~D[2026-07-01], 2)
+      [{~D[2026-07-01], :first}, {~D[2026-08-01], :last}]
+  """
+  @spec month_grids(Date.t(), pos_integer()) :: [{Date.t(), :only | :first | :last}]
+  def month_grids(month, 1), do: [{Date.beginning_of_month(month), :only}]
+
+  def month_grids(month, _count) do
+    first = Date.beginning_of_month(month)
+    second = first |> Date.end_of_month() |> Date.add(1)
+
+    [{first, :first}, {second, :last}]
+  end
+
   @impl true
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
@@ -235,9 +259,13 @@ defmodule Flicker.FacetEditor.Calendar do
           <span class={@theme.preset_row_range}>{resolved_label(preset, @facet, @today, @first_day_of_week)}</span>
         </button>
       </div>
-      <div class={@theme.calendar}>
+      <%!-- Two months for a range, one for a single date: picking a span that
+      crosses a month boundary in one gesture is most of why a range picker
+      beats two date fields. --%>
+      <div :for={{month, position} <- @month_grids} class={@theme.calendar}>
         <div class={@theme.calendar_nav}>
           <button
+            :if={position == :first}
             type="button"
             class={@theme.calendar_nav_button}
             aria-label={@labels.previous_month}
@@ -248,8 +276,9 @@ defmodule Flicker.FacetEditor.Calendar do
           >
             ‹
           </button>
-          <span class={@theme.calendar_month_label}>{Format.value_label(@facet, @month)}</span>
+          <span class={@theme.calendar_month_label}>{Format.value_label(@facet, month)}</span>
           <button
+            :if={position == :last}
             type="button"
             class={@theme.calendar_nav_button}
             aria-label={@labels.next_month}
@@ -265,7 +294,7 @@ defmodule Flicker.FacetEditor.Calendar do
           <span :for={initial <- weekday_initials(@first_day_of_week)} class={@theme.calendar_weekday}>
             {initial}
           </span>
-          <%= for day <- month_grid(@month, @first_day_of_week) do %>
+          <%= for day <- month_grid(month, @first_day_of_week) do %>
             <%= if day do %>
               <button
                 type="button"
@@ -289,7 +318,7 @@ defmodule Flicker.FacetEditor.Calendar do
             <% end %>
           <% end %>
         </div>
-        <div class={@theme.facet_editor_footer}>
+        <div :if={position == :last} class={@theme.facet_editor_footer}>
           <span>{@footer}</span>
         </div>
       </div>

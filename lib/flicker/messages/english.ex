@@ -43,6 +43,10 @@ defmodule Flicker.Messages.English do
       facet pill.
     * `:edit_facet` — %{label: name} — `aria-label` for the control that
       reopens a committed facet's editor (Spec 019).
+    * `:facet_editor_opened` — %{label: name} — the live-region announcement
+      when a facet editor's pop-out opens (Spec 019), naming the facet and the
+      fact that it is a dialog, since entering a modal sub-context must be
+      audible and not merely visible.
     * `:active_filters` — `aria-label` for the committed-facet pill row in
       `Flicker.select/1` (Spec 015), naming it as filters rather than as the
       selection chips beside it.
@@ -158,6 +162,7 @@ defmodule Flicker.Messages.English do
   def message(:invalid_facet, %{key: key}), do: "#{key} is not valid"
   def message(:edit_facet, %{label: label}), do: "Edit #{label}"
   def message(:active_filters, _bindings), do: "Active filters"
+  def message(:facet_editor_opened, %{label: label}), do: "#{label} editor, dialog"
 
   def message(:results_count, %{count: 0}), do: "No results available"
   def message(:results_count, %{count: 1}), do: "1 result available"

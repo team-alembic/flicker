@@ -1,5 +1,5 @@
 ---
-status: in-progress # draft | ready | in-progress | shipped
+status: shipped # draft | ready | in-progress | shipped
 date: 2026-07-28
 depends_on: [spec-003, spec-007, spec-012, spec-018, adr-002, adr-007, adr-009, adr-011, adr-013]
 ---
@@ -14,7 +14,15 @@ canonical token text. This spec builds them: the `Flicker.FacetEditor`
 behaviour, the pop-out surface and its focus contract, and the four editors
 Flicker ships — a **date/date-range calendar** with a presets rail, a **numeric
 dial** (dual-thumb range slider), a **switch** for booleans, and a **set
-editor** that is a nested `Flicker.select`.
+editor** driven by one value source.
+
+**Amended during implementation.** The set editor is *not* literally a nested
+`Flicker.select`: controlled mode notifies via `send(self(), …)`, and `self()`
+inside a `LiveComponent` is the host LiveView, so a nested select could never
+return its selection to the editor containing it without host boilerplate. See
+[ADR-011](../adrs/adr-011-facet-editors-are-modal-subcontexts.md)'s amendment
+for what survives (`value_source/1` as the one definition of candidates) and
+what is lost (inheriting the select's windowing).
 
 The organising principle, and the thing that separates this from a widget
 collection: **the editor is never the only way in.** Every value an editor can
