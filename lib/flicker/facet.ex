@@ -55,11 +55,34 @@ defmodule Flicker.Facet do
   explicit `[type:, path:, attribute:, op:]` override any derived field.
   """
 
+  alias Flicker.Facet.{Cast, Preset}
+
   @typedoc "How a facet value is cast."
-  @type type :: :string | :integer | :float | :boolean | :date | :enum
+  @type type ::
+          :string
+          | :integer
+          | :float
+          | :boolean
+          | :date
+          | :datetime
+          | :enum
+          | :date_range
+          | :datetime_range
+          | :number_range
+          | :duration
 
   @typedoc "A comparison operator a facet value can be compared with."
-  @type operator :: :eq | :neq | :gt | :gte | :lt | :lte | :contains
+  @type operator :: :eq | :neq | :gt | :gte | :lt | :lte | :contains | :between | :in | :not_in
+
+  @typedoc "Advisory numeric bounds for an editor, and a validation floor/ceiling."
+  @type bounds :: %{
+          optional(:min) => number(),
+          optional(:max) => number(),
+          optional(:step) => number()
+        }
+
+  @typedoc "An extra validator run after a successful cast, on the cast value."
+  @type validator :: (term() -> :ok | {:error, {atom(), map()}} | {:error, String.t()})
 
   @typedoc "The related resource a `belongs_to`/`has_*` facet searches over."
   @type related :: %{
@@ -79,7 +102,14 @@ defmodule Flicker.Facet do
           value_labels: %{atom() => String.t()} | nil,
           value_colors: %{atom() => String.t()} | nil,
           target: [atom()] | nil,
-          related: related() | nil
+          related: related() | nil,
+          scalar: type() | nil,
+          bounds: bounds() | nil,
+          presets: [Flicker.Facet.Preset.t()] | nil,
+          suggested: [atom()] | nil,
+          multiple?: boolean(),
+          editor: module() | nil,
+          validate: validator() | nil
         }
 
   @enforce_keys [:key]
@@ -92,7 +122,148 @@ defmodule Flicker.Facet do
             value_labels: nil,
             value_colors: nil,
             target: nil,
-            related: nil
+            related: nil,
+            scalar: nil,
+            bounds: nil,
+            presets: nil,
+            suggested: nil,
+            multiple?: false,
+            editor: nil,
+            validate: nil
+
+  @doc """
+  Builds a facet, filling in the defaults implied by its `:type` for any
+  field the caller didn't set.
+
+  Prefer this to a bare struct literal for the range types: a
+  `%Flicker.Facet{type: :date_range}` literal keeps the struct's own
+  `operators: [:eq]` default, which no range value can satisfy, so
+  `created:2026-06-01..2026-06-30` would degrade to free text. `new/1` gives
+  it `[:between]` instead.
+
+  Only *absent* keys are defaulted — an explicit `operators:` always wins,
+  including an explicit `[:eq]`.
+
+  ## Examples
+
+      iex> Flicker.Facet.new(key: :created, type: :date_range).operators
+      [:between]
+
+      iex> Flicker.Facet.new(key: :created, type: :date_range).scalar
+      :date
+
+      iex> Flicker.Facet.new(key: :price, type: :number_range).scalar
+      :integer
+
+      iex> Flicker.Facet.new(key: :status, type: :enum, operators: [:eq]).operators
+      [:eq]
+
+      iex> Flicker.Facet.new(key: :name).type
+      :string
+  """
+  @spec new(keyword() | map()) :: t()
+  def new(fields) do
+    fields = Map.new(fields)
+    type = Map.get(fields, :type, :string)
+
+    struct!(__MODULE__, Map.merge(type_defaults(type), fields))
+  end
+
+  defp type_defaults(:date_range),
+    do: %{type: :date_range, operators: [:between], default_op: :between, scalar: :date, presets: Preset.builtin()}
+
+  defp type_defaults(:datetime_range),
+    do: %{
+      type: :datetime_range,
+      operators: [:between],
+      default_op: :between,
+      scalar: :datetime,
+      presets: Preset.builtin()
+    }
+
+  defp type_defaults(:number_range),
+    do: %{type: :number_range, operators: [:between], default_op: :between, scalar: :integer}
+
+  defp type_defaults(type) when type in [:integer, :float, :date, :datetime, :duration],
+    do: %{type: type, operators: [:eq, :neq, :gt, :gte, :lt, :lte], default_op: :eq}
+
+  defp type_defaults(type) when type in [:boolean, :enum], do: %{type: type, operators: [:eq, :neq], default_op: :eq}
+
+  defp type_defaults(:string), do: %{type: :string, operators: [:eq, :neq, :contains], default_op: :eq}
+
+  @doc """
+  The type each endpoint of a range facet casts as — `:scalar` when set,
+  otherwise the one implied by the range type. For a non-range facet this is
+  just its own type, so callers can use it unconditionally.
+
+  ## Examples
+
+      iex> Flicker.Facet.scalar(%Flicker.Facet{key: :created, type: :date_range})
+      :date
+
+      iex> Flicker.Facet.scalar(%Flicker.Facet{key: :price, type: :number_range, scalar: :float})
+      :float
+
+      iex> Flicker.Facet.scalar(%Flicker.Facet{key: :name, type: :string})
+      :string
+  """
+  @spec scalar(t()) :: type() | nil
+  def scalar(%__MODULE__{scalar: nil, type: type}), do: default_scalar(type)
+  def scalar(%__MODULE__{scalar: scalar}), do: scalar
+
+  defp default_scalar(:date_range), do: :date
+  defp default_scalar(:datetime_range), do: :datetime
+  defp default_scalar(:number_range), do: :integer
+  defp default_scalar(type), do: type
+
+  @doc """
+  Whether this facet's cast value is a `Flicker.Facet.Range`.
+
+  ## Examples
+
+      iex> Flicker.Facet.range?(%Flicker.Facet{key: :created, type: :date_range})
+      true
+
+      iex> Flicker.Facet.range?(%Flicker.Facet{key: :created, type: :date})
+      false
+  """
+  @spec range?(t()) :: boolean()
+  def range?(%__MODULE__{type: type}), do: type in Cast.range_types()
+
+  @doc """
+  Casts `raw` for this facet — delegates to `Flicker.Facet.Cast.cast/4`.
+
+  Returns `{:ok, operator, value}` with the operator *resolved*: casting can
+  refine it, so `:` on a range facet comes back as `:between` and a
+  comma-separated list on a `multiple?: true` facet as `:in`.
+
+  ## Examples
+
+      iex> facet = Flicker.Facet.new(key: :created, type: :date_range)
+      ...> Flicker.Facet.cast_value(facet, "2026-06-01..2026-06-30", :between)
+      {:ok, :between, %Flicker.Facet.Range{from: ~D[2026-06-01], to: ~D[2026-06-30]}}
+  """
+  @spec cast_value(t(), String.t(), operator(), keyword()) ::
+          {:ok, operator(), term()} | {:error, {atom(), map()}}
+  def cast_value(facet, raw, operator, opts \\ []), do: Cast.cast(facet, raw, operator, opts)
+
+  @doc """
+  Validates `raw` for this facet without keeping the value — `:ok`, or
+  `{:error, {reason, params}}` naming what was wrong
+  ([ADR-012](https://github.com/team-alembic/flicker/blob/main/docs/adrs/adr-012-parse-reports-invalid-facet-tokens.md)).
+
+  ## Examples
+
+      iex> facet = Flicker.Facet.new(key: :status, type: :enum, values: [:active, :inactive])
+      ...> Flicker.Facet.validate_value(facet, "activ", :eq)
+      {:error, {:not_in_values, %{value: "activ", values: [:active, :inactive]}}}
+
+      iex> facet = Flicker.Facet.new(key: :status, type: :enum, values: [:active])
+      ...> Flicker.Facet.validate_value(facet, "active", :eq)
+      :ok
+  """
+  @spec validate_value(t(), String.t(), operator(), keyword()) :: :ok | {:error, {atom(), map()}}
+  def validate_value(facet, raw, operator, opts \\ []), do: Cast.validate(facet, raw, operator, opts)
 
   @doc """
   The Ash filter path this facet resolves to: `facet.target`, or `[facet.key]`
