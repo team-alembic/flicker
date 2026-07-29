@@ -238,17 +238,28 @@ defmodule Flicker.Query do
     end
   end
 
+  # `Float.parse/1` is not total — it delegates to `:erlang.binary_to_float`,
+  # which raises `ArgumentError` when the digits overflow a float. Facet values
+  # are arbitrary user input, so an overflowing literal has to degrade to free
+  # text like any other uncastable value; without the rescue, typing enough
+  # digits into a float facet crashes the host LiveView, contradicting this
+  # module's documented "never raises" guarantee.
   defp cast_value(:float, raw, _values) do
     case Float.parse(raw) do
-      {float, ""} ->
-        {:ok, float}
-
-      _ ->
-        case Integer.parse(raw) do
-          {int, ""} -> {:ok, int * 1.0}
-          _ -> :error
-        end
+      {float, ""} -> {:ok, float}
+      _ -> cast_integer_as_float(raw)
     end
+  rescue
+    ArgumentError -> :error
+  end
+
+  defp cast_integer_as_float(raw) do
+    case Integer.parse(raw) do
+      {int, ""} -> {:ok, int * 1.0}
+      _ -> :error
+    end
+  rescue
+    ArgumentError -> :error
   end
 
   defp cast_value(:boolean, raw, _values) do
