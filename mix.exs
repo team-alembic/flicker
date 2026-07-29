@@ -94,7 +94,22 @@ defmodule Flicker.MixProject do
     [
       # Core — the only hard runtime dependency (ADR-006, ADR-008).
       {:phoenix_live_view, "~> 1.1"}
-    ] ++ ash_deps() ++ tooling_deps()
+    ] ++ localize_deps() ++ ash_deps() ++ tooling_deps()
+  end
+
+  # CLDR display formatting (ADR-013): interval collapsing, number grouping,
+  # plural-aware durations, list conjunctions, locale week rules. Optional —
+  # without it `Flicker.Facet.Format` falls back to ISO 8601, plain digits and
+  # English joins, which is the shipped behaviour for a host that doesn't
+  # localise. Excluded entirely with `FLICKER_NO_LOCALIZE` set, mirroring
+  # `FLICKER_NO_ASH`, so a CI leg can prove the fallback compiles and reads
+  # correctly rather than taking it on trust.
+  defp localize_deps do
+    if System.get_env("FLICKER_NO_LOCALIZE") do
+      []
+    else
+      [{:localize, "~> 0.50", optional: true}]
+    end
   end
 
   # `ash`/`ash_phoenix` are optional runtime deps (ADR-006, ADR-008): the
