@@ -144,6 +144,10 @@ defmodule Flicker.Components.Select do
       # `Flicker.Dispatch.pending?/3` compares to decide whether `:enter`'s
       # "press Enter to search" affordance is showing.
       |> assign_new(:dispatched_query, fn -> "" end)
+      # Spec 015: committed facet tokens lift out of the text buffer into pills,
+      # exactly as in `Flicker.search` — the buffer keeps only the free text and
+      # any in-progress token, so `Flicker.CursorContext` still sees a live one.
+      |> assign_new(:committed, fn -> [] end)
       |> assign(:connected?, Phoenix.LiveView.connected?(socket))
       |> resolve_selected()
       |> research_on_scope_change(prev_actor, prev_tenant)
@@ -230,6 +234,20 @@ defmodule Flicker.Components.Select do
   # pressed with no option under the keyboard cursor, which is the only way a
   # held query gets dispatched. `:enter` as the trigger is what
   # `Flicker.Dispatch.dispatch?/4` lets through where `:input` was withheld.
+  # Spec 015: dropping a facet pill re-runs the record search without it. The
+  # selection is untouched — facets scope what's searchable, they never choose.
+  def handle_event("remove_facet", %{"index" => index}, socket) do
+    committed = List.delete_at(socket.assigns.committed, String.to_integer(index))
+
+    socket =
+      socket
+      |> assign(:committed, committed)
+      |> assign(:dispatch_trigger, :facet_commit)
+      |> apply_query(socket.assigns.query, socket.assigns.cursor)
+
+    {:noreply, socket}
+  end
+
   def handle_event("dispatch_query", %{"value" => text}, socket) do
     {:noreply,
      socket
@@ -529,8 +547,14 @@ defmodule Flicker.Components.Select do
   defp clear_stale_selection(socket, _text), do: socket
 
   defp apply_query(socket, text, cursor \\ nil) do
+    socket =
+      socket
+      |> reset_window()
+      |> assign(query: text, cursor: cursor, open: true)
+      |> absorb_committed()
+
+    text = socket.assigns.query
     trimmed = String.trim(text)
-    socket = socket |> reset_window() |> assign(query: text, cursor: cursor, open: true)
 
     cond do
       trimmed == "" ->
@@ -642,7 +666,8 @@ defmodule Flicker.Components.Select do
   # (documented on each provider).
   defp run_faceted_search(socket, :text) do
     parsed_query = Query.parse(text_for_facet_parse(socket), socket.assigns.facets)
-    run_record_search(socket, parsed_query)
+
+    run_record_search(socket, combined_query(socket, parsed_query))
   end
 
   defp text_for_facet_parse(socket), do: socket.assigns.query
@@ -657,6 +682,103 @@ defmodule Flicker.Components.Select do
   # results rendered rather than blanking the listbox — under `:enter`, a
   # picker that emptied itself while you typed would be worse than one that
   # simply hasn't searched yet.
+  # A facet token is *committed* once it parses cleanly and is terminated by
+  # whitespace; the token under the cursor stays in the buffer so autocomplete
+  # keeps classifying it (Spec 012's commit boundary, reused here).
+  defp absorb_committed(%{assigns: %{facets: []}} = socket), do: socket
+
+  defp absorb_committed(socket) do
+    %{query: text, facets: facets, committed: committed} = socket.assigns
+
+    case String.split(text, ~r/\s+/, parts: 2) do
+      [_single] ->
+        maybe_absorb_terminated(socket, text, facets, committed)
+
+      _many ->
+        maybe_absorb_terminated(socket, text, facets, committed)
+    end
+  end
+
+  # Only whitespace-terminated tokens are eligible, so the in-progress one is
+  # never stolen from under the caret.
+  defp maybe_absorb_terminated(socket, text, facets, committed) do
+    {terminated, remainder} = split_terminated(text)
+    parsed = Query.parse(terminated, facets)
+
+    if parsed.facets == [] do
+      socket
+    else
+      buffer = String.trim_leading(parsed.text <> " " <> remainder)
+
+      assign(socket, committed: committed ++ parsed.facets, query: buffer)
+    end
+  end
+
+  # Everything up to and including the last whitespace is terminated; what
+  # follows is still being typed.
+  defp split_terminated(text) do
+    case Regex.run(~r/^(.*\s)(\S*)$/s, text) do
+      [_, terminated, remainder] -> {terminated, remainder}
+      nil -> {"", text}
+    end
+  end
+
+  # The query actually sent to the provider: the committed pills plus whatever
+  # the buffer still holds. Facets scope the search; they never change the
+  # selection (Spec 015).
+  defp combined_query(socket, parsed) do
+    %{parsed | facets: socket.assigns.committed ++ parsed.facets}
+  end
+
+  defp build_facet_pills(committed, facets) do
+    committed
+    |> Enum.with_index()
+    |> Enum.map(fn {{key, op, value}, index} ->
+      facet = Enum.find(facets, &(&1.key == key))
+
+      %{
+        index: index,
+        field: facet_pill_field(facet, key),
+        value: facet_pill_value(facet, op, value),
+        color: facet_pill_color(facet, value)
+      }
+    end)
+  end
+
+  # Humanised the same way `Flicker.search`'s pills do it, so the two surfaces
+  # label the same facet identically.
+  defp facet_pill_field(nil, key), do: humanize_key(key)
+  defp facet_pill_field(%{label: nil, key: key}, _key), do: humanize_key(key)
+  defp facet_pill_field(%{label: label}, _key), do: label
+
+  defp humanize_key(key) do
+    key
+    |> to_string()
+    |> String.replace("_", " ")
+    |> case do
+      <<first::utf8, rest::binary>> -> String.upcase(<<first::utf8>>) <> rest
+      other -> other
+    end
+  end
+
+  defp facet_pill_value(nil, _op, value), do: to_string(value)
+
+  defp facet_pill_value(facet, op, value) do
+    facet_op_prefix(op) <> Flicker.Facet.Format.value_label(facet, value)
+  end
+
+  defp facet_op_prefix(:neq), do: "≠ "
+  defp facet_op_prefix(:not_in), do: "≠ "
+  defp facet_op_prefix(:gt), do: "> "
+  defp facet_op_prefix(:gte), do: "≥ "
+  defp facet_op_prefix(:lt), do: "< "
+  defp facet_op_prefix(:lte), do: "≤ "
+  defp facet_op_prefix(_other), do: ""
+
+  defp facet_pill_color(%{value_colors: colors}, value) when is_map(colors), do: Map.get(colors, value)
+
+  defp facet_pill_color(_facet, _value), do: nil
+
   defp run_record_search(socket, query) do
     %{dispatch: dispatch, dispatch_trigger: trigger, min_chars: min_chars} = socket.assigns
 
@@ -1182,7 +1304,10 @@ defmodule Flicker.Components.Select do
       |> assign(:show_narrow_hint, assigns.has_more && (!paginating || assigns.window_complete))
       |> assign(:aria_busy, if(assigns.paginate, do: to_string(assigns.loading_more)))
 
-    assigns = assign(assigns, :announcement, announcement(assigns))
+    assigns =
+      assigns
+      |> assign(:facet_pills, build_facet_pills(assigns.committed, assigns.facets))
+      |> assign(:announcement, announcement(assigns))
 
     ~H"""
     <div
@@ -1205,6 +1330,40 @@ defmodule Flicker.Components.Select do
         button, unchanged.
       --%>
       <div :if={@multiple} class={@theme.multi_field}>
+      <%!-- Spec 015: committed facets are pills in the field, distinct from
+      selection chips — a pill *scopes the search*, a chip *is a selection*.
+      Pills come first so the reading order is "within these filters, these
+      choices". --%>
+      <div
+        :if={@facet_pills != []}
+        class={@theme.facet_pill_list}
+        role="list"
+        aria-label={message(assigns, :active_filters)}
+      >
+        <span :for={pill <- @facet_pills} class={@theme.facet_pill} role="listitem">
+          <span
+            :if={pill.color}
+            aria-hidden="true"
+            style={"background-color:#{pill.color}"}
+            class="mr-1 inline-block h-2 w-2 shrink-0 rounded-full"
+          >
+          </span>
+          <span class={@theme.facet_pill_field}>{pill.field}</span>
+          <span class={@theme.facet_pill_value}>{pill.value}</span>
+          <button
+            type="button"
+            class={@theme.facet_pill_remove}
+            disabled={!@connected?}
+            phx-click="remove_facet"
+            phx-value-index={pill.index}
+            phx-target={@myself}
+            aria-label={message(assigns, :remove_chip, %{label: "#{pill.field} #{pill.value}"})}
+          >
+            {message(assigns, :remove_icon)}
+          </button>
+        </span>
+      </div>
+
         <%!--
           A `:selected` slot (Spec 013) renders each selected item's own
           visual (e.g. an avatar), laid out in `:selected_stack` with a "+N"
@@ -1282,6 +1441,40 @@ defmodule Flicker.Components.Select do
       </div>
 
       <%= unless @multiple do %>
+      <%!-- Spec 015: committed facets are pills in the field, distinct from
+      selection chips — a pill *scopes the search*, a chip *is a selection*.
+      Pills come first so the reading order is "within these filters, these
+      choices". --%>
+      <div
+        :if={@facet_pills != []}
+        class={@theme.facet_pill_list}
+        role="list"
+        aria-label={message(assigns, :active_filters)}
+      >
+        <span :for={pill <- @facet_pills} class={@theme.facet_pill} role="listitem">
+          <span
+            :if={pill.color}
+            aria-hidden="true"
+            style={"background-color:#{pill.color}"}
+            class="mr-1 inline-block h-2 w-2 shrink-0 rounded-full"
+          >
+          </span>
+          <span class={@theme.facet_pill_field}>{pill.field}</span>
+          <span class={@theme.facet_pill_value}>{pill.value}</span>
+          <button
+            type="button"
+            class={@theme.facet_pill_remove}
+            disabled={!@connected?}
+            phx-click="remove_facet"
+            phx-value-index={pill.index}
+            phx-target={@myself}
+            aria-label={message(assigns, :remove_chip, %{label: "#{pill.field} #{pill.value}"})}
+          >
+            {message(assigns, :remove_icon)}
+          </button>
+        </span>
+      </div>
+
         <%!-- A single selection is shown as a static rich display, not editable
         text: you don't keep typing after picking one value. The `:selected`
         slot renders it when given — a selected row usually wants a more compact

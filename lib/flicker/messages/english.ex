@@ -43,6 +43,9 @@ defmodule Flicker.Messages.English do
       facet pill.
     * `:edit_facet` — %{label: name} — `aria-label` for the control that
       reopens a committed facet's editor (Spec 019).
+    * `:active_filters` — `aria-label` for the committed-facet pill row in
+      `Flicker.select/1` (Spec 015), naming it as filters rather than as the
+      selection chips beside it.
     * `:press_enter_to_search` — shown, and referenced by the input's
       `aria-describedby`, while `dispatch: :enter` holds typed text that
       hasn't been searched yet (Spec 020). A search box that has silently
@@ -154,6 +157,7 @@ defmodule Flicker.Messages.English do
   def message(:apply_fix, _bindings), do: "Fix it"
   def message(:invalid_facet, %{key: key}), do: "#{key} is not valid"
   def message(:edit_facet, %{label: label}), do: "Edit #{label}"
+  def message(:active_filters, _bindings), do: "Active filters"
 
   def message(:results_count, %{count: 0}), do: "No results available"
   def message(:results_count, %{count: 1}), do: "1 result available"

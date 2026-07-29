@@ -40,7 +40,11 @@ if Code.ensure_loaded?(Ash) do
 
       session = click_button(session, "Active")
 
-      assert_has(session, "#cmdk-select-input[value='status:active ']")
+      # Spec 015: the completed facet lifts out of the input into a pill,
+      # leaving the buffer for free text — the same commit boundary
+      # `Flicker.search` uses. The token is no longer raw text in the field.
+      assert_has(session, "[role='listitem']", text: "Active")
+      assert_has(session, "#cmdk-select-input[value='']")
       refute_has(session, "#palette-selection")
     end
 
