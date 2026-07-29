@@ -32,8 +32,9 @@ defmodule Dev.UI do
   def nav_groups, do: @nav_groups
 
   @doc """
-  Wraps a capability page: fixed left sidebar on desktop (an off-canvas
-  drawer on mobile, toggled by a hidden checkbox — no client JS needed), a
+  Wraps a capability page: a sticky left sidebar on desktop that occupies its
+  own column (an off-canvas drawer on mobile, toggled by a hidden checkbox —
+  no client JS needed), a
   page-header (`title`, one-line `description` slot, optional `spec` link),
   and the page's own content underneath.
 
@@ -107,7 +108,17 @@ defmodule Dev.UI do
     assigns = assign(assigns, :nav_groups, @nav_groups)
 
     ~H"""
-    <aside class="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col overflow-y-auto border-r border-gray-200 bg-white peer-checked:flex lg:flex">
+    <%!-- Mobile: an off-canvas drawer, so `fixed` (out of flow, overlaying the
+    page) is what's wanted. Desktop: a real flex child of the page's flex row,
+    so it *occupies* its 16rem rather than overlaying the content column —
+    `fixed` there took the sidebar out of flow, leaving `min-w-0 flex-1`
+    starting at x=0 underneath it. `lg:sticky` + `lg:h-screen` keeps the
+    full-height, independently-scrolling feel `fixed` was reaching for, and
+    `lg:shrink-0` stops the flex row stealing its width back. The mobile
+    `bottom-0`/`left-0` are reset individually (`lg:bottom-auto`,
+    `lg:left-auto`) rather than via `inset-y-auto`, which would collide with
+    `top-0` in the same utility group. --%>
+    <aside class="fixed bottom-0 left-0 top-0 z-40 hidden w-64 flex-col overflow-y-auto border-r border-gray-200 bg-white peer-checked:flex lg:sticky lg:bottom-auto lg:left-auto lg:h-screen lg:shrink-0 lg:flex">
       <div class="flex items-center justify-between border-b border-gray-200 px-4 py-4">
         <.link navigate="/" class="flex items-center gap-1.5 text-base font-semibold text-gray-900">
           <span aria-hidden="true">🔥</span> Flicker
