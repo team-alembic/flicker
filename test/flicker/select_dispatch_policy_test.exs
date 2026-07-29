@@ -137,23 +137,23 @@ defmodule Flicker.SelectDispatchPolicyTest do
     end
   end
 
-  describe "stale results" do
-    defmodule SlowProvider do
-      @moduledoc false
-      @behaviour Flicker.Provider
+  defmodule SlowProvider do
+    @moduledoc false
+    @behaviour Flicker.Provider
 
-      @impl true
-      def search(%Flicker.Query{text: "slow"}, _opts) do
-        Process.sleep(300)
-        {:ok, [%Flicker.Result{value: "9", label: "Slow result"}]}
-      end
-
-      def search(_query, _opts), do: {:ok, [%Flicker.Result{value: "1", label: "Casey Cassidy"}]}
-
-      @impl true
-      def fetch(_values, _opts), do: {:ok, []}
+    @impl true
+    def search(%Flicker.Query{text: "slow"}, _opts) do
+      Process.sleep(300)
+      {:ok, [%Flicker.Result{value: "9", label: "Slow result"}]}
     end
 
+    def search(_query, _opts), do: {:ok, [%Flicker.Result{value: "1", label: "Casey Cassidy"}]}
+
+    @impl true
+    def fetch(_values, _opts), do: {:ok, []}
+  end
+
+  describe "stale results" do
     test "the previous results stay rendered, marked stale, while the next search runs" do
       conn = Plug.Test.init_test_session(build_conn(), %{"mode" => "controlled", "provider" => SlowProvider})
       session = visit(conn, "/")
@@ -180,6 +180,29 @@ defmodule Flicker.SelectDispatchPolicyTest do
 
       assert html =~ "Slow result"
       refute html =~ "flicker-results-stale"
+    end
+  end
+
+  describe "loading_delay" do
+    test "the loading row renders hidden, for the hook to reveal", %{conn: conn} do
+      # The delay has to be client-side: Process.send_after/3 from a
+      # LiveComponent lands in the host LiveView, which has no clause for it.
+      # So the server renders the row hidden and marked, and the hook reveals it
+      # only if the request is still in flight when the timer fires.
+      session = visit_with(conn, %{"provider" => SlowProvider})
+
+      session.view
+      |> LiveViewTest.element("#picker-input")
+      |> LiveViewTest.render_keyup(%{"value" => "slow"})
+
+      html = LiveViewTest.render(session.view)
+
+      assert html =~ "data-flicker-loading"
+      assert html =~ "visibility:hidden"
+    end
+
+    test "the delay reaches the hook as a data attribute", %{conn: conn} do
+      assert_has(visit_with(conn, %{}), "#picker[data-loading-delay='200']")
     end
   end
 

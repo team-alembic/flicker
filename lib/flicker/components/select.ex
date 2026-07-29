@@ -94,6 +94,7 @@ defmodule Flicker.Components.Select do
   @default_min_chars 0
   @default_max_windows 10
   @default_dispatch :debounce
+  @default_loading_delay 200
 
   @impl true
   def update(assigns, socket) do
@@ -134,6 +135,7 @@ defmodule Flicker.Components.Select do
       |> assign_new(:min_chars, fn -> @default_min_chars end)
       |> assign_new(:placeholder, fn -> nil end)
       |> assign_new(:dispatch, fn -> @default_dispatch end)
+      |> assign_new(:loading_delay, fn -> @default_loading_delay end)
       # What is asking for the current search, for `Flicker.Dispatch` to judge
       # (Spec 020). Only the "query" keyup sets `:input`; every other path into
       # a search — the initial listing, an actor/tenant change, a facet commit,
@@ -1321,6 +1323,7 @@ defmodule Flicker.Components.Select do
       data-activate-with-keyboard={@activate_with_keyboard}
       data-paginate={if @paginate, do: "true"}
       data-dispatch={to_string(@dispatch)}
+      data-loading-delay={to_string(@loading_delay)}
     >
       <%!--
         Multiple: chips and the text input share one bordered field box
@@ -1546,7 +1549,17 @@ defmodule Flicker.Components.Select do
         aria-busy={@aria_busy}
         class={[@theme.listbox, @results_stale && @theme.results_stale]}
       >
-        <li :if={@loading} role="presentation" class={@theme.loading_state}>
+        <%!-- Spec 020: held hidden by the hook until `loading_delay` elapses,
+        so a fast query never flashes a spinner. Inline visibility rather than a
+        theme class — the vanilla preset ships class *names* only (ADR-002), and
+        shipping a `display:none` rule would break that line. --%>
+        <li
+          :if={@loading}
+          role="presentation"
+          class={@theme.loading_state}
+          data-flicker-loading
+          style="visibility:hidden"
+        >
           {message(assigns, :loading)}
         </li>
         <li :if={@error} role="presentation" class={@theme.error_state}>
@@ -1823,7 +1836,38 @@ defmodule Flicker.Components.Select do
             this.setupSentinelObserver()
             this.attachCursorReporting()
           },
+          // Spec 020: the loading row is rendered hidden and revealed only once
+          // `loading_delay` has elapsed, so a query that resolves quickly never
+          // flashes a spinner — which reads as *slower* than simply updating.
+          // If the response lands first the element is removed while still
+          // invisible, and the timer finds nothing to reveal.
+          scheduleLoadingReveal() {
+            const row = this.el.querySelector("[data-flicker-loading]")
+
+            if (!row) {
+              if (this.loadingTimer) clearTimeout(this.loadingTimer)
+              this.loadingTimer = null
+              return
+            }
+
+            if (this.loadingTimer) return
+
+            const delay = parseInt(this.el.dataset.loadingDelay || "200", 10)
+
+            if (delay <= 0) {
+              row.style.visibility = "visible"
+              return
+            }
+
+            this.loadingTimer = setTimeout(() => {
+              this.loadingTimer = null
+              const current = this.el.querySelector("[data-flicker-loading]")
+              current && (current.style.visibility = "visible")
+            }, delay)
+          },
           updated() {
+            this.scheduleLoadingReveal()
+
             // The option set changed (the user typed, or results loaded) —
             // start fresh with no highlight (spec: active option resets to
             // none after results update), unless an ArrowDown-open is still

@@ -271,6 +271,17 @@ defmodule Flicker do
     """
   )
 
+  attr(:loading_delay, :integer,
+    default: 200,
+    doc: """
+    How long (ms) a search must be in flight before any loading affordance
+    appears ([Spec 020](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-020-query-dispatch-policy.md)).
+    A 40ms query that flashes a spinner reads as *slower* than one that simply
+    updates, so the row is held hidden until this elapses and never appears at
+    all for a fast response. `0` shows it immediately.
+    """
+  )
+
   attr(:theme, :any,
     default: nil,
     doc: "A `Flicker.Theme` override — a full struct or a partial map. See `Flicker.Theme`."
@@ -354,6 +365,7 @@ defmodule Flicker do
       placeholder={@placeholder}
       debounce={@debounce}
       dispatch={@dispatch}
+      loading_delay={@loading_delay}
       theme={@theme}
       messages={@messages}
       activate_with_keyboard={@activate_with_keyboard}

@@ -26,7 +26,7 @@ Update the status here **and** in the spec's frontmatter when it changes.
 | [017](./spec-017-facet-value-colors.md) | Configurable facet value colours (e.g. a red dot/pill for `status:active`) | shipped |
 | [018](./spec-018-rich-facet-types.md) | Rich facet types: range/list grammar, date presets, type derivation, value validation, CLDR display | shipped |
 | [019](./spec-019-facet-editors.md) | Facet editors: pop-out contract, calendar + presets rail, numeric dial, switch, set editor | in-progress |
-| [020](./spec-020-query-dispatch-policy.md) | Query dispatch policy: debounce/immediate/enter, request supersession, stale-while-revalidate | in-progress |
+| [020](./spec-020-query-dispatch-policy.md) | Query dispatch policy: debounce/immediate/enter, request supersession, stale-while-revalidate | shipped |
 | [021](./spec-021-facet-value-counts.md) | Facet value counts: optional provider callback, actor-scoped drill-down counts beside each value | shipped |
 | [022](./spec-022-recently-used-values.md) | Recently-used facet values: host-provided storage, frecency ranking, `Recent` group | shipped |
 | [023](./spec-023-inline-value-correction.md) | Inline value correction + invalid-value policy (`:drop`/`:require`), swap/clamp fixes | shipped |
