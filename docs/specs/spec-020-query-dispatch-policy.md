@@ -24,10 +24,20 @@ that feels nervous:
 
 - No way to turn debounce off (`:immediate`) or to require `Enter` (`:enter`) for
   an expensive or metered backend.
-- No minimum query length, so one character hits the provider.
 - A spinner appears for a 40ms query, which reads as *slower* than no spinner.
-- The result list can transition through empty between queries, causing a layout
-  jump and a flash of "No results" for a query that has results.
+- Previous results are retained while the next query runs, but nothing marks them
+  as stale, so a changed list looks settled when it isn't.
+
+Two further things this spec originally claimed to add are also already shipped,
+and it must not duplicate them:
+
+- **Minimum query length** is the existing `min_chars` attr, complete with a
+  `:min_chars_hint` message and its own empty state. This spec uses that name
+  rather than introducing `min_length` as a synonym.
+- **Empty-state honesty** — `Flicker.Components.Select` already gates "no
+  results" on `!@loading`, so it never renders mid-flight. This spec consolidates
+  the scattered predicates behind one decision function rather than changing the
+  behaviour.
 
 ## Scope
 
