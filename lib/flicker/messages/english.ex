@@ -34,6 +34,13 @@ defmodule Flicker.Messages.English do
       `:invalid_custom` (%{message:}), and `:invalid_value` as the catch-all
       for a reason this module doesn't know. Rendered against the invalid
       facet pill; the parser itself never produces English.
+    * `:dispatch_blocked` — shown, and announced, when `on_invalid: :require`
+      is withholding the query because a facet value is invalid (Spec 023).
+    * `:did_you_mean` — %{label: name} — the top correction suggestion.
+    * `:apply_fix` — the accept affordance for a mechanical fix (a reversed
+      range's swap, an out-of-bounds clamp).
+    * `:invalid_facet` — %{key: key} — the accessible name for an invalid
+      facet pill.
     * `:press_enter_to_search` — shown, and referenced by the input's
       `aria-describedby`, while `dispatch: :enter` holds typed text that
       hasn't been searched yet (Spec 020). A search box that has silently
@@ -140,6 +147,10 @@ defmodule Flicker.Messages.English do
   def message(:invalid_custom, %{message: message}) when is_binary(message), do: message
   def message(:invalid_custom, _bindings), do: "is not valid"
   def message(:invalid_value, _bindings), do: "is not valid"
+  def message(:dispatch_blocked, _bindings), do: "Filter not applied — fix the highlighted facet"
+  def message(:did_you_mean, %{label: label}), do: "Did you mean #{label}?"
+  def message(:apply_fix, _bindings), do: "Fix it"
+  def message(:invalid_facet, %{key: key}), do: "#{key} is not valid"
 
   def message(:results_count, %{count: 0}), do: "No results available"
   def message(:results_count, %{count: 1}), do: "1 result available"

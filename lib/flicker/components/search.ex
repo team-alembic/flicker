@@ -28,7 +28,8 @@ defmodule Flicker.Components.Search do
 
   use Phoenix.LiveComponent
 
-  alias Flicker.{CursorContext, Dispatch, FacetSuggest, Messages, Query}
+  alias Flicker.{Correction, CursorContext, Dispatch, FacetSuggest, Messages, Query}
+  alias Flicker.Facet.Format
 
   require Logger
 
@@ -60,6 +61,7 @@ defmodule Flicker.Components.Search do
       |> assign_new(:open, fn -> false end)
       |> assign_new(:suggestions_loading, fn -> false end)
       |> assign_new(:dispatch, fn -> :debounce end)
+      |> assign_new(:on_invalid, fn -> :drop end)
       # The free text most recently handed to the host, as opposed to typed —
       # `Flicker.Dispatch.pending?/3` compares the pair to decide whether
       # `:enter`'s "press Enter to search" affordance is showing (Spec 020).
@@ -177,6 +179,13 @@ defmodule Flicker.Components.Search do
   # through where `:input` was withheld.
   def handle_event("dispatch_query", _params, socket), do: {:noreply, notify_change(socket, :enter)}
 
+  # Spec 023: accepting a correction or a mechanical fix. Deliberately the same
+  # splice as any other suggestion (`select_suggestion` above) — a correction
+  # emits canonical token text and nothing about applying one is special.
+  def handle_event("accept_correction", %{"insert" => insert}, socket) do
+    handle_event("select_suggestion", %{"insert" => insert}, socket)
+  end
+
   def handle_event("focus", _params, socket), do: {:noreply, assign(socket, open: true)}
 
   def handle_event("close", _params, socket), do: {:noreply, assign(socket, open: false)}
@@ -274,7 +283,8 @@ defmodule Flicker.Components.Search do
   defp notify_change(socket, trigger \\ :facet_commit) do
     facets = socket.assigns.facets
 
-    if Dispatch.dispatch?(socket.assigns.dispatch, trigger, socket.assigns.text, 0) do
+    if Dispatch.dispatch?(socket.assigns.dispatch, trigger, socket.assigns.text, 0) and
+         not withholding?(socket) do
       query = combined_query(socket, facets)
       filter = to_filter(query, facets)
 
@@ -282,6 +292,85 @@ defmodule Flicker.Components.Search do
       assign(socket, :dispatched_text, socket.assigns.text)
     else
       socket
+    end
+  end
+
+  # Both hints can be live at once, and `aria-describedby` takes a list — so
+  # the error and the press-Enter affordance are both announced rather than one
+  # silently winning.
+  defp describedby(input_id, invalid_report, dispatch_pending) do
+    [
+      invalid_report && "#{input_id}-facet-error",
+      dispatch_pending && "#{input_id}-dispatch-hint"
+    ]
+    |> Enum.filter(& &1)
+    |> case do
+      [] -> nil
+      ids -> Enum.join(ids, " ")
+    end
+  end
+
+  # Spec 023's `on_invalid: :require`: withhold the whole query while a facet
+  # value is broken, for hosts where a partially-applied filter is worse than
+  # no update. `:drop` (the default) withholds nothing — ADR-012's per-facet
+  # independence already keeps the bad token out of the filter, so the rest of
+  # the query runs.
+  defp withholding?(%{assigns: %{on_invalid: :require}} = socket), do: blocking_invalid(socket) != []
+
+  defp withholding?(_socket), do: false
+
+  # Every invalid token in the buffer, in order.
+  defp invalid_tokens(socket) do
+    Query.parse(socket.assigns.text, socket.assigns.facets).invalid
+  end
+
+  # The token the caret currently sits inside is exempt from the `:require`
+  # gate: half-typed input is *expected* to be invalid, and blocking dispatch
+  # on every keystroke of `status:a`, `status:ac` would make the policy
+  # unusable. It still renders its error — it just doesn't withhold the query.
+  defp blocking_invalid(socket) do
+    in_progress = token_at_cursor(socket)
+
+    socket |> invalid_tokens() |> Enum.reject(&(&1.token == in_progress))
+  end
+
+  defp token_at_cursor(%{assigns: %{text: text, cursor: cursor}}) do
+    codepoint_cursor =
+      case cursor do
+        nil -> String.length(text)
+        value -> CursorContext.from_utf16_offset(text, value)
+      end
+
+    {start, stop} = CursorContext.token_bounds(text, codepoint_cursor)
+
+    String.slice(text, start, stop - start)
+  end
+
+  # The first invalid token, with its message, its mechanical fix, and any
+  # suggested replacements — everything the error region needs to render.
+  defp invalid_report(socket) do
+    case invalid_tokens(socket) do
+      [] ->
+        nil
+
+      [invalid | _rest] ->
+        facet = Enum.find(socket.assigns.facets, &(&1.key == invalid.key))
+        messages = socket.assigns[:messages]
+
+        explained = Correction.explain(facet, invalid.reason, invalid.params, messages: messages)
+
+        %{
+          invalid: invalid,
+          facet: facet,
+          message: explained.message,
+          fix: explained.fix,
+          fix_token: Correction.to_token(facet, explained.fix),
+          candidates:
+            Enum.map(
+              Correction.candidates(facet, invalid.raw, invalid.reason, invalid.params),
+              &%{correction: &1, token: Correction.to_token(facet, &1)}
+            )
+        }
     end
   end
 
@@ -442,6 +531,10 @@ defmodule Flicker.Components.Search do
 
   defp pill_value(facet, op, value), do: op_prefix(op) <> value_display(facet, value)
 
+  defp op_prefix(:between), do: ""
+  defp op_prefix(:in), do: ""
+  defp op_prefix(:not_in), do: "≠ "
+
   defp op_prefix(:neq), do: "≠ "
   defp op_prefix(:gt), do: "> "
   defp op_prefix(:gte), do: "≥ "
@@ -449,12 +542,22 @@ defmodule Flicker.Components.Search do
   defp op_prefix(:lte), do: "≤ "
   defp op_prefix(_eq_or_contains), do: ""
 
-  defp value_display(%{value_labels: labels}, value) when is_map(labels) and is_atom(value),
-    do: Map.get(labels, value) || humanize(to_string(value))
+  # Spec 018 introduced value shapes a pill can now hold that `to_string/1`
+  # cannot render at all — a `Flicker.Facet.Range` has no String.Chars
+  # implementation, and a list raises. Everything goes through
+  # `Flicker.Facet.Format` instead, which also gets localised intervals and
+  # conjunctions for free (ADR-013).
+  defp value_display(nil, value), do: to_string(value)
 
-  defp value_display(_facet, %Date{} = date), do: Date.to_iso8601(date)
-  defp value_display(_facet, value) when is_atom(value), do: humanize(to_string(value))
-  defp value_display(_facet, value), do: to_string(value)
+  defp value_display(%{value_labels: labels} = facet, value) when is_map(labels) and is_atom(value) do
+    Map.get(labels, value) || Format.value_label(facet, value)
+  end
+
+  defp value_display(facet, value) when is_atom(value) and not is_boolean(value) and not is_nil(value) do
+    humanize(Format.value_label(facet, value))
+  end
+
+  defp value_display(facet, value), do: Format.value_label(facet, value)
 
   defp humanize(string) do
     case String.replace(string, "_", " ") do
@@ -512,6 +615,8 @@ defmodule Flicker.Components.Search do
         :dispatch_pending,
         Dispatch.pending?(assigns.dispatch, assigns.text, assigns.dispatched_text)
       )
+      |> then(&assign(&1, :invalid_report, invalid_report(%{assigns: &1})))
+      |> then(&assign(&1, :dispatch_withheld, &1.on_invalid == :require and &1.invalid_report != nil))
 
     assigns = assign(assigns, :announcement, announcement(assigns))
 
@@ -571,7 +676,8 @@ defmodule Flicker.Components.Search do
           value={@text}
           placeholder={message(assigns, :facet_search_placeholder)}
           disabled={!@connected?}
-          aria-describedby={@dispatch_pending && "#{@input_id}-dispatch-hint"}
+          aria-invalid={@invalid_report && "true"}
+          aria-describedby={describedby(@input_id, @invalid_report, @dispatch_pending)}
           phx-keyup="query"
           phx-debounce={Dispatch.debounce_attr(@dispatch, @debounce)}
           phx-focus="focus"
@@ -588,6 +694,50 @@ defmodule Flicker.Components.Search do
         >
           {message(assigns, :clear_all)}
         </button>
+      </div>
+      <%!-- Spec 023: an invalid facet value renders as *text*, with an icon —
+      never colour alone, never a tooltip, never hover-only. ADR-012's whole
+      trade (drop the bad clause, run the rest) depends on this being
+      conspicuous, since the alternative is a silently broader result set. --%>
+      <div :if={@invalid_report} id={"#{@input_id}-facet-error"}>
+        <p class={@theme.facet_error_message}>
+          <span class={@theme.facet_error_icon} aria-hidden="true">⚠</span>
+          <span class={@theme.facet_pill_invalid}>{@invalid_report.invalid.token}</span>
+          {@invalid_report.message}
+        </p>
+        <p :if={@invalid_report.fix_token} class={@theme.facet_correction}>
+          <button
+            type="button"
+            class={@theme.facet_correction_accept}
+            disabled={!@connected?}
+            phx-click="accept_correction"
+            phx-value-insert={@invalid_report.fix_token}
+            phx-target={@myself}
+          >
+            {message(assigns, :apply_fix)}
+          </button>
+        </p>
+        <p :if={@invalid_report.candidates != []} class={@theme.facet_correction}>
+          <%= for {candidate, index} <- Enum.with_index(@invalid_report.candidates) do %>
+            <button
+              type="button"
+              class={@theme.facet_correction_accept}
+              disabled={!@connected?}
+              phx-click="accept_correction"
+              phx-value-insert={candidate.token}
+              phx-target={@myself}
+            >
+              <%= if index == 0 do %>
+                {message(assigns, :did_you_mean, %{label: candidate.correction.label})}
+              <% else %>
+                {candidate.correction.label}
+              <% end %>
+            </button>
+          <% end %>
+        </p>
+        <p :if={@dispatch_withheld} class={@theme.dispatch_blocked}>
+          {message(assigns, :dispatch_blocked)}
+        </p>
       </div>
       <%!-- Spec 020: under `dispatch: :enter`, typed-but-undispatched text has
       to say so — visible text, referenced by the input's `aria-describedby`

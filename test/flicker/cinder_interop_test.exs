@@ -123,7 +123,14 @@ if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Cinder) do
 
         # Spec 012: the restored facet lands as a pill (not raw text in the
         # input); the narrowed table is unchanged.
-        assert_has(session, "[role='listitem']", text: "100000")
+        #
+        # The number is rendered through `Flicker.Facet.Format` (ADR-013), so
+        # with `localize` present it is CLDR-grouped ("100,000") and without it
+        # plain ("100000") — both are correct, and asserting one would fail the
+        # opposite CI leg.
+        expected = if Flicker.Facet.Format.localized?(), do: "100,000", else: "100000"
+
+        assert_has(session, "[role='listitem']", text: expected)
         assert_has(session, "input#artist-search-input[value='']")
 
         refute_has(session, "td", text: "Casey Cassidy", timeout: @await)

@@ -38,6 +38,16 @@ defmodule Flicker.Theme do
     * `:loading_state` — the listbox's loading row.
     * `:empty_state` — the listbox's no-results row.
     * `:error_state` — the listbox's error row.
+    * `:facet_pill_invalid` — a committed-facet pill whose value failed to
+      cast (Spec 023). Carries the error styling; the message itself renders in
+      `:facet_error_message`, never as a tooltip.
+    * `:facet_error_message` — the visible reason text beside an invalid pill.
+    * `:facet_error_icon` — the error glyph, so the state is never signalled by
+      colour alone.
+    * `:facet_correction` — a suggested replacement value ("did you mean...").
+    * `:facet_correction_accept` — the accept affordance on the top suggestion.
+    * `:dispatch_blocked` — the visible "filter not applied" state under
+      `on_invalid: :require`.
     * `:results_stale` — added to the listbox while a new search is in
       flight *and* previous results are still on screen (Spec 020). The
       previous set stays rendered rather than the list emptying and refilling;
@@ -129,6 +139,12 @@ defmodule Flicker.Theme do
           loading_state: String.t(),
           empty_state: String.t(),
           error_state: String.t(),
+          facet_pill_invalid: String.t(),
+          facet_error_message: String.t(),
+          facet_error_icon: String.t(),
+          facet_correction: String.t(),
+          facet_correction_accept: String.t(),
+          dispatch_blocked: String.t(),
           results_stale: String.t(),
           dispatch_hint: String.t(),
           hint: String.t(),
@@ -172,6 +188,12 @@ defmodule Flicker.Theme do
             loading_state: "flicker-loading",
             empty_state: "flicker-empty",
             error_state: "flicker-error",
+            facet_pill_invalid: "flicker-facet-pill-invalid",
+            facet_error_message: "flicker-facet-error-message",
+            facet_error_icon: "flicker-facet-error-icon",
+            facet_correction: "flicker-facet-correction",
+            facet_correction_accept: "flicker-facet-correction-accept",
+            dispatch_blocked: "flicker-dispatch-blocked",
             results_stale: "flicker-results-stale",
             dispatch_hint: "flicker-dispatch-hint",
             hint: "flicker-hint",
@@ -228,6 +250,12 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-gray-500",
       empty_state: "px-3 py-2 text-gray-500",
       error_state: "px-3 py-2 text-red-600",
+      facet_pill_invalid: "border border-red-300 bg-red-50 text-red-900",
+      facet_error_message: "mt-1 text-xs text-red-700",
+      facet_error_icon: "mr-1 inline-block text-red-600",
+      facet_correction: "mt-1 text-xs text-gray-600",
+      facet_correction_accept: "cursor-pointer font-medium text-indigo-600 underline hover:text-indigo-500",
+      dispatch_blocked: "mt-1 text-xs font-medium text-red-700",
       results_stale: "opacity-60 transition-opacity",
       dispatch_hint: "mt-1 text-xs text-gray-500",
       hint: "px-3 py-2 text-xs text-gray-400",
@@ -315,6 +343,12 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-base-content/60",
       empty_state: "px-3 py-2 text-base-content/60",
       error_state: "px-3 py-2 text-error",
+      facet_pill_invalid: "badge badge-error badge-outline",
+      facet_error_message: "mt-1 text-xs text-error",
+      facet_error_icon: "mr-1 inline-block text-error",
+      facet_correction: "mt-1 text-xs text-base-content/70",
+      facet_correction_accept: "link link-primary cursor-pointer font-medium",
+      dispatch_blocked: "mt-1 text-xs font-medium text-error",
       results_stale: "opacity-60 transition-opacity",
       dispatch_hint: "mt-1 text-xs text-base-content/60",
       hint: "px-3 py-2 text-xs text-base-content/50",

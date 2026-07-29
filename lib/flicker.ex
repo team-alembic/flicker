@@ -450,6 +450,19 @@ defmodule Flicker do
     doc: "Input debounce (ms). Defaults to `config :flicker, :default_debounce` (150)."
   )
 
+  attr(:on_invalid, :atom,
+    default: :drop,
+    values: [:drop, :require],
+    doc: """
+    What to do when a facet value fails to cast ([Spec 023](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-023-inline-value-correction.md)).
+    `:drop` (default) emits the query without the broken facet — every other
+    facet and the free text still apply. `:require` withholds the query
+    entirely until it's fixed, for hosts where a partially-applied filter is
+    worse than no update. Under both, an unvalidated value is *never* part of
+    the query; they differ only in whether the rest of it proceeds.
+    """
+  )
+
   attr(:dispatch, :atom,
     default: :debounce,
     values: [:debounce, :immediate, :enter],
@@ -489,6 +502,7 @@ defmodule Flicker do
       module={SearchComponent}
       id={@id}
       dispatch={@dispatch}
+      on_invalid={@on_invalid}
       facets={@resolved_facets}
       actor={@actor}
       tenant={@tenant}
