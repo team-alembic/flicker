@@ -434,19 +434,20 @@ if Code.ensure_loaded?(Ash) do
         type == Ash.Type.Boolean ->
           %{type: :boolean, operators: [:eq], default_op: :eq}
 
-        type in [
-          Ash.Type.Date,
-          Ash.Type.UtcDatetime,
-          Ash.Type.UtcDatetimeUsec,
-          Ash.Type.NaiveDatetime
-        ] ->
+        type == Ash.Type.Date ->
           %{type: :date, operators: [:eq, :gte, :lt], default_op: :eq}
 
+        # A datetime attribute is an *instant*, so it derives `:datetime`
+        # rather than being flattened to a date (Spec 018). UTC only — see
+        # ADR-013 on why no zone conversion happens here.
+        type in [Ash.Type.UtcDatetime, Ash.Type.UtcDatetimeUsec, Ash.Type.NaiveDatetime] ->
+          %{type: :datetime, operators: [:eq, :gte, :lt], default_op: :eq}
+
         type == Ash.Type.Integer ->
-          %{type: :integer, operators: [:eq, :neq, :gt, :gte, :lt, :lte], default_op: :eq}
+          numeric_fields(:integer, constraints)
 
         type in [Ash.Type.Decimal, Ash.Type.Float] ->
-          %{type: :float, operators: [:eq, :neq, :gt, :gte, :lt, :lte], default_op: :eq}
+          numeric_fields(:float, constraints)
 
         true ->
           %{type: :string, operators: [:contains], default_op: :contains}
@@ -469,12 +470,64 @@ if Code.ensure_loaded?(Ash) do
       |> Enum.map_join(" ", &String.capitalize/1)
     end
 
+    # `min`/`max` constraints on a numeric attribute become `:bounds`, which is
+    # what lets Spec 019's dial render a slider with real endpoints instead of
+    # inventing them — and what makes an out-of-range value a reported
+    # validation failure rather than a query that simply matches nothing.
+    # `:step` is left unset; that is an editor's own default.
+    defp numeric_fields(type, constraints) do
+      base = %{type: type, operators: [:eq, :neq, :gt, :gte, :lt, :lte], default_op: :eq}
+
+      case bounds_from(constraints) do
+        bounds when map_size(bounds) == 0 -> base
+        bounds -> Map.put(base, :bounds, bounds)
+      end
+    end
+
+    defp bounds_from(constraints) do
+      [:min, :max]
+      |> Enum.flat_map(fn key ->
+        case Keyword.get(constraints, key) do
+          nil -> []
+          value -> [{key, value}]
+        end
+      end)
+      |> Map.new()
+    end
+
     defp apply_overrides(facet, overrides) do
       facet
       |> apply_label_override(Keyword.get(overrides, :label))
       |> apply_type_override(Keyword.get(overrides, :type))
       |> apply_op_override(Keyword.get(overrides, :op))
       |> apply_value_colors_override(Keyword.get(overrides, :value_colors))
+      |> apply_passthrough_overrides(overrides)
+    end
+
+    # Fields with no derivation of their own: the host either sets them or they
+    # keep the struct default. Kept as one pass so adding a field to
+    # `Flicker.Facet` doesn't need a new clause here.
+    @passthrough_overrides [
+      :multiple?,
+      :bounds,
+      :editor,
+      :validate,
+      :presets,
+      :suggested,
+      :scalar
+    ]
+
+    defp apply_passthrough_overrides(facet, overrides) do
+      Enum.reduce(@passthrough_overrides, facet, fn key, acc ->
+        # `struct/2` rather than `Map.put/3`: a struct is a map, so `Map.put`
+        # would happily add a key that isn't a field and hand back a corrupt
+        # struct. `struct/2` ignores unknown keys instead, which keeps this
+        # list safe to extend ahead of the field existing.
+        case Keyword.fetch(overrides, key) do
+          {:ok, value} -> struct(acc, [{key, value}])
+          :error -> acc
+        end
+      end)
     end
 
     defp apply_label_override(facet, nil), do: facet
@@ -486,14 +539,42 @@ if Code.ensure_loaded?(Ash) do
 
     defp apply_type_override(facet, nil), do: facet
 
+    # A range type is never *derived* — a `:date` attribute answers "created
+    # on", and only the host knows whether it means "created between" — so it
+    # arrives as an explicit `type: :date_range` override. Once asked for, the
+    # scalar, operators, and preset list all come from the type, while the
+    # bounds already derived from the attribute's own constraints survive.
+    defp apply_type_override(facet, type) when type in [:date_range, :datetime_range, :number_range] do
+      defaults = Flicker.Facet.new(key: facet.key, type: type)
+
+      %{
+        facet
+        | type: type,
+          operators: defaults.operators,
+          default_op: defaults.default_op,
+          scalar: range_scalar(type, facet),
+          presets: defaults.presets
+      }
+    end
+
     defp apply_type_override(facet, type) do
       {operators, default_op} = type_default_ops(type)
       %{facet | type: type, operators: operators, default_op: default_op}
     end
 
+    # A numeric range over a float/decimal attribute keeps float endpoints —
+    # the derived scalar type is more trustworthy than the range type's own
+    # `:integer` default.
+    defp range_scalar(:number_range, %{type: :float}), do: :float
+    defp range_scalar(:number_range, _facet), do: :integer
+    defp range_scalar(:date_range, _facet), do: :date
+    defp range_scalar(:datetime_range, _facet), do: :datetime
+
     defp type_default_ops(:enum), do: {[:eq], :eq}
     defp type_default_ops(:boolean), do: {[:eq], :eq}
     defp type_default_ops(:date), do: {[:eq, :gte, :lt], :eq}
+    defp type_default_ops(:datetime), do: {[:eq, :gte, :lt], :eq}
+    defp type_default_ops(:duration), do: {[:eq, :neq, :gt, :gte, :lt, :lte], :eq}
 
     defp type_default_ops(type) when type in [:integer, :float], do: {[:eq, :neq, :gt, :gte, :lt, :lte], :eq}
 

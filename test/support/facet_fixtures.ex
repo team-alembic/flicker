@@ -90,6 +90,27 @@ if Code.ensure_loaded?(Ash) do
         default(false)
         allow_nil?(false)
       end
+
+      # Spec 018: `min`/`max` constraints are what `:bounds` derives from, and
+      # a datetime attribute is what derives `:datetime` rather than `:date`.
+      attribute :play_count, :integer do
+        public?(true)
+        constraints(min: 0, max: 1_000_000)
+        default(0)
+      end
+
+      attribute :rating, :float do
+        public?(true)
+        constraints(min: 0.0, max: 5.0)
+      end
+
+      attribute :signed_at, :utc_datetime do
+        public?(true)
+      end
+
+      attribute :formed_on, :date do
+        public?(true)
+      end
     end
 
     relationships do
@@ -104,7 +125,17 @@ if Code.ensure_loaded?(Ash) do
 
       create :create do
         primary?(true)
-        accept([:name, :status, :genre_id, :verified?])
+
+        accept([
+          :name,
+          :status,
+          :genre_id,
+          :verified?,
+          :play_count,
+          :rating,
+          :signed_at,
+          :formed_on
+        ])
       end
     end
   end
