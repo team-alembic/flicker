@@ -115,6 +115,9 @@ defmodule Flicker.Theme do
       the committed-facet pills inside `:multi_field`.
     * `:facet_pill` — `Flicker.search/1`: a single committed-facet pill. Its
       field name is exposed on hover (a `title`) rather than always shown.
+    * `:facet_pill_field` — the pill's small field label (e.g. "Status"),
+      shown *without* a colon so the pill reads as a labelled value rather
+      than as the `key:value` text it came from (Spec 012).
     * `:facet_pill_value` — the pill's primary value label (e.g. "Active").
     * `:facet_pill_remove` — the pill's remove (`×`) button.
     * `:selected_stack` — multi-select with a `:selected` slot (Spec 013): the
@@ -236,6 +239,7 @@ defmodule Flicker.Theme do
           multi_clear: String.t(),
           facet_pill_list: String.t(),
           facet_pill: String.t(),
+          facet_pill_field: String.t(),
           facet_pill_value: String.t(),
           facet_pill_remove: String.t(),
           selected_stack: String.t(),
@@ -319,6 +323,7 @@ defmodule Flicker.Theme do
             multi_clear: "flicker-multi-clear",
             facet_pill_list: "flicker-facet-pill-list",
             facet_pill: "flicker-facet-pill",
+            facet_pill_field: "flicker-facet-pill-field",
             facet_pill_value: "flicker-facet-pill-value",
             facet_pill_remove: "flicker-facet-pill-remove",
             selected_stack: "flicker-selected-stack",
@@ -424,6 +429,7 @@ defmodule Flicker.Theme do
       facet_pill_list: "contents",
       facet_pill:
         "inline-flex items-center gap-1 rounded-md bg-indigo-50 py-1 pl-2 pr-1 text-sm text-indigo-900 focus-within:ring-2 focus-within:ring-indigo-400",
+      facet_pill_field: "mr-1 text-[0.625rem] font-semibold uppercase tracking-wide opacity-70",
       facet_pill_value: "font-medium",
       facet_pill_remove:
         "rounded p-0.5 leading-none text-indigo-400 hover:bg-indigo-100 hover:text-indigo-700 focus:outline-none",
@@ -549,6 +555,7 @@ defmodule Flicker.Theme do
       facet_pill_list: "contents",
       facet_pill:
         "inline-flex items-center gap-1 rounded-md bg-primary/10 py-1 pl-2 pr-1 text-sm text-primary focus-within:ring-2 focus-within:ring-primary/50",
+      facet_pill_field: "mr-1 text-[0.625rem] font-semibold uppercase tracking-wide opacity-70",
       facet_pill_value: "font-medium",
       facet_pill_remove:
         "rounded p-0.5 leading-none text-primary/60 hover:bg-primary/20 hover:text-primary focus:outline-none",

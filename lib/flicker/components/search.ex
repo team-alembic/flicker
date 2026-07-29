@@ -147,6 +147,23 @@ defmodule Flicker.Components.Search do
     end
   end
 
+  # Spec 019: reopen a committed facet's editor, pre-filled from its value.
+  def handle_event("facet_editor_reopen", %{"index" => index}, socket) do
+    with {position, ""} <- Integer.parse(index),
+         {key, _op, value} <- Enum.at(socket.assigns.committed, position),
+         facet when not is_nil(facet) <- Enum.find(socket.assigns.facets, &(&1.key == key)),
+         editor when not is_nil(editor) <- Flicker.FacetEditor.for_facet(facet) do
+      socket =
+        socket
+        |> open_editor(facet, editor, "#{key}:")
+        |> update_editor(%{value: value})
+
+      {:noreply, socket}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
   def handle_event("facet_editor_cancel", _params, socket) do
     # Cancel discards the draft and restores the token exactly as it was, so
     # nothing is dispatched and nothing about the query changed.
@@ -881,7 +898,9 @@ defmodule Flicker.Components.Search do
         index: index,
         field: pill_field(facet, key),
         value: pill_value(facet, op, value),
-        color: value_color(facet, value)
+        color: value_color(facet, value),
+        editable?: facet != nil and Flicker.FacetEditor.modal?(facet),
+        raw: value
       }
     end)
   end
@@ -1025,6 +1044,22 @@ defmodule Flicker.Components.Search do
       <div class={@theme.multi_field}>
         <div class={@theme.facet_pill_list} role="list" aria-label={message(assigns, :selected_items)}>
           <span :for={pill <- @pills} class={@theme.facet_pill} role="listitem" title={"#{pill.field}: #{pill.value}"}>
+            <%!-- Spec 019: clicking a pill reopens that facet's editor,
+            pre-filled from the committed value. Only rendered for a facet that
+            has an editor — otherwise the pill stays plain text and
+            remove-and-retype is the edit path (Spec 012). --%>
+            <button
+              :if={pill.editable?}
+              type="button"
+              class={@theme.facet_pill_field}
+              disabled={!@connected?}
+              phx-click="facet_editor_reopen"
+              phx-value-index={pill.index}
+              phx-target={@myself}
+              aria-label={message(assigns, :edit_facet, %{label: pill.field})}
+            >
+              {pill.field}
+            </button>
             <span
               :if={pill.color}
               aria-hidden="true"
@@ -1032,6 +1067,10 @@ defmodule Flicker.Components.Search do
               class="mr-1 inline-block h-2 w-2 shrink-0 rounded-full"
             >
             </span>
+            <%!-- Spec 012: the field label sits *with* the value and carries no
+            colon — the pill reads as a labelled value, not as the `key:value`
+            text it was typed as. --%>
+            <span :if={!pill.editable?} class={@theme.facet_pill_field}>{pill.field}</span>
             <span class={@theme.facet_pill_value}>{pill.value}</span>
             <button
               type="button"

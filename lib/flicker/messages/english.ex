@@ -41,6 +41,8 @@ defmodule Flicker.Messages.English do
       range's swap, an out-of-bounds clamp).
     * `:invalid_facet` — %{key: key} — the accessible name for an invalid
       facet pill.
+    * `:edit_facet` — %{label: name} — `aria-label` for the control that
+      reopens a committed facet's editor (Spec 019).
     * `:press_enter_to_search` — shown, and referenced by the input's
       `aria-describedby`, while `dispatch: :enter` holds typed text that
       hasn't been searched yet (Spec 020). A search box that has silently
@@ -151,6 +153,7 @@ defmodule Flicker.Messages.English do
   def message(:did_you_mean, %{label: label}), do: "Did you mean #{label}?"
   def message(:apply_fix, _bindings), do: "Fix it"
   def message(:invalid_facet, %{key: key}), do: "#{key} is not valid"
+  def message(:edit_facet, %{label: label}), do: "Edit #{label}"
 
   def message(:results_count, %{count: 0}), do: "No results available"
   def message(:results_count, %{count: 1}), do: "1 result available"
