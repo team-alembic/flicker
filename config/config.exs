@@ -112,5 +112,13 @@ if config_env() == :dev do
     adapter: Bandit.PhoenixAdapter,
     check_origin: false,
     debug_errors: true,
-    server: true
+    server: true,
+    code_reloader: true,
+    live_reload: [
+      patterns: [
+        ~r"dev/.*(ex|heex)$",
+        ~r"lib/flicker/.*(ex|heex)$",
+        ~r"lib/flicker\.ex$"
+      ]
+    ]
 end

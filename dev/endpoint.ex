@@ -20,6 +20,14 @@ defmodule Dev.Endpoint do
 
   socket("/live", Phoenix.LiveView.Socket)
 
+  # `:dev` only, at compile time: this module is also compiled (and booted)
+  # in `:test` by Spec 007's browser suite, where recompiling mid-request
+  # would be actively harmful — and `phoenix_live_reload` isn't a `:test`
+  # dependency, so the plugs below must not exist there at all.
+  if Mix.env() == :dev do
+    socket("/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket)
+  end
+
   # Serves `Phoenix.LiveView.ColocatedHook`'s merged manifest
   # (`_build/#{Mix.env()}/phoenix-colocated/flicker/index.js` and its
   # per-hook fragment files, see `mix.exs`'s `compilers:` comment) so
@@ -30,6 +38,11 @@ defmodule Dev.Endpoint do
     at: "/phoenix-colocated/flicker",
     from: Path.join([Mix.Project.build_path(), "phoenix-colocated", "flicker"])
   )
+
+  if Mix.env() == :dev do
+    plug(Phoenix.LiveReloader)
+    plug(Phoenix.CodeReloader)
+  end
 
   plug(Plug.Session, @session_options)
   plug(Dev.Router)

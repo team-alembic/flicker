@@ -187,6 +187,14 @@ defmodule Flicker.MixProject do
       # and Wallaby both need a rendered DOM to run against.
       {:bandit, "~> 1.0", only: [:dev, :test]},
 
+      # The dev playground has no asset pipeline, so nothing else would notice
+      # an edit to `dev/` or `lib/flicker/`: `mix dev` is a plain
+      # `run --no-halt`, and a long-running server otherwise serves stale
+      # markup indefinitely (which has already cost us two phantom
+      # regressions). `:dev` only — the same endpoint is booted in `:test` by
+      # Spec 007's browser suite, which must not recompile mid-request.
+      {:phoenix_live_reload, "~> 1.5", only: :dev},
+
       # Browser-driven tests (Spec 007): axe-core accessibility scans and
       # client-side keyboard behaviour ExUnit/PhoenixTest can't reach (real
       # arrow-key/aria-activedescendant/focus-trap DOM behaviour). `a11y_audit`
