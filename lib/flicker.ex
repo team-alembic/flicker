@@ -258,6 +258,19 @@ defmodule Flicker do
     doc: "Input debounce (ms). Defaults to `config :flicker, :default_debounce` (150)."
   )
 
+  attr(:dispatch, :atom,
+    default: :debounce,
+    values: [:debounce, :immediate, :enter],
+    doc: """
+    When typing runs a search ([Spec 020](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-020-query-dispatch-policy.md)).
+    `:debounce` (default) waits `debounce` ms after the last keystroke;
+    `:immediate` searches on every keystroke (for an in-memory provider,
+    where the debounce is pure latency); `:enter` searches only when the
+    user presses Enter (for an expensive or metered backend). Facet
+    commits and the initial listing always dispatch, under every policy.
+    """
+  )
+
   attr(:theme, :any,
     default: nil,
     doc: "A `Flicker.Theme` override — a full struct or a partial map. See `Flicker.Theme`."
@@ -340,6 +353,7 @@ defmodule Flicker do
       min_chars={@min_chars}
       placeholder={@placeholder}
       debounce={@debounce}
+      dispatch={@dispatch}
       theme={@theme}
       messages={@messages}
       activate_with_keyboard={@activate_with_keyboard}

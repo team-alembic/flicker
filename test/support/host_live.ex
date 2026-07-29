@@ -21,7 +21,8 @@ defmodule Flicker.Test.HostLive do
   003's faceted-search behaviour with no Ash resource involved. The
   `"paginate"`, `"max_windows"`, and `"limit"` session keys (controlled
   mode only) pass straight through to `Flicker.select/1`, for exercising
-  Spec 010's windowed search.
+  Spec 010's windowed search. The `"dispatch"` session key (controlled mode
+  only) does the same for Spec 020's dispatch policy.
   """
 
   use Phoenix.LiveView
@@ -47,6 +48,7 @@ defmodule Flicker.Test.HostLive do
     paginate = Map.get(session, "paginate", false)
     max_windows = Map.get(session, "max_windows")
     limit = Map.get(session, "limit")
+    dispatch = Map.get(session, "dispatch", :debounce)
 
     # A fresh (non-submitted) form has no `client_id` key in its params at
     # all — only seed one when the test is simulating an edit form with an
@@ -64,6 +66,7 @@ defmodule Flicker.Test.HostLive do
       |> assign(:paginate, paginate)
       |> assign(:max_windows, max_windows)
       |> assign(:limit, limit)
+      |> assign(:dispatch, dispatch)
       |> assign(:selected_result, :none)
       |> assign(:submitted_params, nil)
       |> assign(:form, to_form(initial_params, as: "form"))
@@ -147,6 +150,7 @@ defmodule Flicker.Test.HostLive do
       facets={@facets}
       paginate={@paginate}
       max_windows={@max_windows}
+      dispatch={@dispatch}
     />
     <p :if={@selected_result != :none} id="selection">
       {if @selected_result, do: @selected_result.label, else: "cleared"}

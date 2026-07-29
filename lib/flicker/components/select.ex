@@ -77,13 +77,23 @@ defmodule Flicker.Components.Select do
 
   use Phoenix.LiveComponent
 
-  alias Flicker.{CursorContext, FacetSuggest, Keyboard, Messages, Provider, Query, Result}
+  alias Flicker.{
+    CursorContext,
+    Dispatch,
+    FacetSuggest,
+    Keyboard,
+    Messages,
+    Provider,
+    Query,
+    Result
+  }
 
   require Logger
 
   @default_limit 25
   @default_min_chars 0
   @default_max_windows 10
+  @default_dispatch :debounce
 
   @impl true
   def update(assigns, socket) do
@@ -123,6 +133,13 @@ defmodule Flicker.Components.Select do
       |> assign_new(:limit, fn -> @default_limit end)
       |> assign_new(:min_chars, fn -> @default_min_chars end)
       |> assign_new(:placeholder, fn -> nil end)
+      |> assign_new(:dispatch, fn -> @default_dispatch end)
+      # What is asking for the current search, for `Flicker.Dispatch` to judge
+      # (Spec 020). Only the "query" keyup sets `:input`; every other path into
+      # a search — the initial listing, an actor/tenant change, a facet commit,
+      # clearing — is a deliberate act that dispatches under every policy, so
+      # the default is the one that always runs.
+      |> assign_new(:dispatch_trigger, fn -> :initial end)
       |> assign(:connected?, Phoenix.LiveView.connected?(socket))
       |> resolve_selected()
       |> research_on_scope_change(prev_actor, prev_tenant)
@@ -197,7 +214,11 @@ defmodule Flicker.Components.Select do
         {:noreply, assign(socket, :cursor, cursor)}
 
       true ->
-        {:noreply, socket |> clear_stale_selection(text) |> apply_query(text, cursor)}
+        {:noreply,
+         socket
+         |> assign(:dispatch_trigger, :input)
+         |> clear_stale_selection(text)
+         |> apply_query(text, cursor)}
     end
   end
 
@@ -611,7 +632,27 @@ defmodule Flicker.Components.Select do
 
   defp text_for_facet_parse(socket), do: socket.assigns.query
 
+  # The single gate every free-text record search passes through, so Spec
+  # 020's policy is enforced in exactly one place. Facet-value typeahead
+  # (`run_faceted_search/2`'s other clauses) deliberately isn't gated: a
+  # policy governs when the *free-text search* runs, not whether completing
+  # a facet token still suggests values.
+  #
+  # Holding returns the socket untouched, which is what keeps the previous
+  # results rendered rather than blanking the listbox — under `:enter`, a
+  # picker that emptied itself while you typed would be worse than one that
+  # simply hasn't searched yet.
   defp run_record_search(socket, query) do
+    %{dispatch: dispatch, dispatch_trigger: trigger, min_chars: min_chars} = socket.assigns
+
+    if Dispatch.dispatch?(dispatch, trigger, query.text, min_chars) do
+      do_run_record_search(socket, query)
+    else
+      socket
+    end
+  end
+
+  defp do_run_record_search(socket, query) do
     provider = socket.assigns.provider
     actor = socket.assigns[:actor]
     tenant = socket.assigns[:tenant]
@@ -1075,7 +1116,7 @@ defmodule Flicker.Components.Select do
       disabled={!@connected?}
       aria-keyshortcuts={@aria_keyshortcuts}
       phx-keyup="query"
-      phx-debounce={@debounce}
+      phx-debounce={Dispatch.debounce_attr(@dispatch, @debounce)}
       phx-focus="focus"
       phx-target={@myself}
     />
