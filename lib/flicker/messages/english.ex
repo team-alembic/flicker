@@ -114,17 +114,31 @@ defmodule Flicker.Messages.English do
 
   def message(:invalid_incomplete_list, _bindings), do: "remove the trailing comma, or add another value"
 
-  def message(:invalid_not_in_values, %{values: values}) do
+  # Each parameterised `:invalid_*` key ends in a clause that ignores its
+  # bindings. A caller assembling params by hand can omit a key, and a message
+  # module that raises for its *own* documented key takes the render down —
+  # `Flicker.Messages.get/3`'s rescue only covers a module that doesn't
+  # implement the key at all, not one that implements it too narrowly.
+  def message(:invalid_not_in_values, %{values: [_ | _] = values}) do
     "must be one of: " <> Enum.map_join(values, ", ", &to_string/1)
   end
 
-  def message(:invalid_out_of_bounds, %{min: nil, max: max}), do: "must be at most #{max}"
-  def message(:invalid_out_of_bounds, %{min: min, max: nil}), do: "must be at least #{min}"
+  def message(:invalid_not_in_values, _bindings), do: "is not one of the allowed values"
 
-  def message(:invalid_out_of_bounds, %{min: min, max: max}), do: "must be between #{min} and #{max}"
+  def message(:invalid_out_of_bounds, %{min: nil, max: max}) when not is_nil(max), do: "must be at most #{max}"
 
-  def message(:invalid_constraint_violation, %{message: message}), do: message
-  def message(:invalid_custom, %{message: message}), do: message
+  def message(:invalid_out_of_bounds, %{min: min, max: nil}) when not is_nil(min), do: "must be at least #{min}"
+
+  def message(:invalid_out_of_bounds, %{min: min, max: max}) when not is_nil(min) and not is_nil(max),
+    do: "must be between #{min} and #{max}"
+
+  def message(:invalid_out_of_bounds, _bindings), do: "is out of range"
+
+  def message(:invalid_constraint_violation, %{message: message}) when is_binary(message), do: message
+
+  def message(:invalid_constraint_violation, _bindings), do: "is not valid"
+  def message(:invalid_custom, %{message: message}) when is_binary(message), do: message
+  def message(:invalid_custom, _bindings), do: "is not valid"
   def message(:invalid_value, _bindings), do: "is not valid"
 
   def message(:results_count, %{count: 0}), do: "No results available"

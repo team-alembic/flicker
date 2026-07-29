@@ -1,5 +1,5 @@
 ---
-status: draft # draft | ready | in-progress | shipped
+status: shipped # draft | ready | in-progress | shipped
 date: 2026-07-28
 depends_on: [spec-003, adr-006, adr-009, adr-011, adr-012, adr-013]
 ---
