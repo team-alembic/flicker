@@ -28,7 +28,7 @@ defmodule Flicker.Components.Search do
 
   use Phoenix.LiveComponent
 
-  alias Flicker.{Correction, CursorContext, Dispatch, FacetSuggest, Messages, Query}
+  alias Flicker.{Correction, CursorContext, Dispatch, FacetSuggest, Messages, Query, RecentValues}
   alias Flicker.Facet.Format
 
   require Logger
@@ -63,6 +63,7 @@ defmodule Flicker.Components.Search do
       |> assign_new(:dispatch, fn -> :debounce end)
       |> assign_new(:on_invalid, fn -> :drop end)
       |> assign_new(:count_source, fn -> nil end)
+      |> assign_new(:recent_values, fn -> nil end)
       |> assign_new(:facet_counts, fn -> %{} end)
       # The free text most recently handed to the host, as opposed to typed —
       # `Flicker.Dispatch.pending?/3` compares the pair to decide whether
@@ -134,6 +135,8 @@ defmodule Flicker.Components.Search do
   def handle_event("select_suggestion", %{"insert" => insert}, socket) do
     new_text =
       FacetSuggest.replace_current_token(socket.assigns.text, insert, socket.assigns.cursor)
+
+    record_committed(socket, insert)
 
     socket =
       socket
@@ -282,7 +285,17 @@ defmodule Flicker.Components.Search do
   end
 
   defp load_suggestions(socket, {:value, facet, prefix}) do
-    suggestions = FacetSuggest.enum_value_suggestions(facet, prefix)
+    # Recent values sit above the ordinary picklist, deduplicated against it so
+    # the same value never appears twice on screen.
+    recent = recent_suggestions(socket, facet, prefix)
+    recent_values = MapSet.new(recent, & &1.value)
+
+    suggestions =
+      recent ++
+        Enum.reject(
+          FacetSuggest.enum_value_suggestions(facet, prefix),
+          &MapSet.member?(recent_values, &1.value)
+        )
 
     socket
     |> cancel_async(:related_search)
@@ -337,6 +350,58 @@ defmodule Flicker.Components.Search do
     else
       socket
     end
+  end
+
+  # Spec 022: recorded on *commit* only — a chosen suggestion. Not on hover, not
+  # on focus, not per keystroke, and never for a value that failed validation
+  # (an invalid token never parses into `:facets`, so it can't reach here).
+  defp record_committed(socket, insert) do
+    query = Query.parse(String.trim(insert), socket.assigns.facets)
+    opts = [actor: socket.assigns[:actor], tenant: socket.assigns[:tenant]]
+
+    Enum.each(query.facets, fn {key, _op, value} ->
+      RecentValues.record(socket.assigns.recent_values, key, value, opts)
+    end)
+  end
+
+  # Spec 022: a `Recent` group above the ordinary values, shown only with an
+  # empty prefix. Once someone is typing they have said what they want, and a
+  # recency group is then just a duplicate row above the match.
+  #
+  # Every remembered value is re-checked before it is offered: an enum value no
+  # longer in the facet's `:values` is dropped, and a value that no longer casts
+  # is dropped. A recency store is a hint, never a bypass — and a dropped value
+  # is dropped *silently*, since "you used this before but can't see it now" is
+  # itself a disclosure.
+  defp recent_suggestions(_socket, _facet, prefix) when prefix != "", do: []
+
+  defp recent_suggestions(socket, facet, _prefix) do
+    opts = [actor: socket.assigns[:actor], tenant: socket.assigns[:tenant]]
+
+    socket.assigns.recent_values
+    |> RecentValues.load(facet.key, opts)
+    |> Enum.filter(&still_offerable?(facet, &1))
+    |> Enum.map(&recent_suggestion(facet, &1))
+  end
+
+  defp still_offerable?(%{values: values}, value) when is_list(values), do: value in values
+
+  defp still_offerable?(facet, value) do
+    match?(
+      {:ok, _op, _value},
+      Flicker.Facet.cast_value(facet, to_string(value), facet.default_op)
+    )
+  end
+
+  defp recent_suggestion(facet, value) do
+    insert = "#{facet.key}:#{value} "
+
+    %Flicker.Result{
+      value: "#{facet.key}:#{value}",
+      label: Format.value_label(facet, value),
+      sublabel: nil,
+      meta: %{flicker_facet: true, insert: insert, recent: true}
+    }
   end
 
   # The count for a value suggestion, or `nil` when this facet isn't counted or

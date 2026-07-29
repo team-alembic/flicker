@@ -450,6 +450,17 @@ defmodule Flicker do
     doc: "Input debounce (ms). Defaults to `config :flicker, :default_debounce` (150)."
   )
 
+  attr(:recent_values, :any,
+    default: nil,
+    doc: """
+    Host-supplied storage for recently-used facet values ([Spec 022](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-022-recently-used-values.md)) —
+    `%{load: fun/2, record: fun/3}`. Flicker owns no persistence: recency is
+    user data, and where it lives and how long it's kept are the host's
+    decisions. Omit to disable the `Recent` group entirely; neither function is
+    then ever called. `Flicker.RecentValues.Ets` is a dev/test implementation.
+    """
+  )
+
   attr(:on_invalid, :atom,
     default: :drop,
     values: [:drop, :require],
@@ -505,6 +516,7 @@ defmodule Flicker do
       dispatch={@dispatch}
       on_invalid={@on_invalid}
       count_source={@count_source}
+      recent_values={@recent_values}
       facets={@resolved_facets}
       actor={@actor}
       tenant={@tenant}

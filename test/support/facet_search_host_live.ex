@@ -19,6 +19,11 @@ if Code.ensure_loaded?(Ash) do
       on_invalid = Map.get(session, "on_invalid", :drop)
       count_facets = Map.get(session, "count_facets", false)
 
+      recent_values =
+        if Map.get(session, "recent_values", false) do
+          Flicker.RecentValues.Ets.config()
+        end
+
       FacetDomain.seed!()
 
       socket =
@@ -27,6 +32,7 @@ if Code.ensure_loaded?(Ash) do
         |> assign(:dispatch, dispatch)
         |> assign(:on_invalid, on_invalid)
         |> assign(:count_facets, count_facets)
+        |> assign(:recent_values, recent_values)
         |> assign(:last_query, nil)
         |> assign(:last_filter, nil)
 
@@ -55,6 +61,7 @@ if Code.ensure_loaded?(Ash) do
         on_change={:artist_query_changed}
         dispatch={@dispatch}
         on_invalid={@on_invalid}
+        recent_values={@recent_values}
       />
       <p :if={@last_query} id="last-text">{@last_query.text}</p>
       <p :if={@last_query} id="last-facets">{inspect(@last_query.facets)}</p>
