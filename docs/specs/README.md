@@ -19,11 +19,11 @@ Update the status here **and** in the spec's frontmatter when it changes.
 | [010](./spec-010-windowed-search.md) | Windowed search: opt-in infinite scroll in the listbox, `:offset` provider opt, capped windows | shipped |
 | [011](./spec-011-router-navigation-provider.md) | Router navigation provider: palette navigates the host's Phoenix routes with one config flag | draft |
 | [012](./spec-012-facet-pills.md) | Facet pills: committed facets render as removable styled pills, tokenised faceted input | shipped |
-| [013](./spec-013-selected-item-rendering.md) | Configurable selected-item rendering: `:selected` slot + avatar stacking with +N overflow | in-progress |
-| [014](./spec-014-copyable-example-code.md) | Copyable example code blocks in the playground, component-library style | in-progress |
+| [013](./spec-013-selected-item-rendering.md) | Configurable selected-item rendering: `:selected` slot + avatar stacking with +N overflow | shipped |
+| [014](./spec-014-copyable-example-code.md) | Copyable example code blocks in the playground, component-library style | shipped |
 | [015](./spec-015-facets-in-select.md) | Inline facets in `Flicker.select`: committed facet pills + filtering in the select, not just search | draft |
-| [016](./spec-016-themed-showcase.md) | Per-theme showcase pages + theme picker + copyable per-theme adoption code | in-progress |
-| [017](./spec-017-facet-value-colors.md) | Configurable facet value colours (e.g. a red dot/pill for `status:active`) | in-progress |
+| [016](./spec-016-themed-showcase.md) | Per-theme showcase pages + theme picker + copyable per-theme adoption code | shipped |
+| [017](./spec-017-facet-value-colors.md) | Configurable facet value colours (e.g. a red dot/pill for `status:active`) | shipped |
 | [018](./spec-018-rich-facet-types.md) | Rich facet types: range/list grammar, date presets, type derivation, value validation, CLDR display | shipped |
 | [019](./spec-019-facet-editors.md) | Facet editors: pop-out contract, calendar + presets rail, numeric dial, switch, set editor | in-progress |
 | [020](./spec-020-query-dispatch-policy.md) | Query dispatch policy: debounce/immediate/enter, request supersession, stale-while-revalidate | in-progress |

@@ -1,5 +1,5 @@
 ---
-status: in-progress # draft | ready | in-progress | shipped
+status: shipped # draft | ready | in-progress | shipped
 date: 2026-07-23
 depends_on: [spec-005, adr-002] # dev playground; class-per-part theme
 ---
@@ -47,7 +47,10 @@ contents via a tiny colocated hook.
 
 ## Acceptance criteria
 
-- [ ] Three themed pages, each rendering the examples fully in its preset.
+- [x] ~~Three themed pages~~ — **superseded**: the open question below ("one
+      page + `?theme=` param vs. three routes") resolved toward one page with a
+      picker, which is what shipped. One route, three themes, `live_patch`
+      between them.
 - [ ] A top-right theme picker switches theme (and the shown snippet).
 - [ ] Each page shows the copyable adoption code for its theme.
 - [ ] Vanilla page ships starter CSS so it's not unstyled.
@@ -55,5 +58,6 @@ contents via a tiny colocated hook.
 
 ## Open questions
 
-- One page + `?theme=` param vs. three routes — pick for clean nav + `live_nav`.
+- ~~One page + `?theme=` param vs. three routes~~ — **resolved**: one page,
+  `live_patch` on `?theme=`. Cleaner nav and no duplicated example markup.
 - Inline-editable vanilla CSS: worth the colocated-hook complexity in v1?

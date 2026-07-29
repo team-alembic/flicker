@@ -1,5 +1,5 @@
 ---
-status: in-progress # draft | ready | in-progress | shipped
+status: shipped # draft | ready | in-progress | shipped
 date: 2026-07-23
 depends_on: [spec-002] # multi-select chips
 ---

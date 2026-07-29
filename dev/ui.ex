@@ -254,16 +254,60 @@ defmodule Dev.UI do
       <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyCode">
         export default {
           mounted() {
-            this.onClick = () => {
-              navigator.clipboard.writeText(this.el.dataset.code).then(() => {
-                const original = this.el.textContent
-                this.el.textContent = "Copied"
-                setTimeout(() => { this.el.textContent = original }, 1500)
-              })
-            }
+            this.onClick = () => this.copy()
             this.el.addEventListener("click", this.onClick)
           },
+          async copy() {
+            // `navigator.clipboard` rejects on a denied permission or a
+            // non-secure context, and the original version only reported
+            // success inside `.then()` — so a rejection gave the user no copy
+            // *and* no signal at all. Every path now ends in visible feedback.
+            const code = this.el.dataset.code
+
+            try {
+              if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(code)
+              } else if (!this.legacyCopy(code)) {
+                throw new Error("copy unavailable")
+              }
+              this.flash("Copied")
+            } catch (_error) {
+              if (this.legacyCopy(code)) {
+                this.flash("Copied")
+              } else {
+                this.flash("Press Ctrl+C")
+              }
+            }
+          },
+          // Selects the code so the keyboard shortcut works even where the
+          // clipboard API is unavailable — the user can always get the text.
+          legacyCopy(code) {
+            const area = document.createElement("textarea")
+            area.value = code
+            area.setAttribute("readonly", "")
+            area.style.position = "fixed"
+            area.style.opacity = "0"
+            document.body.appendChild(area)
+            area.select()
+
+            let copied = false
+            try {
+              copied = document.execCommand("copy")
+            } catch (_error) {
+              copied = false
+            }
+
+            document.body.removeChild(area)
+            return copied
+          },
+          flash(message) {
+            if (this.resetTimer) clearTimeout(this.resetTimer)
+            if (this.original === undefined) this.original = this.el.textContent
+            this.el.textContent = message
+            this.resetTimer = setTimeout(() => { this.el.textContent = this.original }, 1500)
+          },
           destroyed() {
+            if (this.resetTimer) clearTimeout(this.resetTimer)
             this.el.removeEventListener("click", this.onClick)
           }
         }

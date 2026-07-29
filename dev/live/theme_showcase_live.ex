@@ -132,8 +132,14 @@ defmodule Dev.Live.ThemeShowcase do
         theme top-right; copy the code to adopt it.
       </:description>
 
+      <%!-- `<%= %>` with `raw/1`, not `{...}`: LiveView disables curly
+      interpolation inside `<style>` and `<script>` tags, so `{@vanilla_css}`
+      rendered as that literal text and the vanilla page shipped no CSS at all.
+      `raw/1` because HTML-escaping would turn `>` in the selectors into
+      `&gt;` and break the rules; the content is a compile-time constant, not
+      user input. --%>
       <style :if={@theme_name == "vanilla"}>
-        {@vanilla_css}
+        <%= Phoenix.HTML.raw(@vanilla_css) %>
       </style>
 
       <div class="mb-6 flex items-center justify-end gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 sm:w-fit sm:ml-auto">
