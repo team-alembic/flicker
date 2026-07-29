@@ -17,3 +17,7 @@ number sequentially.
 | [008](./adr-008-version-floors.md) | Version floors (LiveView ≥ 1.1, Ash ≥ 3.0 optional) + oldest/latest/no-ash CI matrix | accepted |
 | [009](./adr-009-messages-module-for-user-facing-text.md) | All user-facing text through one overridable messages module; gettext optional | accepted |
 | [010](./adr-010-installer-patches-files-without-igniter-css.md) | Installer wires JS with igniter_js, CSS/config with plain text patches; no igniter_css | accepted |
+| [011](./adr-011-facet-editors-are-modal-subcontexts.md) | A rich facet editor is a modal sub-context that commits once, serialising back to token text | proposed |
+| [012](./adr-012-parse-reports-invalid-facet-tokens.md) | `Query.parse/2` reports a known facet's uncastable value as invalid instead of degrading it to free text | proposed |
+| [013](./adr-013-canonical-tokens-localised-display.md) | Facet tokens are locale-invariant; localisation is a display/input layer via optional `localize` | proposed |
+| [014](./adr-014-facet-counts-are-provider-computed-and-actor-scoped.md) | Facet counts are provider-computed, actor-scoped, drill-down-correct, and opt-in | proposed |
