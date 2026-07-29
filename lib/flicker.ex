@@ -487,6 +487,7 @@ defmodule Flicker do
     assigns =
       assigns
       |> assign(:resolved_facets, FacetSuggest.resolve_facets(assigns))
+      |> assign(:count_source, count_source(assigns))
       |> assign(
         :limit,
         assigns[:limit] || Application.get_env(:flicker, :default_limit, @default_limit)
@@ -503,6 +504,7 @@ defmodule Flicker do
       id={@id}
       dispatch={@dispatch}
       on_invalid={@on_invalid}
+      count_source={@count_source}
       facets={@resolved_facets}
       actor={@actor}
       tenant={@tenant}
@@ -786,4 +788,18 @@ defmodule Flicker do
     raise ArgumentError,
           "Flicker.select/1 requires either `resource` (Tier 1) or `source` (Tier 2)"
   end
+
+  # Spec 021: counting needs a provider, and `Flicker.search/1` doesn't
+  # otherwise have one — it never lists records itself. Tier 1's `resource`
+  # compiles to the same `AshResource` source the facets were derived from;
+  # Tier 2's `source` is used as given. `nil` when neither is set, which is
+  # what makes counts a no-op for a hand-built facet registry with no backing
+  # provider.
+  defp count_source(%{resource: resource} = assigns) when not is_nil(resource) do
+    {Flicker.Providers.AshResource,
+     resource: resource, search: assigns[:search] || [], option_label: assigns[:option_label]}
+  end
+
+  defp count_source(%{source: source}) when not is_nil(source), do: source
+  defp count_source(_assigns), do: nil
 end

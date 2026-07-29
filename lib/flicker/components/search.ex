@@ -62,6 +62,8 @@ defmodule Flicker.Components.Search do
       |> assign_new(:suggestions_loading, fn -> false end)
       |> assign_new(:dispatch, fn -> :debounce end)
       |> assign_new(:on_invalid, fn -> :drop end)
+      |> assign_new(:count_source, fn -> nil end)
+      |> assign_new(:facet_counts, fn -> %{} end)
       # The free text most recently handed to the host, as opposed to typed —
       # `Flicker.Dispatch.pending?/3` compares the pair to decide whether
       # `:enter`'s "press Enter to search" affordance is showing (Spec 020).
@@ -224,6 +226,24 @@ defmodule Flicker.Components.Search do
     {:noreply, assign(socket, suggestions: [], suggestions_loading: false)}
   end
 
+  def handle_async(:facet_counts, {:ok, {:ok, counts}}, socket) do
+    {:noreply, assign(socket, :facet_counts, counts)}
+  end
+
+  # A failed count must never break a working search (Spec 021): logged at
+  # debug, swallowed, no number rendered.
+  def handle_async(:facet_counts, {:ok, {:error, reason}}, socket) do
+    Logger.debug("Flicker facet counts failed: #{inspect(reason)}")
+
+    {:noreply, assign(socket, :facet_counts, %{})}
+  end
+
+  def handle_async(:facet_counts, {:exit, reason}, socket) do
+    Logger.debug("Flicker facet counts exited: #{inspect(reason)}")
+
+    {:noreply, assign(socket, :facet_counts, %{})}
+  end
+
   defp refresh_context(socket) do
     facets = socket.assigns.facets
     context = FacetSuggest.classify(socket.assigns.text, facets, socket.assigns.cursor)
@@ -280,6 +300,27 @@ defmodule Flicker.Components.Search do
   # The default trigger is `:facet_commit`: inserting a suggestion, removing a
   # pill, and clearing are all deliberate discrete acts that dispatch under
   # every policy. Only the typing path passes `:input`.
+  # Spec 021: counts ride alongside the query rather than blocking it. Results
+  # (here, the host's own notification) go out first; the counts land when they
+  # land and fill in. `start_async/3` keyed on `:facet_counts` inherits the same
+  # last-write-wins supersession `:search` gets, so a stale tally can't render
+  # against a newer query.
+  defp maybe_count(socket) do
+    counted = Enum.filter(socket.assigns.facets, & &1.count)
+
+    if counted == [] or is_nil(socket.assigns.count_source) do
+      socket
+    else
+      provider = socket.assigns.count_source
+      query = combined_query(socket, socket.assigns.facets)
+      opts = [actor: socket.assigns[:actor], tenant: socket.assigns[:tenant]]
+
+      start_async(socket, :facet_counts, fn ->
+        Flicker.Provider.run_facet_counts(provider, query, counted, opts)
+      end)
+    end
+  end
+
   defp notify_change(socket, trigger \\ :facet_commit) do
     facets = socket.assigns.facets
 
@@ -289,9 +330,43 @@ defmodule Flicker.Components.Search do
       filter = to_filter(query, facets)
 
       send(self(), {socket.assigns.on_change, query, filter})
-      assign(socket, :dispatched_text, socket.assigns.text)
+
+      socket
+      |> assign(:dispatched_text, socket.assigns.text)
+      |> maybe_count()
     else
       socket
+    end
+  end
+
+  # The count for a value suggestion, or `nil` when this facet isn't counted or
+  # the value wasn't in the tally. `nil` and `0` are deliberately different: no
+  # count renders nothing, a zero renders `0` and dims the row.
+  defp suggestion_count(assigns, %{meta: %{insert: insert}}) do
+    with [key_text, value_text] <- String.split(String.trim(insert), ":", parts: 2),
+         {:ok, key} <- existing_atom(key_text),
+         %{} = tally <- Map.get(assigns.facet_counts, key),
+         facet when not is_nil(facet) <- Enum.find(assigns.facets, &(&1.key == key)),
+         {:ok, _op, value} <- Flicker.Facet.cast_value(facet, value_text, facet.default_op) do
+      Map.get(tally, value)
+    else
+      _ -> nil
+    end
+  end
+
+  defp suggestion_count(_assigns, _suggestion), do: nil
+
+  defp existing_atom(string) do
+    {:ok, String.to_existing_atom(string)}
+  rescue
+    ArgumentError -> :error
+  end
+
+  # One string, so assistive tech reads the label and its count together.
+  defp suggestion_aria_label(assigns, suggestion) do
+    case suggestion_count(assigns, suggestion) do
+      nil -> nil
+      count -> "#{suggestion.label}, #{message(assigns, :results_count, %{count: count})}"
     end
   end
 
@@ -777,14 +852,24 @@ defmodule Flicker.Components.Search do
             role="option"
             aria-selected="false"
             tabindex="-1"
-            class={@theme.option}
+            class={[@theme.option, suggestion_count(assigns, suggestion) == 0 && @theme.facet_count_zero]}
             style="display:block;width:100%;text-align:left"
+            aria-label={suggestion_aria_label(assigns, suggestion)}
             phx-click="select_suggestion"
             phx-value-insert={suggestion.meta.insert}
             phx-target={@myself}
             disabled={!@connected?}
           >
-            <span>{suggestion.label}</span> <span :if={suggestion.sublabel}>{suggestion.sublabel}</span>
+            <%!-- Spec 021: the count is part of the option's accessible name,
+            not a sibling node a screen reader would read adrift from its
+            label — "Active, 12 results", one string. A zero-count value stays
+            visible and selectable, dimmed: hiding it answers "why did that
+            option vanish?" with silence, where `0` answers it. --%>
+            <span>{suggestion.label}</span>
+            <span :if={suggestion.sublabel}>{suggestion.sublabel}</span>
+            <span :if={suggestion_count(assigns, suggestion)} class={@theme.facet_count}>
+              {suggestion_count(assigns, suggestion)}
+            </span>
           </button>
         </li>
       </ul>

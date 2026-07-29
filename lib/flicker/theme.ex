@@ -38,6 +38,11 @@ defmodule Flicker.Theme do
     * `:loading_state` — the listbox's loading row.
     * `:empty_state` — the listbox's no-results row.
     * `:error_state` — the listbox's error row.
+    * `:facet_count` — the match count rendered beside a facet value
+      (Spec 021).
+    * `:facet_count_zero` — added to a value row whose count is `0`. Dimmed
+      rather than hidden, and still selectable: hiding it answers "why did that
+      option disappear?" with silence, where `0` answers it.
     * `:facet_pill_invalid` — a committed-facet pill whose value failed to
       cast (Spec 023). Carries the error styling; the message itself renders in
       `:facet_error_message`, never as a tooltip.
@@ -139,6 +144,8 @@ defmodule Flicker.Theme do
           loading_state: String.t(),
           empty_state: String.t(),
           error_state: String.t(),
+          facet_count: String.t(),
+          facet_count_zero: String.t(),
           facet_pill_invalid: String.t(),
           facet_error_message: String.t(),
           facet_error_icon: String.t(),
@@ -188,6 +195,8 @@ defmodule Flicker.Theme do
             loading_state: "flicker-loading",
             empty_state: "flicker-empty",
             error_state: "flicker-error",
+            facet_count: "flicker-facet-count",
+            facet_count_zero: "flicker-facet-count-zero",
             facet_pill_invalid: "flicker-facet-pill-invalid",
             facet_error_message: "flicker-facet-error-message",
             facet_error_icon: "flicker-facet-error-icon",
@@ -250,6 +259,8 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-gray-500",
       empty_state: "px-3 py-2 text-gray-500",
       error_state: "px-3 py-2 text-red-600",
+      facet_count: "ml-auto pl-3 text-xs tabular-nums text-gray-500",
+      facet_count_zero: "opacity-50",
       facet_pill_invalid: "border border-red-300 bg-red-50 text-red-900",
       facet_error_message: "mt-1 text-xs text-red-700",
       facet_error_icon: "mr-1 inline-block text-red-600",
@@ -343,6 +354,8 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-base-content/60",
       empty_state: "px-3 py-2 text-base-content/60",
       error_state: "px-3 py-2 text-error",
+      facet_count: "ml-auto pl-3 text-xs tabular-nums text-base-content/60",
+      facet_count_zero: "opacity-50",
       facet_pill_invalid: "badge badge-error badge-outline",
       facet_error_message: "mt-1 text-xs text-error",
       facet_error_icon: "mr-1 inline-block text-error",

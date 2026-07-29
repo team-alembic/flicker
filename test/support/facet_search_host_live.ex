@@ -17,6 +17,7 @@ if Code.ensure_loaded?(Ash) do
       actor = Map.get(session, "actor", %{label: nil})
       dispatch = Map.get(session, "dispatch", :debounce)
       on_invalid = Map.get(session, "on_invalid", :drop)
+      count_facets = Map.get(session, "count_facets", false)
 
       FacetDomain.seed!()
 
@@ -25,6 +26,7 @@ if Code.ensure_loaded?(Ash) do
         |> assign(:actor, actor)
         |> assign(:dispatch, dispatch)
         |> assign(:on_invalid, on_invalid)
+        |> assign(:count_facets, count_facets)
         |> assign(:last_query, nil)
         |> assign(:last_filter, nil)
 
@@ -43,7 +45,13 @@ if Code.ensure_loaded?(Ash) do
         id="artist-search"
         resource={Flicker.Test.FacetArtist}
         actor={@actor}
-        facets={[{:status, value_colors: %{active: "#16a34a"}}, :genre, :verified?]}
+        facets={
+          [
+            {:status, value_colors: %{active: "#16a34a"}, count: @count_facets},
+            :genre,
+            :verified?
+          ]
+        }
         on_change={:artist_query_changed}
         dispatch={@dispatch}
         on_invalid={@on_invalid}
