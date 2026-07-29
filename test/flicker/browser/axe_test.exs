@@ -22,7 +22,7 @@ if Code.ensure_loaded?(Ash) do
 
     use Flicker.Test.BrowserCase, async: false
 
-    import Wallaby.Query, only: [css: 2]
+    import Wallaby.Query, only: [css: 1, css: 2, text: 1]
 
     feature "/ has zero axe violations", %{session: session} do
       session |> visit("/") |> A11yAudit.Wallaby.assert_no_violations()
@@ -54,6 +54,35 @@ if Code.ensure_loaded?(Ash) do
 
     feature "/faceted-search has zero axe violations", %{session: session} do
       session |> visit("/faceted-search") |> A11yAudit.Wallaby.assert_no_violations()
+    end
+
+    # The states added by Specs 019/021/022/023 are all *conditional* markup —
+    # a dialog, an error region, a counted option list, a Recent group — so
+    # scanning the page at rest never sees them. Each is driven into existence
+    # before the scan.
+    feature "/faceted-search with a facet editor open has zero axe violations", %{session: session} do
+      session
+      |> visit("/faceted-search")
+      |> fill_in(css("#artist-search-input"), with: "stat")
+      |> click(text("status:"))
+      |> assert_has(css("[role='dialog']"))
+      |> A11yAudit.Wallaby.assert_no_violations()
+    end
+
+    feature "/faceted-search with an invalid facet value has zero axe violations", %{session: session} do
+      session
+      |> visit("/faceted-search")
+      |> fill_in(css("#artist-search-input"), with: "status:activ ")
+      |> assert_has(css("[aria-invalid='true']"))
+      |> A11yAudit.Wallaby.assert_no_violations()
+    end
+
+    feature "/faceted-search with a committed facet pill has zero axe violations", %{session: session} do
+      session
+      |> visit("/faceted-search")
+      |> fill_in(css("#artist-search-input"), with: "status:active ")
+      |> assert_has(css("[role='listitem']"))
+      |> A11yAudit.Wallaby.assert_no_violations()
     end
 
     feature "/palette (closed) has zero axe violations", %{session: session} do

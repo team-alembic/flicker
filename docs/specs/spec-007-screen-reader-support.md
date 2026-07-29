@@ -127,3 +127,29 @@ one).
 
 Only the manual AT matrix remains — the spec stays `in-progress` for that
 reason alone.
+
+## Status note (2026-07-29)
+
+The surfaces added by Specs 019, 021, 022 and 023 are now covered by the
+automatable half:
+
+- `test/flicker/browser/axe_test.exs` drives the *conditional* markup into
+  existence before scanning it — an open facet-editor dialog, an invalid facet
+  value with its error region, and a committed facet pill. Scanning
+  `/faceted-search` at rest never saw any of them, so they had been outside
+  axe's reach entirely.
+- `guides/accessibility.md`'s manual script gains sections for facet editors
+  (including the focus trap and the draft-state transitions), invalid values and
+  corrections, and counts/recents — so a human running the matrix exercises
+  what was actually built rather than the pre-019 component.
+- Editor open is announced through `Flicker.Messages`
+  (`:facet_editor_opened`), keeping the messages module the auditable
+  announcement inventory.
+
+**This spec still does not move to `shipped`, and cannot be moved by any amount
+of further coding.** The one outstanding item remains the manual AT matrix:
+VoiceOver+Safari, NVDA+Firefox, JAWS+Chrome executed by a person against the
+script above, with results recorded in the repo. That is a human activity with
+real assistive technology; no automated check substitutes for it, and claiming
+otherwise would be exactly the "we set the ARIA attributes" posture this spec
+was written to reject.

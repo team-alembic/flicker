@@ -189,6 +189,39 @@ state is correct.
 | 5 | Type an unrecognised `key:value` pair | Degrades to free-text context; no crash, no stuck facet-context announcement |
 | 6 | Type a relationship facet's value prefix (e.g. `genre:In`) | "Typing a value for genre"; nested search runs; "Loading..." while in flight, then a count |
 
+### Facet editors (`Flicker.FacetEditor.*`, Spec 019)
+
+The pop-out is a modal sub-context, so the transitions in and out of it are
+the ones most likely to be got wrong.
+
+| # | Step | Expected announcement |
+|---|---|---|
+| 1 | Pick a facet-key suggestion for a facet that has an editor (e.g. `status:`) | "Status editor, dialog"; focus moves into the pop-out |
+| 2 | Arrow around the day grid of a date-range facet | Each focused day is spoken; the picker's own listbox is silent (its keyboard model is suspended) |
+| 3 | Pick the first day of a range | The footer's draft state is spoken ("Jun 18, 2026 → pick an end date"); nothing is committed |
+| 4 | Pick the second day | The facet commits; the pop-out closes; focus and caret return to the input |
+| 5 | Press `Escape` mid-draft | The pop-out closes with nothing committed; focus returns |
+| 6 | `Tab` repeatedly inside the pop-out | Focus stays within the dialog (trap), cycling rather than escaping to the page |
+| 7 | Toggle a boolean facet's switch | `role="switch"` state is spoken; no pop-out opens; the value commits on toggle |
+| 8 | Reopen a committed facet from its pill | "Edit Status" names the control; the editor opens pre-filled |
+
+### Invalid facet values and corrections (Spec 023)
+
+| # | Step | Expected announcement |
+|---|---|---|
+| 1 | Type a value outside a closed set (e.g. `status:activ `) | The input is `aria-invalid`; its `aria-describedby` message is spoken ("must be one of: …") |
+| 2 | With a near-miss typed | The correction is reachable and named ("Did you mean Active?") |
+| 3 | Accept the correction | The token is corrected and the error state clears |
+| 4 | With `on_invalid: :require` | The withheld-dispatch state is spoken ("Filter not applied — fix the highlighted facet"), not merely coloured |
+
+### Facet value counts and recents (Specs 021, 022)
+
+| # | Step | Expected announcement |
+|---|---|---|
+| 1 | Open a counted facet's value list | Each option's name includes its count as one string ("Active, 12 results available") — not a detached number |
+| 2 | Reach a zero-count value | It is still reachable and selectable, and its `0` is spoken |
+| 3 | Open a facet with recent values | The `Recent` group is announced as a group before its members |
+
 ### Command palette (`Flicker.palette/1`)
 
 | # | Step | Expected announcement |
