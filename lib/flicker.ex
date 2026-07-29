@@ -450,6 +450,18 @@ defmodule Flicker do
     doc: "Input debounce (ms). Defaults to `config :flicker, :default_debounce` (150)."
   )
 
+  attr(:dispatch, :atom,
+    default: :debounce,
+    values: [:debounce, :immediate, :enter],
+    doc: """
+    When typing emits `on_change` ([Spec 020](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-020-query-dispatch-policy.md)).
+    For this component the host notification *is* the dispatch, so `:enter`
+    withholds `on_change` until the user presses Enter — useful when the host
+    drives an expensive query off it. Committing or removing a facet always
+    emits, under every policy.
+    """
+  )
+
   attr(:theme, :any, default: nil, doc: "A `Flicker.Theme` override. See `Flicker.Theme`.")
 
   attr(:messages, :atom,
@@ -476,6 +488,7 @@ defmodule Flicker do
     <.live_component
       module={SearchComponent}
       id={@id}
+      dispatch={@dispatch}
       facets={@resolved_facets}
       actor={@actor}
       tenant={@tenant}
@@ -621,6 +634,18 @@ defmodule Flicker do
     doc: "Input debounce (ms). Defaults to `config :flicker, :default_debounce` (150)."
   )
 
+  attr(:dispatch, :atom,
+    default: :debounce,
+    values: [:debounce, :immediate, :enter],
+    doc: """
+    When typing runs a search ([Spec 020](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-020-query-dispatch-policy.md)).
+    `:debounce` (default) waits `debounce` ms after the last keystroke;
+    `:immediate` searches on every keystroke; `:enter` searches only when
+    the user presses Enter. Facet commits and the initial listing always
+    dispatch, under every policy.
+    """
+  )
+
   attr(:theme, :any,
     default: nil,
     doc:
@@ -688,6 +713,7 @@ defmodule Flicker do
       actor={@actor}
       tenant={@tenant}
       limit={@limit}
+      dispatch={@dispatch}
       min_chars={@min_chars}
       debounce={@debounce}
       theme={@theme}

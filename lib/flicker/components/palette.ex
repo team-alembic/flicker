@@ -115,6 +115,7 @@ defmodule Flicker.Components.Palette do
           limit={@limit}
           min_chars={@min_chars}
           debounce={@debounce}
+          dispatch={@dispatch}
           theme={@select_theme}
           messages={@messages}
           facets={@facets}

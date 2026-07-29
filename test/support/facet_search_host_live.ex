@@ -15,12 +15,14 @@ if Code.ensure_loaded?(Ash) do
     @impl true
     def mount(_params, session, socket) do
       actor = Map.get(session, "actor", %{label: nil})
+      dispatch = Map.get(session, "dispatch", :debounce)
 
       FacetDomain.seed!()
 
       socket =
         socket
         |> assign(:actor, actor)
+        |> assign(:dispatch, dispatch)
         |> assign(:last_query, nil)
         |> assign(:last_filter, nil)
 
@@ -41,6 +43,7 @@ if Code.ensure_loaded?(Ash) do
         actor={@actor}
         facets={[{:status, value_colors: %{active: "#16a34a"}}, :genre, :verified?]}
         on_change={:artist_query_changed}
+        dispatch={@dispatch}
       />
       <p :if={@last_query} id="last-text">{@last_query.text}</p>
       <p :if={@last_query} id="last-facets">{inspect(@last_query.facets)}</p>

@@ -28,7 +28,7 @@ defmodule Flicker.Components.Search do
 
   use Phoenix.LiveComponent
 
-  alias Flicker.{CursorContext, FacetSuggest, Messages, Query}
+  alias Flicker.{CursorContext, Dispatch, FacetSuggest, Messages, Query}
 
   require Logger
 
@@ -59,6 +59,11 @@ defmodule Flicker.Components.Search do
       |> assign_new(:cursor, fn -> nil end)
       |> assign_new(:open, fn -> false end)
       |> assign_new(:suggestions_loading, fn -> false end)
+      |> assign_new(:dispatch, fn -> :debounce end)
+      # The free text most recently handed to the host, as opposed to typed —
+      # `Flicker.Dispatch.pending?/3` compares the pair to decide whether
+      # `:enter`'s "press Enter to search" affordance is showing (Spec 020).
+      |> assign_new(:dispatched_text, fn -> "" end)
       |> assign(:connected?, Phoenix.LiveView.connected?(socket))
       |> refresh_context()
 
@@ -94,7 +99,7 @@ defmodule Flicker.Components.Search do
       )
       |> absorb_committed()
       |> refresh_context()
-      |> notify_change()
+      |> notify_change(:input)
 
     # If a completed facet token was just lifted out of the buffer into a
     # pill, the input's DOM value still carries it — push the trimmed buffer
@@ -166,6 +171,11 @@ defmodule Flicker.Components.Search do
   end
 
   def handle_event("remove_last_facet", _params, socket), do: {:noreply, socket}
+
+  # Spec 020's `:enter` policy: the only route by which held text reaches the
+  # host. `:enter` as the trigger is what `Flicker.Dispatch.dispatch?/4` lets
+  # through where `:input` was withheld.
+  def handle_event("dispatch_query", _params, socket), do: {:noreply, notify_change(socket, :enter)}
 
   def handle_event("focus", _params, socket), do: {:noreply, assign(socket, open: true)}
 
@@ -254,13 +264,25 @@ defmodule Flicker.Components.Search do
     socket |> cancel_async(:related_search) |> assign(suggestions: [], suggestions_loading: false)
   end
 
-  defp notify_change(socket) do
+  # For this component the host notification *is* the dispatch — it owns no
+  # provider of its own — so Spec 020's policy gates `send/2` here, the one
+  # funnel every path goes through.
+  #
+  # The default trigger is `:facet_commit`: inserting a suggestion, removing a
+  # pill, and clearing are all deliberate discrete acts that dispatch under
+  # every policy. Only the typing path passes `:input`.
+  defp notify_change(socket, trigger \\ :facet_commit) do
     facets = socket.assigns.facets
-    query = combined_query(socket, facets)
-    filter = to_filter(query, facets)
 
-    send(self(), {socket.assigns.on_change, query, filter})
-    socket
+    if Dispatch.dispatch?(socket.assigns.dispatch, trigger, socket.assigns.text, 0) do
+      query = combined_query(socket, facets)
+      filter = to_filter(query, facets)
+
+      send(self(), {socket.assigns.on_change, query, filter})
+      assign(socket, :dispatched_text, socket.assigns.text)
+    else
+      socket
+    end
   end
 
   # The emitted query is the committed pills plus whatever's still in the
@@ -486,6 +508,10 @@ defmodule Flicker.Components.Search do
       )
       |> assign(:pills, build_pills(assigns.committed, assigns.facets))
       |> assign(:value_hint, value_hint(assigns, assigns.context))
+      |> assign(
+        :dispatch_pending,
+        Dispatch.pending?(assigns.dispatch, assigns.text, assigns.dispatched_text)
+      )
 
     assigns = assign(assigns, :announcement, announcement(assigns))
 
@@ -497,6 +523,7 @@ defmodule Flicker.Components.Search do
       phx-target={@myself}
       phx-click-away="close"
       data-active-class={@theme.option_active}
+      data-dispatch={to_string(@dispatch)}
     >
       <%!--
         Committed facets are pills *inside* the field box (Spec 012), with
@@ -544,8 +571,9 @@ defmodule Flicker.Components.Search do
           value={@text}
           placeholder={message(assigns, :facet_search_placeholder)}
           disabled={!@connected?}
+          aria-describedby={@dispatch_pending && "#{@input_id}-dispatch-hint"}
           phx-keyup="query"
-          phx-debounce={@debounce}
+          phx-debounce={Dispatch.debounce_attr(@dispatch, @debounce)}
           phx-focus="focus"
           phx-target={@myself}
         />
@@ -561,6 +589,12 @@ defmodule Flicker.Components.Search do
           {message(assigns, :clear_all)}
         </button>
       </div>
+      <%!-- Spec 020: under `dispatch: :enter`, typed-but-undispatched text has
+      to say so — visible text, referenced by the input's `aria-describedby`
+      while it shows. --%>
+      <p :if={@dispatch_pending} id={"#{@input_id}-dispatch-hint"} class={@theme.dispatch_hint}>
+        {message(assigns, :press_enter_to_search)}
+      </p>
       <div id={"#{@id}-announcer"} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
         {@announcement}
       </div>
@@ -720,6 +754,12 @@ defmodule Flicker.Components.Search do
                 if (isOpen && this.activeIndex >= 0 && options[this.activeIndex]) {
                   e.preventDefault()
                   options[this.activeIndex].click()
+                } else if (this.el.dataset.dispatch === "enter") {
+                  // Spec 020's `:enter` policy: no suggestion under the
+                  // keyboard cursor means Enter is asking for the search to
+                  // run. Choosing a suggestion always wins when there is one.
+                  e.preventDefault()
+                  this.pushEventTo(this.el, "dispatch_query", {})
                 }
                 break
               case "Escape":
