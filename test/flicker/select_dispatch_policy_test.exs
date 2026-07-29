@@ -137,6 +137,52 @@ defmodule Flicker.SelectDispatchPolicyTest do
     end
   end
 
+  describe "stale results" do
+    defmodule SlowProvider do
+      @moduledoc false
+      @behaviour Flicker.Provider
+
+      @impl true
+      def search(%Flicker.Query{text: "slow"}, _opts) do
+        Process.sleep(300)
+        {:ok, [%Flicker.Result{value: "9", label: "Slow result"}]}
+      end
+
+      def search(_query, _opts), do: {:ok, [%Flicker.Result{value: "1", label: "Casey Cassidy"}]}
+
+      @impl true
+      def fetch(_values, _opts), do: {:ok, []}
+    end
+
+    test "the previous results stay rendered, marked stale, while the next search runs" do
+      conn = Plug.Test.init_test_session(build_conn(), %{"mode" => "controlled", "provider" => SlowProvider})
+      session = visit(conn, "/")
+
+      session.view |> LiveViewTest.element("#picker-input") |> LiveViewTest.render_focus()
+      LiveViewTest.render_async(session.view, 2_000)
+
+      assert_has(session, "li", text: "Casey Cassidy")
+
+      # Typing kicks off the slow search without awaiting it: the earlier
+      # results must still be on screen, and the listbox marked stale.
+      session.view
+      |> LiveViewTest.element("#picker-input")
+      |> LiveViewTest.render_keyup(%{"value" => "slow"})
+
+      html = LiveViewTest.render(session.view)
+
+      assert html =~ "Casey Cassidy"
+      assert html =~ "flicker-results-stale"
+
+      LiveViewTest.render_async(session.view, 2_000)
+
+      html = LiveViewTest.render(session.view)
+
+      assert html =~ "Slow result"
+      refute html =~ "flicker-results-stale"
+    end
+  end
+
   describe "the initial listing" do
     test "dispatches under every policy, including :enter" do
       for policy <- Flicker.Dispatch.policies() do

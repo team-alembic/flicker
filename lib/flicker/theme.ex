@@ -38,6 +38,10 @@ defmodule Flicker.Theme do
     * `:loading_state` — the listbox's loading row.
     * `:empty_state` — the listbox's no-results row.
     * `:error_state` — the listbox's error row.
+    * `:results_stale` — added to the listbox while a new search is in
+      flight *and* previous results are still on screen (Spec 020). The
+      previous set stays rendered rather than the list emptying and refilling;
+      this part is what marks it as not-yet-current.
     * `:dispatch_hint` — the "press Enter to search" affordance shown
       beside the input while `dispatch: :enter` holds undispatched text
       (Spec 020). Also the target of the input's `aria-describedby` in that
@@ -125,6 +129,7 @@ defmodule Flicker.Theme do
           loading_state: String.t(),
           empty_state: String.t(),
           error_state: String.t(),
+          results_stale: String.t(),
           dispatch_hint: String.t(),
           hint: String.t(),
           loading_more: String.t(),
@@ -167,6 +172,7 @@ defmodule Flicker.Theme do
             loading_state: "flicker-loading",
             empty_state: "flicker-empty",
             error_state: "flicker-error",
+            results_stale: "flicker-results-stale",
             dispatch_hint: "flicker-dispatch-hint",
             hint: "flicker-hint",
             loading_more: "flicker-loading-more",
@@ -222,6 +228,7 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-gray-500",
       empty_state: "px-3 py-2 text-gray-500",
       error_state: "px-3 py-2 text-red-600",
+      results_stale: "opacity-60 transition-opacity",
       dispatch_hint: "mt-1 text-xs text-gray-500",
       hint: "px-3 py-2 text-xs text-gray-400",
       loading_more: "px-3 py-2 text-xs text-gray-400",
@@ -308,6 +315,7 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-base-content/60",
       empty_state: "px-3 py-2 text-base-content/60",
       error_state: "px-3 py-2 text-error",
+      results_stale: "opacity-60 transition-opacity",
       dispatch_hint: "mt-1 text-xs text-base-content/60",
       hint: "px-3 py-2 text-xs text-base-content/50",
       loading_more: "px-3 py-2 text-xs text-base-content/50",

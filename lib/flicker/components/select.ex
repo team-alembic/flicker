@@ -1151,6 +1151,11 @@ defmodule Flicker.Components.Select do
         :dispatch_pending,
         Dispatch.pending?(assigns.dispatch, assigns.query, assigns.dispatched_query)
       )
+      # Spec 020: a new search is running but the previous results are still
+      # on screen. Marking them stale is the honest rendering — emptying the
+      # list and refilling it costs a layout jump and flashes "no results" for
+      # a query that has results.
+      |> assign(:results_stale, assigns.loading and assigns.results != [])
       |> assign(:at_max, at_max?(assigns))
       |> assign(:rows, rows_with_group_headers(assigns.results))
       |> assign(:sr_only_style, @sr_only_style)
@@ -1346,7 +1351,7 @@ defmodule Flicker.Components.Select do
         role="listbox"
         aria-labelledby={"#{@input_id}-label"}
         aria-busy={@aria_busy}
-        class={@theme.listbox}
+        class={[@theme.listbox, @results_stale && @theme.results_stale]}
       >
         <li :if={@loading} role="presentation" class={@theme.loading_state}>
           {message(assigns, :loading)}

@@ -143,9 +143,23 @@ Every one is a pure function of its arguments, unit-testable with no LiveView, n
 provider, and no browser — the same shape as `Flicker.CursorContext` and for the
 same reason. The components keep owning the socket and the timers.
 
-`loading_delay` is one timer with one job: set `loading?` only if the request is
-still in flight when it fires. `Process.send_after/3` in the component,
-cancelled when the response lands first.
+`loading_delay` **cannot** be a server-side timer, which the first draft assumed.
+`Process.send_after/3` from a `Phoenix.LiveComponent` delivers to the *host
+LiveView*, which has no `handle_info/2` clause for it — so every host would need
+boilerplate to forward the message back via `send_update/3`. That is not a cost a
+library gets to impose for a 200ms cosmetic delay.
+
+It therefore belongs in the colocated hook ([ADR-007](../adrs/adr-007-colocated-js-hook.md)),
+which already owns client-side timing: on seeing the loading row appear, hide it
+and reveal it after `loading_delay` ms; if the response lands first the element is
+removed before it was ever visible. Visibility is set inline by the hook rather
+than by a theme class, because the `vanilla` preset ships class *names* only —
+Flicker shipping a keyframe or a `display: none` rule would break ADR-002's
+"no CSS in the library" line.
+
+The consequence, stated plainly: `loading_delay` is only verifiable in Spec 007's
+browser suite, unlike every other part of this spec. That is the reason it ships
+after the rest rather than alongside it.
 
 ### Theme parts (ADR-002)
 
