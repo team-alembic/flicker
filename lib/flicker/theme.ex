@@ -38,6 +38,10 @@ defmodule Flicker.Theme do
     * `:loading_state` — the listbox's loading row.
     * `:empty_state` — the listbox's no-results row.
     * `:error_state` — the listbox's error row.
+    * `:dispatch_hint` — the "press Enter to search" affordance shown
+      beside the input while `dispatch: :enter` holds undispatched text
+      (Spec 020). Also the target of the input's `aria-describedby` in that
+      state.
     * `:hint` — the "keep typing to narrow results" / min-chars hint row;
       also the tail row shown once a `paginate`-d list hits `max_windows`
       or a provider ignoring `:offset` is detected (Spec 010) — windowing
@@ -121,6 +125,7 @@ defmodule Flicker.Theme do
           loading_state: String.t(),
           empty_state: String.t(),
           error_state: String.t(),
+          dispatch_hint: String.t(),
           hint: String.t(),
           loading_more: String.t(),
           chip_list: String.t(),
@@ -162,6 +167,7 @@ defmodule Flicker.Theme do
             loading_state: "flicker-loading",
             empty_state: "flicker-empty",
             error_state: "flicker-error",
+            dispatch_hint: "flicker-dispatch-hint",
             hint: "flicker-hint",
             loading_more: "flicker-loading-more",
             chip_list: "flicker-chip-list",
@@ -216,6 +222,7 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-gray-500",
       empty_state: "px-3 py-2 text-gray-500",
       error_state: "px-3 py-2 text-red-600",
+      dispatch_hint: "mt-1 text-xs text-gray-500",
       hint: "px-3 py-2 text-xs text-gray-400",
       loading_more: "px-3 py-2 text-xs text-gray-400",
       chip_list: "flex flex-wrap gap-1",
@@ -301,6 +308,7 @@ defmodule Flicker.Theme do
       loading_state: "px-3 py-2 text-base-content/60",
       empty_state: "px-3 py-2 text-base-content/60",
       error_state: "px-3 py-2 text-error",
+      dispatch_hint: "mt-1 text-xs text-base-content/60",
       hint: "px-3 py-2 text-xs text-base-content/50",
       loading_more: "px-3 py-2 text-xs text-base-content/50",
       chip_list: "flex flex-wrap gap-1",

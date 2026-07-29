@@ -24,6 +24,11 @@ defmodule Flicker.Messages.English do
       (`limit`+1 came back) — "keep typing to narrow" rather than paginate.
     * `:min_chars_hint` — %{min_chars: n} — shown while the typed text is
       shorter than the configured `min_chars`.
+    * `:press_enter_to_search` — shown, and referenced by the input's
+      `aria-describedby`, while `dispatch: :enter` holds typed text that
+      hasn't been searched yet (Spec 020). A search box that has silently
+      stopped searching is a broken search box, so this state is always
+      both visible and announced.
     * `:results_count` — %{count: n} — the live-region announcement after
       results update.
     * `:item_selected` — %{label: name} — the live-region announcement after
@@ -84,6 +89,8 @@ defmodule Flicker.Messages.English do
   def message(:keep_typing, _bindings), do: "Keep typing to narrow results..."
 
   def message(:min_chars_hint, %{min_chars: min_chars}), do: "Type at least #{min_chars} characters to search"
+
+  def message(:press_enter_to_search, _bindings), do: "Press Enter to search"
 
   def message(:results_count, %{count: 0}), do: "No results available"
   def message(:results_count, %{count: 1}), do: "1 result available"

@@ -89,6 +89,54 @@ defmodule Flicker.SelectDispatchPolicyTest do
     end
   end
 
+  describe ":enter — Enter dispatches" do
+    test "pressing Enter searches the held text", %{conn: conn} do
+      session = conn |> visit_with(%{"dispatch" => :enter}) |> type("casey")
+
+      refute_has(session, "li", text: "Casey Cassidy")
+
+      session.view
+      |> LiveViewTest.element("#picker")
+      |> LiveViewTest.render_hook("dispatch_query", %{"value" => "casey"})
+
+      LiveViewTest.render_async(session.view, 2_000)
+
+      assert_has(session, "li", text: "Casey Cassidy")
+    end
+
+    test "the hint shows while text is held and clears once dispatched", %{conn: conn} do
+      session = conn |> visit_with(%{"dispatch" => :enter}) |> type("casey")
+
+      assert_has(session, "#picker-input-dispatch-hint", text: "Press Enter to search")
+      assert_has(session, "#picker-input[aria-describedby='picker-input-dispatch-hint']")
+
+      session.view
+      |> LiveViewTest.element("#picker")
+      |> LiveViewTest.render_hook("dispatch_query", %{"value" => "casey"})
+
+      LiveViewTest.render_async(session.view, 2_000)
+
+      refute_has(session, "#picker-input-dispatch-hint")
+      refute_has(session, "#picker-input[aria-describedby]")
+    end
+
+    test "the hook is told the policy, so Enter only dispatches under :enter", %{conn: conn} do
+      assert_has(visit_with(conn, %{"dispatch" => :enter}), "#picker[data-dispatch='enter']")
+      assert_has(visit_with(conn, %{}), "#picker[data-dispatch='debounce']")
+      assert_has(visit_with(conn, %{"dispatch" => :immediate}), "#picker[data-dispatch='immediate']")
+    end
+  end
+
+  describe "the dispatch hint" do
+    test "never shows under the dispatching policies", %{conn: conn} do
+      for policy <- [:debounce, :immediate] do
+        session = conn |> visit_with(%{"dispatch" => policy}) |> type("casey")
+
+        refute_has(session, "#picker-input-dispatch-hint")
+      end
+    end
+  end
+
   describe "the initial listing" do
     test "dispatches under every policy, including :enter" do
       for policy <- Flicker.Dispatch.policies() do

@@ -140,6 +140,10 @@ defmodule Flicker.Components.Select do
       # clearing — is a deliberate act that dispatches under every policy, so
       # the default is the one that always runs.
       |> assign_new(:dispatch_trigger, fn -> :initial end)
+      # The free text most recently *searched*, as opposed to typed — the pair
+      # `Flicker.Dispatch.pending?/3` compares to decide whether `:enter`'s
+      # "press Enter to search" affordance is showing.
+      |> assign_new(:dispatched_query, fn -> "" end)
       |> assign(:connected?, Phoenix.LiveView.connected?(socket))
       |> resolve_selected()
       |> research_on_scope_change(prev_actor, prev_tenant)
@@ -220,6 +224,17 @@ defmodule Flicker.Components.Select do
          |> clear_stale_selection(text)
          |> apply_query(text, cursor)}
     end
+  end
+
+  # Spec 020's `:enter` policy: the `.Nav` hook sends this when Enter is
+  # pressed with no option under the keyboard cursor, which is the only way a
+  # held query gets dispatched. `:enter` as the trigger is what
+  # `Flicker.Dispatch.dispatch?/4` lets through where `:input` was withheld.
+  def handle_event("dispatch_query", %{"value" => text}, socket) do
+    {:noreply,
+     socket
+     |> assign(:dispatch_trigger, :enter)
+     |> apply_query(text, socket.assigns.cursor)}
   end
 
   # A cursor moving without the query text changing (a click, or a
@@ -653,6 +668,7 @@ defmodule Flicker.Components.Select do
   end
 
   defp do_run_record_search(socket, query) do
+    socket = assign(socket, :dispatched_query, query.text)
     provider = socket.assigns.provider
     actor = socket.assigns[:actor]
     tenant = socket.assigns[:tenant]
@@ -1115,6 +1131,7 @@ defmodule Flicker.Components.Select do
       placeholder={@placeholder || message(assigns, :search_placeholder)}
       disabled={!@connected?}
       aria-keyshortcuts={@aria_keyshortcuts}
+      aria-describedby={@dispatch_pending && "#{@input_id}-dispatch-hint"}
       phx-keyup="query"
       phx-debounce={Dispatch.debounce_attr(@dispatch, @debounce)}
       phx-focus="focus"
@@ -1130,6 +1147,10 @@ defmodule Flicker.Components.Select do
       |> assign(:input_id, input_id_for(assigns.id))
       |> assign(:listbox_id, listbox_id_for(assigns.id))
       |> assign(:below_min_chars, below_min_chars?(assigns))
+      |> assign(
+        :dispatch_pending,
+        Dispatch.pending?(assigns.dispatch, assigns.query, assigns.dispatched_query)
+      )
       |> assign(:at_max, at_max?(assigns))
       |> assign(:rows, rows_with_group_headers(assigns.results))
       |> assign(:sr_only_style, @sr_only_style)
@@ -1169,6 +1190,7 @@ defmodule Flicker.Components.Select do
       data-multiple={to_string(@multiple)}
       data-activate-with-keyboard={@activate_with_keyboard}
       data-paginate={if @paginate, do: "true"}
+      data-dispatch={to_string(@dispatch)}
     >
       <%!--
         Multiple: chips and the text input share one bordered field box
@@ -1308,6 +1330,13 @@ defmodule Flicker.Components.Select do
           <span aria-hidden="true">&times;</span>
         </button>
       <% end %>
+      <%!-- Spec 020: under `dispatch: :enter`, typed-but-unsearched text has
+      to say so. Visible text (not a title attribute), and referenced by the
+      input's `aria-describedby` while it shows, because a search box that has
+      silently stopped searching is a broken search box. --%>
+      <p :if={@dispatch_pending} id={"#{@input_id}-dispatch-hint"} class={@theme.dispatch_hint}>
+        {message(assigns, :press_enter_to_search)}
+      </p>
       <div id={"#{@id}-announcer"} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
         {@announcement}
       </div>
@@ -1783,9 +1812,21 @@ defmodule Flicker.Components.Select do
                   // Never submit the surrounding form while the listbox is
                   // open — a classic combobox regression.
                   e.preventDefault()
-                  if (this.activeIndex >= 0 && options[this.activeIndex]) {
-                    options[this.activeIndex].click()
-                  }
+                }
+                if (this.activeIndex >= 0 && options[this.activeIndex]) {
+                  options[this.activeIndex].click()
+                } else if (this.el.dataset.dispatch === "enter") {
+                  // Spec 020's `:enter` policy: with no option under the
+                  // keyboard cursor there is nothing to select, so Enter
+                  // means "run the search I've typed". Selecting always wins
+                  // when there *is* an active option — Enter's established
+                  // combobox meaning isn't worth breaking for this.
+                  //
+                  // Also preventDefault when the listbox is closed, since
+                  // under this policy Enter is doing real work here and must
+                  // not submit the surrounding form instead.
+                  e.preventDefault()
+                  this.pushEventTo(this.el, "dispatch_query", { value: this.input()?.value ?? "" })
                 }
                 break
               case "Escape":
