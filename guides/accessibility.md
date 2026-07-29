@@ -141,6 +141,17 @@ Until that manual pass is recorded, treat "first-class screen-reader
 support" as *implemented and unit-verified*, not yet *field-verified* —
 the honest, versioned distinction this statement exists to make.
 
+## Known gap: no manual AT pass recorded
+
+The automated half of this work is enforced in CI — axe-core at zero violations
+across every playground route, and the client-side keyboard map covered in a
+real browser. **The manual matrix below has never been executed against this
+codebase**, so no claim is made about how Flicker actually sounds in VoiceOver,
+NVDA or JAWS. That obligation recurs each release and lives in
+[`docs/RELEASE_CHECKLIST.md`](https://github.com/team-alembic/flicker/blob/main/docs/RELEASE_CHECKLIST.md);
+results land there. Until they do, treat the statement above as describing the
+pattern implemented, not a verified experience.
+
 ## Manual AT test script
 
 Run this against each browser/AT pair in the matrix

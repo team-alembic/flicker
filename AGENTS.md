@@ -130,6 +130,13 @@ mix test --only browser
   this package.
 - **Do not** edit `CHANGELOG.md` by hand — `mix git_ops.release` generates it.
 
+### Before releasing
+
+Work through [`docs/RELEASE_CHECKLIST.md`](./docs/RELEASE_CHECKLIST.md) — the
+per-release obligations that recur every time and so deliberately don't live in
+any one spec, including the manual assistive-technology pass Spec 007's
+automated checks can't substitute for.
+
 ## Package-specific rules
 
 See [`usage-rules.md`](./usage-rules.md) for the rules this package publishes

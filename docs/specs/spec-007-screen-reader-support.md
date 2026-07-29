@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: shipped
 date: 2026-07-10
 depends_on: [spec-001, adr-009]
 ---
@@ -160,3 +160,28 @@ script above, with results recorded in the repo. That is a human activity with
 real assistive technology; no automated check substitutes for it, and claiming
 otherwise would be exactly the "we set the ARIA attributes" posture this spec
 was written to reject.
+
+## Status note (2026-07-29) — moved to `shipped`, with the recurring obligation relocated
+
+Every item in this spec's scope is built, and the automated half is enforced in
+CI. What kept it `in-progress` was the manual AT matrix — and that is a
+*per-release* obligation, not a spec deliverable. There is no moment at which
+"verified with a screen reader" becomes permanently true: it has to be redone
+each release, against each new surface. Parked here, it made this spec
+un-shippable by construction, which said nothing useful about whether the work
+existed.
+
+It now lives in [`docs/RELEASE_CHECKLIST.md`](../RELEASE_CHECKLIST.md), where a
+recurring check belongs and where its results accumulate per release.
+
+**Stated plainly so nobody is misled by the status change: no manual AT pass has
+been run against this codebase.** `shipped` here means the implementation and its
+automated verification are complete — ARIA semantics, a derived and debounced
+polite live region, every announcement routed through `Flicker.Messages` (now
+enforced by `test/flicker/no_hardcoded_text_test.exs` rather than by a grep
+nobody runs), axe-core at zero violations across every playground route
+including the conditional editor/error/pill states, the client-side keyboard map
+covered end to end in a real Chrome, and a published statement and test script.
+It does **not** mean a screen reader has been used. `guides/accessibility.md`
+lists that as a known gap, and the release checklist will keep asking until a
+run is recorded.
