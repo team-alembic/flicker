@@ -32,7 +32,11 @@ if Code.ensure_loaded?(Ash) do
       test "an invalid value is rejected by the parser rather than reaching a filter" do
         [facet] = AshResource.facets(resource: Dev.Music.Artist, facets: [:tier])
 
-        assert %Query{text: "tier:mythical", facets: []} = Query.parse("tier:mythical", [facet])
+        # Reported rather than degraded to free text (ADR-012): the key and
+        # operator were both recognised, so the parser can say what was wrong.
+        assert %Query{text: "", facets: [], invalid: [%Query.Invalid{reason: :not_in_values}]} =
+                 Query.parse("tier:mythical", [facet])
+
         assert %Query{text: "", facets: [{:tier, :eq, :legendary}]} = Query.parse("tier:legendary", [facet])
       end
     end

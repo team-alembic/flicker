@@ -283,28 +283,6 @@ defmodule Flicker.Facet.Cast do
     end
   end
 
-  # `Float.parse/1` is *not* total: it delegates to `:erlang.binary_to_float`,
-  # which raises `ArgumentError` when the digits overflow a float (400 nines,
-  # say). Since every facet value is arbitrary user input, that has to become
-  # an error tuple rather than a crash — casting never raises, for any input.
-  defp parse_float(raw) do
-    case Float.parse(raw) do
-      {float, ""} -> {:ok, float}
-      _ -> parse_integer_as_float(raw)
-    end
-  rescue
-    ArgumentError -> :error
-  end
-
-  defp parse_integer_as_float(raw) do
-    case Integer.parse(raw) do
-      {int, ""} -> {:ok, int * 1.0}
-      _ -> :error
-    end
-  rescue
-    ArgumentError -> :error
-  end
-
   defp cast_scalar(_facet, :boolean, raw, _opts) do
     case String.downcase(raw) do
       "true" -> {:ok, true}
@@ -335,6 +313,28 @@ defmodule Flicker.Facet.Cast do
   end
 
   defp cast_scalar(_facet, nil, raw, _opts), do: {:ok, raw}
+
+  # `Float.parse/1` is *not* total: it delegates to `:erlang.binary_to_float`,
+  # which raises `ArgumentError` when the digits overflow a float (400 nines,
+  # say). Since every facet value is arbitrary user input, that has to become
+  # an error tuple rather than a crash — casting never raises, for any input.
+  defp parse_float(raw) do
+    case Float.parse(raw) do
+      {float, ""} -> {:ok, float}
+      _ -> parse_integer_as_float(raw)
+    end
+  rescue
+    ArgumentError -> :error
+  end
+
+  defp parse_integer_as_float(raw) do
+    case Integer.parse(raw) do
+      {int, ""} -> {:ok, int * 1.0}
+      _ -> :error
+    end
+  rescue
+    ArgumentError -> :error
+  end
 
   defp cast_datetime(raw, opts) do
     case DateTime.from_iso8601(raw) do

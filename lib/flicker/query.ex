@@ -30,6 +30,8 @@ defmodule Flicker.Query do
   """
 
   alias Flicker.Facet
+  alias Flicker.Facet.Range
+  alias Flicker.Query.Invalid
 
   @typedoc "A parsed facet filter: `{key, operator, cast value}`."
   @type facet_match :: {atom(), Facet.operator(), term()}
@@ -38,11 +40,12 @@ defmodule Flicker.Query do
   @type t :: %__MODULE__{
           text: String.t(),
           facets: [facet_match()],
-          input: String.t()
+          input: String.t(),
+          invalid: [Invalid.t()]
         }
 
   @enforce_keys [:text]
-  defstruct text: nil, facets: [], input: ""
+  defstruct text: nil, facets: [], input: "", invalid: []
 
   @operator_symbols [{">=", :gte}, {"<=", :lte}, {"!=", :neq}, {">", :gt}, {"<", :lt}]
 
@@ -103,26 +106,55 @@ defmodule Flicker.Query do
       iex> Flicker.Query.parse("unknown:value free text", [])
       %Flicker.Query{text: "unknown:value free text", facets: [], input: "unknown:value free text"}
   """
-  @spec parse(String.t(), [Facet.t()]) :: t()
-  def parse(input, facets \\ []) when is_binary(input) and is_list(facets) do
+  @spec parse(String.t(), [Facet.t()], keyword()) :: t()
+  def parse(input, facets \\ [], opts \\ []) when is_binary(input) and is_list(facets) do
     facet_index = Map.new(facets, &{&1.key, &1})
 
-    {reversed_facets, reversed_text} =
+    {facets_acc, text_acc, invalid_acc} =
       input
       |> tokenize()
-      |> Enum.reduce({[], []}, fn token, {facet_acc, text_acc} ->
-        case classify(token, facet_index) do
-          {:facet, key, op, value} -> {[{key, op, value} | facet_acc], text_acc}
-          {:text, text} -> {facet_acc, [text | text_acc]}
+      |> Enum.reduce({[], [], []}, fn token, {facet_acc, text_acc, invalid_acc} ->
+        case classify(token, facet_index, opts) do
+          {:facet, key, op, value} ->
+            {[{key, op, value} | facet_acc], text_acc, invalid_acc}
+
+          {:text, text} ->
+            {facet_acc, [text | text_acc], invalid_acc}
+
+          {:invalid, invalid} ->
+            {facet_acc, text_acc, [invalid | invalid_acc]}
         end
       end)
 
     %__MODULE__{
-      text: reversed_text |> Enum.reverse() |> Enum.join(" "),
-      facets: Enum.reverse(reversed_facets),
-      input: input
+      text: text_acc |> Enum.reverse() |> Enum.join(" "),
+      facets: Enum.reverse(facets_acc),
+      input: input,
+      invalid: Enum.reverse(invalid_acc)
     }
   end
+
+  @doc """
+  Whether every recognised facet token in this query cast cleanly.
+
+  A convenience for callers who want the all-or-nothing reading. It is
+  deliberately *not* how components gate dispatch: validation is per-facet, so
+  one broken token contributes no filter clause while every other facet and the
+  free text still run
+  ([ADR-012](https://github.com/team-alembic/flicker/blob/main/docs/adrs/adr-012-parse-reports-invalid-facet-tokens.md)).
+
+  ## Examples
+
+      iex> Flicker.Query.valid?(Flicker.Query.parse("anything", []))
+      true
+
+      iex> facets = [Flicker.Facet.new(key: :price, type: :integer)]
+      ...> Flicker.Query.parse("price:abc", facets) |> Flicker.Query.valid?()
+      false
+  """
+  @spec valid?(t()) :: boolean()
+  def valid?(%__MODULE__{invalid: []}), do: true
+  def valid?(%__MODULE__{}), do: false
 
   # -- Tokenizer --------------------------------------------------------
   #
@@ -157,18 +189,41 @@ defmodule Flicker.Query do
 
   # -- Token classification ----------------------------------------------
 
-  @spec classify(String.t(), %{atom() => Facet.t()}) ::
-          {:facet, atom(), Facet.operator(), term()} | {:text, String.t()}
-  defp classify(token, facet_index) do
+  @spec classify(String.t(), %{atom() => Facet.t()}, keyword()) ::
+          {:facet, atom(), Facet.operator(), term()}
+          | {:text, String.t()}
+          | {:invalid, Invalid.t()}
+  defp classify(token, facet_index, opts) do
     with [_, key_str, op_str, rest] <- Regex.run(@facet_token, token),
          {:ok, key} <- existing_atom(key_str),
          {:ok, facet} <- Map.fetch(facet_index, key),
          {:ok, op} <- resolve_operator(op_str, facet),
-         {:ok, raw_value} <- extract_value(rest),
-         {:ok, value} <- cast_value(facet.type, raw_value, facet.values) do
-      {:facet, key, op, value}
+         {:ok, raw_value} <- extract_value(rest) do
+      # Key and operator are both known-good from here, so a value that won't
+      # cast is *reported* rather than degraded — the whole point of ADR-012.
+      # Only the `else` branch below (unknown key, disallowed operator,
+      # malformed quoting) still falls through to free text.
+      cast_token(facet, key, op, raw_value, token, opts)
     else
       _ -> {:text, freetext(token)}
+    end
+  end
+
+  defp cast_token(facet, key, op, raw_value, token, opts) do
+    case Facet.cast_value(facet, raw_value, op, opts) do
+      {:ok, resolved_op, value} ->
+        {:facet, key, resolved_op, value}
+
+      {:error, {reason, params}} ->
+        {:invalid,
+         %Invalid{
+           key: key,
+           operator: op,
+           raw: raw_value,
+           token: token,
+           reason: reason,
+           params: params
+         }}
     end
   end
 
@@ -226,81 +281,6 @@ defmodule Flicker.Query do
 
   defp do_scan_quoted(<<c::utf8, rest::binary>>, acc), do: do_scan_quoted(rest, [<<c::utf8>> | acc])
 
-  # -- Value casting ------------------------------------------------------
-
-  @spec cast_value(Facet.type(), String.t(), [atom()] | nil) :: {:ok, term()} | :error
-  defp cast_value(:string, raw, _values), do: {:ok, raw}
-
-  defp cast_value(:integer, raw, _values) do
-    case Integer.parse(raw) do
-      {int, ""} -> {:ok, int}
-      _ -> :error
-    end
-  end
-
-  # `Float.parse/1` is not total — it delegates to `:erlang.binary_to_float`,
-  # which raises `ArgumentError` when the digits overflow a float. Facet values
-  # are arbitrary user input, so an overflowing literal has to degrade to free
-  # text like any other uncastable value; without the rescue, typing enough
-  # digits into a float facet crashes the host LiveView, contradicting this
-  # module's documented "never raises" guarantee.
-  defp cast_value(:float, raw, _values) do
-    case Float.parse(raw) do
-      {float, ""} -> {:ok, float}
-      _ -> cast_integer_as_float(raw)
-    end
-  rescue
-    ArgumentError -> :error
-  end
-
-  defp cast_integer_as_float(raw) do
-    case Integer.parse(raw) do
-      {int, ""} -> {:ok, int * 1.0}
-      _ -> :error
-    end
-  rescue
-    ArgumentError -> :error
-  end
-
-  defp cast_value(:boolean, raw, _values) do
-    case String.downcase(raw) do
-      "true" -> {:ok, true}
-      "false" -> {:ok, false}
-      _ -> :error
-    end
-  end
-
-  defp cast_value(:date, raw, _values) do
-    case Date.from_iso8601(raw) do
-      {:ok, date} -> {:ok, date}
-      _ -> cast_relative_date(raw)
-    end
-  end
-
-  defp cast_value(:enum, raw, values) when is_list(values) do
-    Enum.find_value(values, :error, fn value -> Atom.to_string(value) == raw and {:ok, value} end)
-  end
-
-  defp cast_value(:enum, _raw, _values), do: :error
-
-  # Relative-date grammar (open question in Spec 003): `<n><unit>` where
-  # unit is `d` (days), `w` (weeks), `m` (months, approximated as 30 days),
-  # or `y` (years, approximated as 365 days) — a fixed set for now.
-  defp cast_relative_date(raw) do
-    case Regex.run(~r/^(\d+)([dwmy])$/, raw) do
-      [_, amount_str, unit] ->
-        {:ok, Date.add(Date.utc_today(), -(String.to_integer(amount_str) * days_per_unit(unit)))}
-
-      nil ->
-        :error
-    end
-  end
-
-  defp days_per_unit("d"), do: 1
-  defp days_per_unit("w"), do: 7
-  defp days_per_unit("m"), do: 30
-  defp days_per_unit("y"), do: 365
-
   if Code.ensure_loaded?(Ash) do
     @doc """
     Builds an Ash `filter_input`-shaped map from `query.facets`: distinct
@@ -347,23 +327,49 @@ defmodule Flicker.Query do
       facets
       |> Enum.group_by(fn {key, _op, _value} -> key end)
       |> Enum.map(fn {key, matches} -> facet_clause(key, matches, target_index) end)
+      |> Enum.reject(&(&1 == :skip))
       |> combine_and()
     end
 
     defp facet_clause(key, [{_key, op, value}], target_index) do
-      nested_clause(Map.get(target_index, key, [key]), %{op_string(op) => value})
+      case comparison(op, value) do
+        :skip -> :skip
+        inner -> nested_clause(Map.get(target_index, key, [key]), inner)
+      end
     end
 
     defp facet_clause(key, matches, target_index) do
       target = Map.get(target_index, key, [key])
 
-      %{
-        "or" =>
-          Enum.map(matches, fn {_key, op, value} ->
-            nested_clause(target, %{op_string(op) => value})
-          end)
-      }
+      clauses =
+        matches
+        |> Enum.map(fn {_key, op, value} -> comparison(op, value) end)
+        |> Enum.reject(&(&1 == :skip))
+        |> Enum.map(&nested_clause(target, &1))
+
+      case clauses do
+        [] -> :skip
+        [single] -> single
+        many -> %{"or" => many}
+      end
     end
+
+    # A range becomes a bounded pair, half-open ranges contribute only the
+    # bound they have, and a fully unbounded range (the `all-time` preset)
+    # contributes nothing at all — "don't filter by date" rather than "match
+    # nothing".
+    defp comparison(:between, %Range{} = range) do
+      case {range.from, range.to} do
+        {nil, nil} -> :skip
+        {from, nil} -> %{"gte" => from}
+        {nil, to} -> %{"lte" => to}
+        {from, to} -> %{"and" => [%{"gte" => from}, %{"lte" => to}]}
+      end
+    end
+
+    defp comparison(:in, values), do: %{"in" => values}
+    defp comparison(:not_in, values), do: %{"not" => %{"in" => values}}
+    defp comparison(op, value), do: %{op_string(op) => value}
 
     defp nested_clause([last], inner), do: %{to_string(last) => inner}
     defp nested_clause([step | rest], inner), do: %{to_string(step) => nested_clause(rest, inner)}

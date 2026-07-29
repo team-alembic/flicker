@@ -17,7 +17,18 @@ defmodule Flicker.Facet.Preset do
     * `:label` — the fallback display string. With `localize` present,
       `Flicker.Facet.Format` prefers CLDR's own wording
       ([ADR-013](https://github.com/team-alembic/flicker/blob/main/docs/adrs/adr-013-canonical-tokens-localised-display.md)).
-    * `:resolve` — `fun(reference_date, first_day_of_week) :: {from, to}`.
+    * `:resolve` — `fun(reference_date, first_day_of_week) :: {from, to}`, or
+      `nil` for a built-in, which `resolve/3` computes from `:id` instead.
+
+  ## Why built-ins carry no function
+
+  A `%Flicker.Facet{}` holding presets that each closed over an anonymous
+  function could not be a module attribute — `@facets [...]` fails, because
+  anonymous functions can't be escaped into one. Since a hand-built facet
+  registry as a module attribute is a perfectly reasonable thing to write, the
+  built-in table stores plain data and `resolve/3` dispatches on `:id`. A host
+  defining its own preset may still pass a `:resolve` function; that preset
+  just can't live in a module attribute.
 
   ## Resolution is contextual, and takes its context as arguments
 
@@ -43,11 +54,11 @@ defmodule Flicker.Facet.Preset do
           id: atom(),
           token: String.t(),
           label: String.t(),
-          resolve: (Date.t(), day_of_week() -> {Date.t() | nil, Date.t() | nil})
+          resolve: (Date.t(), day_of_week() -> {Date.t() | nil, Date.t() | nil}) | nil
         }
 
-  @enforce_keys [:id, :token, :label, :resolve]
-  defstruct [:id, :token, :label, :resolve]
+  @enforce_keys [:id, :token, :label]
+  defstruct [:id, :token, :label, resolve: nil]
 
   @doc """
   The built-in preset table, in display order.
@@ -60,58 +71,73 @@ defmodule Flicker.Facet.Preset do
   @spec builtin() :: [t()]
   def builtin do
     [
-      preset(:today, "today", "Today", fn today, _week_start -> {today, today} end),
-      preset(:yesterday, "yesterday", "Yesterday", fn today, _week_start ->
-        {Date.add(today, -1), Date.add(today, -1)}
-      end),
-      last_n_days(:last_7_days, "last-7-days", "Last 7 days", 7),
-      last_n_days(:last_30_days, "last-30-days", "Last 30 days", 30),
-      last_n_days(:last_60_days, "last-60-days", "Last 60 days", 60),
-      last_n_days(:last_90_days, "last-90-days", "Last 90 days", 90),
-      preset(:this_week, "this-week", "This week", fn today, week_start ->
-        start = week_start(today, week_start)
-        {start, Date.add(start, 6)}
-      end),
-      preset(:last_week, "last-week", "Last week", fn today, week_start ->
-        start = today |> week_start(week_start) |> Date.add(-7)
-        {start, Date.add(start, 6)}
-      end),
-      preset(:this_month, "this-month", "This month", fn today, _week_start ->
-        {Date.beginning_of_month(today), Date.end_of_month(today)}
-      end),
-      preset(:last_month, "last-month", "Last month", fn today, _week_start ->
-        previous = today |> Date.beginning_of_month() |> Date.add(-1)
-        {Date.beginning_of_month(previous), Date.end_of_month(previous)}
-      end),
-      preset(:in_the_last_month, "in-the-last-month", "In the last month", fn today, _week_start ->
-        {shift_months(today, -1), today}
-      end),
-      preset(:this_quarter, "this-quarter", "This quarter", fn today, _week_start ->
-        quarter_start = %{today | month: div(today.month - 1, 3) * 3 + 1, day: 1}
-        {quarter_start, quarter_start |> shift_months(2) |> Date.end_of_month()}
-      end),
-      preset(:year_to_date, "year-to-date", "Year to date", fn today, _week_start ->
-        {%{today | month: 1, day: 1}, today}
-      end),
-      preset(:all_time, "all-time", "All time", fn _today, _week_start -> {nil, nil} end)
+      preset(:today, "today", "Today"),
+      preset(:yesterday, "yesterday", "Yesterday"),
+      preset(:last_7_days, "last-7-days", "Last 7 days"),
+      preset(:last_30_days, "last-30-days", "Last 30 days"),
+      preset(:last_60_days, "last-60-days", "Last 60 days"),
+      preset(:last_90_days, "last-90-days", "Last 90 days"),
+      preset(:this_week, "this-week", "This week"),
+      preset(:last_week, "last-week", "Last week"),
+      preset(:this_month, "this-month", "This month"),
+      preset(:last_month, "last-month", "Last month"),
+      preset(:in_the_last_month, "in-the-last-month", "In the last month"),
+      preset(:this_quarter, "this-quarter", "This quarter"),
+      preset(:year_to_date, "year-to-date", "Year to date"),
+      preset(:all_time, "all-time", "All time")
     ]
   end
 
-  defp preset(id, token, label, resolve) do
-    %__MODULE__{id: id, token: token, label: label, resolve: resolve}
+  defp preset(id, token, label), do: %__MODULE__{id: id, token: token, label: label}
+
+  # Built-in resolution, dispatched on the preset id so the table itself stays
+  # plain data. `today`/`yesterday` and the `last-N-days` family are inclusive
+  # of the reference date.
+  defp resolve_builtin(:today, today, _week_start), do: {today, today}
+
+  defp resolve_builtin(:yesterday, today, _week_start), do: {Date.add(today, -1), Date.add(today, -1)}
+
+  defp resolve_builtin(:last_7_days, today, _week_start), do: last_n_days(today, 7)
+  defp resolve_builtin(:last_30_days, today, _week_start), do: last_n_days(today, 30)
+  defp resolve_builtin(:last_60_days, today, _week_start), do: last_n_days(today, 60)
+  defp resolve_builtin(:last_90_days, today, _week_start), do: last_n_days(today, 90)
+
+  defp resolve_builtin(:this_week, today, week_start) do
+    start = week_start(today, week_start)
+    {start, Date.add(start, 6)}
   end
 
-  # "Last 7 days" is inclusive of today: 6 days back plus today.
-  defp last_n_days(id, token, label, days) do
-    preset(id, token, label, fn today, _week_start -> {Date.add(today, -(days - 1)), today} end)
+  defp resolve_builtin(:last_week, today, week_start) do
+    start = today |> week_start(week_start) |> Date.add(-7)
+    {start, Date.add(start, 6)}
   end
+
+  defp resolve_builtin(:this_month, today, _week_start), do: {Date.beginning_of_month(today), Date.end_of_month(today)}
+
+  defp resolve_builtin(:last_month, today, _week_start) do
+    previous = today |> Date.beginning_of_month() |> Date.add(-1)
+    {Date.beginning_of_month(previous), Date.end_of_month(previous)}
+  end
+
+  defp resolve_builtin(:in_the_last_month, today, _week_start), do: {shift_months(today, -1), today}
+
+  defp resolve_builtin(:this_quarter, today, _week_start) do
+    quarter_start = %{today | month: div(today.month - 1, 3) * 3 + 1, day: 1}
+    {quarter_start, quarter_start |> shift_months(2) |> Date.end_of_month()}
+  end
+
+  defp resolve_builtin(:year_to_date, today, _week_start), do: {%{today | month: 1, day: 1}, today}
+
+  defp resolve_builtin(:all_time, _today, _week_start), do: {nil, nil}
+
+  defp last_n_days(today, days), do: {Date.add(today, -(days - 1)), today}
 
   defp week_start(date, first_day_of_week) do
     Date.add(date, -Integer.mod(Date.day_of_week(date) - first_day_of_week, 7))
   end
 
-  # Calendar-aware month arithmetic that clamps rather than rolling over:
-  # one month before March 31st is February 28th (or 29th), not March 3rd.
+  # Calendar-aware month arithmetic that clamps rather than rolling over: one
+  # month before March 31st is February 28th (or 29th), not March 3rd.
   defp shift_months(date, months) do
     total = date.year * 12 + (date.month - 1) + months
     year = div(total, 12)
@@ -179,6 +205,12 @@ defmodule Flicker.Facet.Preset do
       %Flicker.Facet.Range{from: nil, to: nil, preset: :all_time}
   """
   @spec resolve(t(), Date.t(), day_of_week()) :: Range.t()
+  def resolve(%__MODULE__{id: id, resolve: nil}, reference_date, first_day_of_week) do
+    {from, to} = resolve_builtin(id, reference_date, first_day_of_week)
+
+    %Range{from: from, to: to, preset: id}
+  end
+
   def resolve(%__MODULE__{id: id, resolve: resolve}, reference_date, first_day_of_week) do
     {from, to} = resolve.(reference_date, first_day_of_week)
 
