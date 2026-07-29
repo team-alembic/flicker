@@ -151,8 +151,16 @@ defmodule Flicker.FacetEditor do
   def modal?(facet) do
     case for_facet(facet) do
       nil -> false
-      editor -> not function_exported?(editor, :modal?, 0) or editor.modal?()
+      editor -> exports?(editor, :modal?, 0) == false or editor.modal?()
     end
+  end
+
+  # `function_exported?/3` answers `false` for a module that simply hasn't been
+  # loaded yet, which silently inverts an optional-callback check — the switch
+  # reported itself modal until its module happened to be loaded. Ensuring the
+  # module is loaded first is what makes the answer mean what it says.
+  defp exports?(module, function, arity) do
+    Code.ensure_loaded?(module) and function_exported?(module, function, arity)
   end
 
   @doc """

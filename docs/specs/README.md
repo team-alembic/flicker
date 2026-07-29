@@ -25,11 +25,11 @@ Update the status here **and** in the spec's frontmatter when it changes.
 | [016](./spec-016-themed-showcase.md) | Per-theme showcase pages + theme picker + copyable per-theme adoption code | in-progress |
 | [017](./spec-017-facet-value-colors.md) | Configurable facet value colours (e.g. a red dot/pill for `status:active`) | in-progress |
 | [018](./spec-018-rich-facet-types.md) | Rich facet types: range/list grammar, date presets, type derivation, value validation, CLDR display | shipped |
-| [019](./spec-019-facet-editors.md) | Facet editors: pop-out contract, calendar + presets rail, numeric dial, switch, nested-select set editor | draft |
+| [019](./spec-019-facet-editors.md) | Facet editors: pop-out contract, calendar + presets rail, numeric dial, switch, set editor | in-progress |
 | [020](./spec-020-query-dispatch-policy.md) | Query dispatch policy: debounce/immediate/enter, request supersession, stale-while-revalidate | in-progress |
-| [021](./spec-021-facet-value-counts.md) | Facet value counts: optional provider callback, actor-scoped drill-down counts beside each value | draft |
-| [022](./spec-022-recently-used-values.md) | Recently-used facet values: host-provided storage, frecency ranking, `Recent` group | draft |
-| [023](./spec-023-inline-value-correction.md) | Inline value correction + invalid-value policy (`:drop`/`:require`), swap/clamp fixes | in-progress |
+| [021](./spec-021-facet-value-counts.md) | Facet value counts: optional provider callback, actor-scoped drill-down counts beside each value | shipped |
+| [022](./spec-022-recently-used-values.md) | Recently-used facet values: host-provided storage, frecency ranking, `Recent` group | shipped |
+| [023](./spec-023-inline-value-correction.md) | Inline value correction + invalid-value policy (`:drop`/`:require`), swap/clamp fixes | shipped |
 
 Build order is 004 → 001 (005 starts alongside) → 002 → 003; the playground
 gains a page as each spec ships (see [DESIGN.md](../DESIGN.md#sequencing)).

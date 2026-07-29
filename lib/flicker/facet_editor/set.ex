@@ -4,21 +4,32 @@ defmodule Flicker.FacetEditor.Set do
   picklist, or a relationship's related records
   ([Spec 019](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-019-facet-editors.md)).
 
-  It is a nested `Flicker.select`
-  ([ADR-011](https://github.com/team-alembic/flicker/blob/main/docs/adrs/adr-011-facet-editors-are-modal-subcontexts.md)):
-  the two cases differ only in the provider behind them, which
-  `Flicker.Facet.value_source/1` supplies. That means Spec 002's chips, Spec
-  013's `:selected` slot, Spec 017's value colours, Spec 010's windowing and
-  every future `Flicker.select` improvement arrive here for free rather than
-  being reimplemented.
+  Both cases are driven by one thing — `Flicker.Facet.value_source/1` — so the
+  enum and relationship editors are the same code with a different provider
+  behind them, which was
+  [ADR-011](https://github.com/team-alembic/flicker/blob/main/docs/adrs/adr-011-facet-editors-are-modal-subcontexts.md)'s
+  actual goal.
 
-  The nested select runs **controlled, with no facets of its own** — facet
-  editing never recurses. An editor may contain a select and a select may open
-  an editor, but an editor's select is a leaf, which is what keeps focus depth
-  bounded.
+  ## Why this isn't literally a nested `Flicker.select`
+
+  ADR-011 said the set editor *is* a nested `Flicker.select`. Implementation
+  showed that doesn't work: `Flicker.select`'s controlled mode sends
+  `{on_select, result}` with `send(self(), ...)`, and `self()` inside a
+  `Phoenix.LiveComponent` is the **host LiveView**, not the enclosing component.
+  A nested select could therefore never hand its selection back to the editor
+  that contains it without every host adding a `handle_info` clause to forward
+  it — exactly the boilerplate a library shouldn't impose.
+
+  So this renders the value list itself, against the same `value_source/1`, with
+  its events targeted at the component that owns the editor. The unification
+  ADR-011 wanted is intact; the specific mechanism isn't. What is genuinely lost
+  is inheriting `Flicker.select`'s own listbox behaviour for free — windowing
+  over a very large related set is the notable gap, and is why `:count_limit`
+  and a search box matter here.
 
   Multi mode commits the whole selection as one `:in` token rather than
-  per-toggle, so widening a selection is one dispatch, not five.
+  per-toggle, so widening a selection is one dispatch, not five. Facet editing
+  never recurses: this list has no facets of its own.
   """
 
   @behaviour Flicker.FacetEditor
@@ -113,18 +124,47 @@ defmodule Flicker.FacetEditor.Set do
   def render(assigns) do
     ~H"""
     <div class={@theme.facet_editor_body}>
-      <%!-- Controlled, and deliberately given no `facets` of its own: facet
-      editing never recurses (ADR-011's leaf rule). --%>
-      <Flicker.select
-        id={"#{@id}-set"}
-        source={@source}
-        multiple={@facet.multiple?}
-        actor={@actor}
-        tenant={@tenant}
-        on_select={@on_select}
-        theme={@select_theme}
-        messages={@messages}
-      />
+      <div role="listbox" aria-multiselectable={to_string(@facet.multiple?)} aria-label={@labels.values}>
+        <button
+          :for={candidate <- @candidates}
+          type="button"
+          role="option"
+          aria-selected={to_string(candidate.value in @selected)}
+          class={[@theme.option, candidate.value in @selected && @theme.option_active]}
+          disabled={@disabled}
+          phx-click={if @facet.multiple?, do: "facet_editor_toggle", else: "facet_editor_commit"}
+          phx-value-value={to_string(candidate.value)}
+          phx-value-insert={
+            unless @facet.multiple? do
+              "#{@facet.key}:#{serialise(candidate.value, @facet)} "
+            end
+          }
+          phx-target={@target}
+        >
+          <span
+            :if={@facet.value_colors && @facet.value_colors[candidate.value]}
+            aria-hidden="true"
+            style={"background-color:#{@facet.value_colors[candidate.value]}"}
+            class="mr-1 inline-block h-2 w-2 shrink-0 rounded-full"
+          >
+          </span>
+          <span>{candidate.label}</span>
+          <span :if={@counts[candidate.value]} class={@theme.facet_count}>{@counts[candidate.value]}</span>
+        </button>
+      </div>
+      <%!-- Multi mode commits once, for the whole selection — not per toggle. --%>
+      <div :if={@facet.multiple?} class={@theme.facet_editor_footer}>
+        <span>{@footer}</span>
+        <button
+          type="button"
+          disabled={@disabled or @selected == []}
+          phx-click="facet_editor_commit"
+          phx-value-insert={@done_token}
+          phx-target={@target}
+        >
+          {@labels.done}
+        </button>
+      </div>
     </div>
     """
   end

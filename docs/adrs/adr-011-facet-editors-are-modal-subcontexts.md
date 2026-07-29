@@ -64,8 +64,9 @@ splices the token, closes the pop-out, restores focus, and triggers one
 `on_change`. A half-made selection is a draft: visible in the editor's own
 footer, invisible to the query.
 
-**An editor is a Flicker component, and the value-set editor is
-`Flicker.select` itself.** A facet whose values come from a set — an `:enum`
+**An editor is a Flicker component, and the value-set editor is driven by one
+value source.** *(Amended during implementation — see the note at the end of
+this section.)* A facet whose values come from a set — an `:enum`
 facet's closed picklist, a relationship facet's related records — is edited by
 a nested `Flicker.select`, not by a bespoke list. The two differ only in the
 provider behind them: `Flicker.Providers.Static` over the enum's values,
@@ -79,6 +80,20 @@ model, one theme surface, one set of a11y behaviour — and every improvement to
 The nested select runs in controlled mode with **no `facets` of its own**.
 Facet editing never recurses: an editor may contain a select, and a select may
 open an editor, but an editor's select is a leaf.
+
+**Amendment (implementation).** The *literal* nesting doesn't work.
+`Flicker.select`'s controlled mode notifies via `send(self(), {on_select, …})`,
+and `self()` inside a `Phoenix.LiveComponent` is the **host LiveView**, not the
+enclosing component — so a nested select can never hand its selection back to
+the editor containing it without every host adding a `handle_info` clause to
+forward it. That is exactly the boilerplate a library must not impose.
+
+What survives is the part that mattered: `Flicker.Facet.value_source/1` is the
+single definition of a facet's candidate values, and the enum and relationship
+editors are the same code with a different provider behind them. The set editor
+renders that list itself, with its events targeted at the component that owns
+it. What is genuinely lost is inheriting `Flicker.select`'s listbox behaviour
+for free — windowing over a very large related set is the notable gap.
 
 **An editor whose value is complete in one interaction needs no pop-out.**
 Modality exists to stop a half-made value from dispatching a query and to give

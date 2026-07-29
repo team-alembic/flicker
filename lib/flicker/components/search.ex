@@ -64,6 +64,10 @@ defmodule Flicker.Components.Search do
       |> assign_new(:on_invalid, fn -> :drop end)
       |> assign_new(:count_source, fn -> nil end)
       |> assign_new(:recent_values, fn -> nil end)
+      # Spec 019: the open editor's whole state, or nil. One assign, one place
+      # to look — nothing else in this component branches on editor state, and
+      # there is at most one open at a time.
+      |> assign_new(:facet_editor, fn -> nil end)
       |> assign_new(:facet_counts, fn -> %{} end)
       # The free text most recently handed to the host, as opposed to typed —
       # `Flicker.Dispatch.pending?/3` compares the pair to decide whether
@@ -132,24 +136,74 @@ defmodule Flicker.Components.Search do
     {:noreply, socket}
   end
 
+  # Choosing a facet *key* for a facet that has an editor opens the editor
+  # straight away rather than inserting `status:` and waiting. This is the
+  # biggest discoverability win available (Spec 019): the user learns the rich
+  # control exists by doing the thing they were already doing.
   def handle_event("select_suggestion", %{"insert" => insert}, socket) do
-    new_text =
-      FacetSuggest.replace_current_token(socket.assigns.text, insert, socket.assigns.cursor)
+    case editor_for_key_insert(socket, insert) do
+      nil -> do_select_suggestion(socket, insert)
+      {facet, editor} -> {:noreply, open_editor(socket, facet, editor, insert)}
+    end
+  end
 
-    record_committed(socket, insert)
+  def handle_event("facet_editor_cancel", _params, socket) do
+    # Cancel discards the draft and restores the token exactly as it was, so
+    # nothing is dispatched and nothing about the query changed.
+    {:noreply, focus_input(assign(socket, :facet_editor, nil), socket.assigns.text)}
+  end
 
-    socket =
-      socket
-      # `cursor: nil` keeps the server's classification of "where the caret
-      # is" in sync with end-of-text, matching what `focus_input/2` (below)
-      # actually puts in the DOM, rather than reclassifying against a
-      # now-stale mid-token position.
-      |> assign(text: new_text, cursor: nil, open: true)
-      |> absorb_committed()
-      |> refresh_context()
-      |> notify_change()
+  # The one commit. Splices canonical token text through the same path as any
+  # suggestion, closes the pop-out, and dispatches exactly once.
+  def handle_event("facet_editor_commit", %{"insert" => insert}, socket) do
+    socket |> assign(:facet_editor, nil) |> do_select_suggestion(insert)
+  end
 
-    {:noreply, focus_input(socket, socket.assigns.text)}
+  # Multi mode accumulates in the draft and commits once, so widening a
+  # selection is one dispatch rather than one per checkbox.
+  def handle_event("facet_editor_toggle", %{"value" => raw}, socket) do
+    with %{facet: facet, value: value} <- socket.assigns.facet_editor,
+         {:ok, _op, parsed} <- Flicker.Facet.cast_value(facet, raw, facet.default_op) do
+      selected = List.wrap(value)
+
+      toggled =
+        if parsed in selected, do: List.delete(selected, parsed), else: selected ++ [parsed]
+
+      {:noreply, update_editor(socket, %{value: toggled})}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("facet_editor_month", %{"month" => month}, socket) do
+    case Date.from_iso8601(month) do
+      {:ok, date} -> {:noreply, update_editor(socket, %{month: Date.beginning_of_month(date)})}
+      _error -> {:noreply, socket}
+    end
+  end
+
+  # Picking a day: the first sets a draft start, the second completes the range
+  # and commits. Nothing dispatches in between — a half-made selection is a
+  # draft, visible only in the footer (ADR-011).
+  def handle_event("facet_editor_pick", %{"date" => date}, socket) do
+    with %{facet: facet, editor: editor} = state <- socket.assigns.facet_editor,
+         {:ok, picked} <- Date.from_iso8601(date) do
+      pick_day(socket, state, facet, editor, picked)
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("facet_editor_input", params, socket) do
+    with %{facet: facet, editor: editor} <- socket.assigns.facet_editor,
+         token when is_binary(token) <- endpoints_token(facet, params) do
+      case editor.parse(token, facet) do
+        {:ok, value} -> {:noreply, update_editor(socket, %{value: value})}
+        :error -> {:noreply, socket}
+      end
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
   def handle_event("remove_facet", %{"index" => index}, socket) do
@@ -349,6 +403,198 @@ defmodule Flicker.Components.Search do
       |> maybe_count()
     else
       socket
+    end
+  end
+
+  defp do_select_suggestion(socket, insert) do
+    new_text =
+      FacetSuggest.replace_current_token(socket.assigns.text, insert, socket.assigns.cursor)
+
+    record_committed(socket, insert)
+
+    socket =
+      socket
+      # `cursor: nil` keeps the server's classification of "where the caret
+      # is" in sync with end-of-text, matching what `focus_input/2` (below)
+      # actually puts in the DOM, rather than reclassifying against a
+      # now-stale mid-token position.
+      |> assign(text: new_text, cursor: nil, open: true)
+      |> absorb_committed()
+      |> refresh_context()
+      |> notify_change()
+
+    {:noreply, focus_input(socket, socket.assigns.text)}
+  end
+
+  defp facet_editor_label(%{facet_editor: %{facet: facet}}) do
+    facet.label || humanize(to_string(facet.key))
+  end
+
+  defp facet_editor_label(_assigns), do: nil
+
+  # Every editor gets the same assigns shape, so adding one needs no changes
+  # here — a host's own editor module is indistinguishable from a built-in.
+  defp facet_editor_content(%{facet_editor: %{editor: editor} = state} = assigns) do
+    editor.render(%{
+      id: assigns.input_id,
+      facet: state.facet,
+      value: state.value,
+      value_from: range_part(state.value, :from),
+      value_to: range_part(state.value, :to),
+      value_preset: range_part(state.value, :preset),
+      from_percent: Flicker.FacetEditor.Dial.thumb_percent(range_part(state.value, :from), state.facet.bounds),
+      to_percent: Flicker.FacetEditor.Dial.thumb_percent(range_part(state.value, :to), state.facet.bounds),
+      bounds: state.facet.bounds,
+      month: state.month,
+      today: state.today,
+      draft_start: state.draft_start,
+      hover: state.hover,
+      first_day_of_week: 1,
+      presets: state.facet.presets || Flicker.Facet.Preset.builtin(),
+      suggested: state.facet.suggested || [],
+      footer: facet_editor_footer(state),
+      labels: %{
+        suggested: "Suggested",
+        previous_month: "Previous month",
+        next_month: "Next month",
+        from: "From",
+        to: "To",
+        values: "Values",
+        done: "Done"
+      },
+      theme: assigns.theme,
+      select_theme: assigns.theme,
+      messages: assigns[:messages],
+      candidates: editor_candidates(state.facet),
+      selected: List.wrap(state.value),
+      counts: Map.get(assigns.facet_counts, state.facet.key, %{}),
+      done_token: done_token(state),
+      actor: assigns[:actor],
+      tenant: assigns[:tenant],
+      toggled_token: "#{state.facet.key}:#{state.value != true} ",
+      disabled: not assigns.connected?,
+      target: assigns.myself
+    })
+  end
+
+  defp facet_editor_content(_assigns), do: nil
+
+  # A draft says so in words rather than leaving the control looking inert; a
+  # complete value shows itself.
+  defp facet_editor_footer(%{editor: editor, facet: facet, value: value, draft_start: draft_start}) do
+    draft = if draft_start, do: %Flicker.Facet.Range{from: draft_start}, else: value
+
+    cond do
+      # Same loaded-module caveat as `Flicker.FacetEditor.modal?/1`.
+      Code.ensure_loaded?(editor) and function_exported?(editor, :draft_label, 3) and
+          editor.draft_label(draft, facet, []) ->
+        editor.draft_label(draft, facet, [])
+
+      is_nil(value) ->
+        ""
+
+      true ->
+        Format.value_label(facet, value)
+    end
+  end
+
+  # The candidate list comes from `value_source/1`, so an enum editor and a
+  # relationship editor are the same code with a different provider behind them.
+  # A local `Static` source resolves synchronously — which is why opening an
+  # enum editor costs no round trip at all.
+  defp editor_candidates(facet) do
+    case Flicker.Facet.value_source(facet) do
+      {Flicker.Providers.Static, results: results} -> results
+      _other -> []
+    end
+  end
+
+  defp done_token(%{facet: facet, editor: editor, value: value}) do
+    Flicker.FacetEditor.to_token(editor, List.wrap(value), facet)
+  end
+
+  defp range_part(%Flicker.Facet.Range{} = range, part), do: Map.get(range, part)
+  defp range_part(_value, _part), do: nil
+
+  # -- Facet editors (Spec 019) -------------------------------------------
+
+  # A key suggestion looks like `status:` — nothing after the operator. Only
+  # those open an editor, and only for a facet whose editor wants a pop-out.
+  defp editor_for_key_insert(socket, insert) do
+    with true <- String.ends_with?(insert, ":"),
+         key_text = String.trim_trailing(insert, ":"),
+         {:ok, key} <- existing_atom(key_text),
+         facet when not is_nil(facet) <- Enum.find(socket.assigns.facets, &(&1.key == key)),
+         true <- Flicker.FacetEditor.modal?(facet) do
+      {facet, Flicker.FacetEditor.for_facet(facet)}
+    else
+      _ -> nil
+    end
+  end
+
+  defp open_editor(socket, facet, editor, insert) do
+    today = Date.utc_today()
+
+    assign(socket, :facet_editor, %{
+      facet: facet,
+      editor: editor,
+      value: initial_editor_value(facet),
+      month: Date.beginning_of_month(today),
+      today: today,
+      draft_start: nil,
+      hover: nil,
+      insert: insert
+    })
+  end
+
+  # Reopening a committed facet starts from its current value; a fresh open
+  # starts empty.
+  defp initial_editor_value(%{type: type}) when type in [:date_range, :datetime_range, :number_range],
+    do: %Flicker.Facet.Range{}
+
+  defp initial_editor_value(%{multiple?: true}), do: []
+  defp initial_editor_value(_facet), do: nil
+
+  defp update_editor(socket, changes) do
+    case socket.assigns.facet_editor do
+      nil -> socket
+      state -> assign(socket, :facet_editor, Map.merge(state, changes))
+    end
+  end
+
+  # First pick sets the draft start; second completes and commits. Endpoints
+  # swap if the second pick is earlier, so there is no wrong order to get into.
+  defp pick_day(socket, %{draft_start: nil}, facet, _editor, picked) do
+    if range_facet?(facet) do
+      {:noreply, update_editor(socket, %{draft_start: picked, hover: picked})}
+    else
+      commit_editor_value(socket, facet, Flicker.FacetEditor.for_facet(facet), picked)
+    end
+  end
+
+  defp pick_day(socket, %{draft_start: start}, facet, editor, picked) do
+    {from, to} = if Date.before?(picked, start), do: {picked, start}, else: {start, picked}
+
+    commit_editor_value(socket, facet, editor, %Flicker.Facet.Range{from: from, to: to})
+  end
+
+  defp commit_editor_value(socket, facet, editor, value) do
+    case Flicker.FacetEditor.to_token(editor, value, facet) do
+      nil -> {:noreply, update_editor(socket, %{value: value})}
+      token -> socket |> assign(:facet_editor, nil) |> do_select_suggestion(token)
+    end
+  end
+
+  defp range_facet?(facet), do: Flicker.Facet.range?(facet)
+
+  # The dial's two inputs become one range literal, with a blank meaning open —
+  # which is how "over 100" stays expressible from the text side too.
+  defp endpoints_token(facet, params) do
+    from = params |> Map.get("from", "") |> String.trim()
+    to = params |> Map.get("to", "") |> String.trim()
+
+    if !(from == "" and to == "") do
+      if range_facet?(facet), do: "#{from}..#{to}", else: from
     end
   end
 
@@ -755,6 +1001,7 @@ defmodule Flicker.Components.Search do
         :dispatch_pending,
         Dispatch.pending?(assigns.dispatch, assigns.text, assigns.dispatched_text)
       )
+      |> assign(:labels_close, "Close")
       |> then(&assign(&1, :invalid_report, invalid_report(%{assigns: &1})))
       |> then(&assign(&1, :dispatch_withheld, &1.on_invalid == :require and &1.invalid_report != nil))
 
@@ -834,6 +1081,34 @@ defmodule Flicker.Components.Search do
         >
           {message(assigns, :clear_all)}
         </button>
+      </div>
+      <%!-- Spec 019: the editor is a modal sub-context. `role="dialog"` and
+      `aria-modal` say so, the main picker's keyboard model is suspended while
+      it's open, and nothing dispatches until it commits (ADR-011). --%>
+      <div
+        :if={@facet_editor}
+        id={"#{@input_id}-facet-editor"}
+        role="dialog"
+        aria-modal="true"
+        aria-label={facet_editor_label(assigns)}
+        class={@theme.facet_editor}
+        phx-window-keydown="facet_editor_cancel"
+        phx-key="Escape"
+        phx-target={@myself}
+      >
+        <div class={@theme.facet_editor_header}>
+          <span>{facet_editor_label(assigns)}</span>
+          <button
+            type="button"
+            aria-label={@labels_close}
+            disabled={!@connected?}
+            phx-click="facet_editor_cancel"
+            phx-target={@myself}
+          >
+            ✕
+          </button>
+        </div>
+        {facet_editor_content(assigns)}
       </div>
       <%!-- Spec 023: an invalid facet value renders as *text*, with an icon —
       never colour alone, never a tooltip, never hover-only. ADR-012's whole

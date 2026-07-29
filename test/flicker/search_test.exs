@@ -17,7 +17,11 @@ if Code.ensure_loaded?(Ash) do
         assert_has(session, "[role='option']", text: "status:")
       end
 
-      test "picking a key suggestion inserts 'status:' and opens the value picklist", %{conn: conn} do
+      test "picking a key suggestion opens that facet's editor", %{conn: conn} do
+        # Spec 019 changed this deliberately: choosing `status:` opens the rich
+        # editor instead of inserting text and waiting. It is the single biggest
+        # discoverability win available — the user finds the control by doing
+        # the thing they were already doing.
         session =
           conn
           |> visit_as(%{label: nil})
@@ -25,9 +29,22 @@ if Code.ensure_loaded?(Ash) do
 
         session = click_button(session, "status:")
 
-        assert_has(session, "#artist-search-input[value='status:']")
+        assert_has(session, "#artist-search-input-facet-editor[role='dialog']")
         assert_has(session, "[role='option']", text: "Active")
         assert_has(session, "[role='option']", text: "Inactive")
+      end
+
+      test "typing the key by hand still works, with no editor opened", %{conn: conn} do
+        # The editor is never the only way in (Spec 019): everything it can
+        # express can still be typed.
+        session =
+          conn
+          |> visit_as(%{label: nil})
+          |> type_search("artist-search-input", "status:")
+
+        refute_has(session, "#artist-search-input-facet-editor")
+        assert_has(session, "#artist-search-input[value='status:']")
+        assert_has(session, "[role='option']", text: "Active")
       end
     end
 
@@ -117,15 +134,26 @@ if Code.ensure_loaded?(Ash) do
           |> visit_as(%{label: nil})
           |> type_search("artist-search-input", "stat")
 
-        session = click_button(session, "status:")
-        assert_has(session, "#artist-search-input[value='status:']")
+        # A *value* insert rather than a key one: since Spec 019 a key
+        # suggestion opens the editor instead of inserting, and what this test
+        # is about is the trailing-keyup guard on the insert path itself.
+        session.view
+        |> Phoenix.LiveViewTest.element("#artist-search")
+        |> Phoenix.LiveViewTest.render_hook("select_suggestion", %{"insert" => "status:active "})
+
+        # The completed facet lifted into a pill and the buffer cleared.
+        assert_has(session, "[role='listitem']", text: "Active")
+        assert_has(session, "#artist-search-input[value='']")
 
         for key <- ["Enter", "Escape", "Tab"] do
           session.view
           |> Phoenix.LiveViewTest.element("#artist-search-input")
           |> Phoenix.LiveViewTest.render_keyup(%{"key" => key, "value" => "stat", "cursor" => "4"})
 
-          assert_has(session, "#artist-search-input[value='status:']")
+          # The stale pre-insert value must not resurrect itself, and the pill
+          # must survive.
+          assert_has(session, "#artist-search-input[value='']")
+          assert_has(session, "[role='listitem']", text: "Active")
         end
       end
     end

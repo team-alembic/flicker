@@ -80,7 +80,7 @@ defmodule Flicker.FacetEditor.Switch do
       type="button"
       role="switch"
       aria-checked={to_string(@value == true)}
-      aria-label={@label}
+      aria-label={@labels.values}
       class={[@theme.switch, @value == true && @theme.switch_on]}
       disabled={@disabled}
       phx-click="facet_editor_commit"

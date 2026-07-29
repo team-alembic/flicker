@@ -83,12 +83,24 @@ if Code.ensure_loaded?(Ash) do
     test "no facets returns the unfiltered actor-scoped read" do
       filter = Query.to_filter(%Query{text: "", facets: []})
 
-      with_filter = search(filter)
+      # The filter itself must be a genuine no-op...
+      assert filter == %{}
+
+      with_filter = search(filter) |> MapSet.new(& &1.id)
 
       without_filter =
-        Dev.Music.Artist |> Ash.Query.for_read(:read, %{}, actor: @public_actor) |> Ash.read!(actor: @public_actor)
+        Dev.Music.Artist
+        |> Ash.Query.for_read(:read, %{}, actor: @public_actor)
+        |> Ash.read!(actor: @public_actor)
+        |> MapSet.new(& &1.id)
 
-      assert length(with_filter) == length(without_filter)
+      # ...and constrain nothing. Compared as sets, not counts: this module is
+      # `async: true` over a globally-seeded table, so a concurrent seeder can
+      # top it up between the two reads. Asserting equal *lengths* made that a
+      # latent race; the filtered read can only ever lack records created after
+      # it ran, so subset is the assertion that actually holds.
+      assert MapSet.subset?(with_filter, without_filter)
+      refute Enum.empty?(with_filter)
     end
   end
 end
