@@ -1058,7 +1058,12 @@ defmodule Flicker.Components.Search do
         the box — a tokenised faceted input, not raw `key:value` text.
       --%>
       <div class={@theme.multi_field}>
-        <div class={@theme.facet_pill_list} role="list" aria-label={message(assigns, :selected_items)}>
+        <%!-- Labelled as *filters*, not as "Selected items": these scope the
+        search, whereas a multi-select's chips are the selection. A screen
+        reader user hearing "Selected items" for a row of filters is being told
+        the wrong thing about what they do (Spec 015 made the same distinction
+        in `Flicker.select`). --%>
+        <div class={@theme.facet_pill_list} role="list" aria-label={message(assigns, :active_filters)}>
           <span :for={pill <- @pills} class={@theme.facet_pill} role="listitem" title={"#{pill.field}: #{pill.value}"}>
             <%!-- Spec 019: clicking a pill reopens that facet's editor,
             pre-filled from the committed value. Only rendered for a facet that
@@ -1157,6 +1162,7 @@ defmodule Flicker.Components.Search do
             type="button"
             aria-label={@labels_close}
             disabled={!@connected?}
+            data-flicker-editor-close
             phx-click="facet_editor_cancel"
             phx-target={@myself}
           >
@@ -1309,10 +1315,17 @@ defmodule Flicker.Components.Search do
             // keyboard user wants to land.
             const editor = this.facetEditor()
             if (editor && !editor.contains(document.activeElement)) {
+              // Order matters for a screen-reader user entering the dialog:
+              // the *content* first, never the dismiss control. Landing on
+              // "Close" means the first thing announced is how to leave.
               const target =
                 editor.querySelector('[role="gridcell"][aria-selected="true"]') ||
+                editor.querySelector('[role="option"][aria-selected="true"]') ||
                 editor.querySelector('[role="gridcell"]') ||
-                editor.querySelector("button:not([disabled])")
+                editor.querySelector('[role="option"]') ||
+                editor.querySelector('[role="slider"]') ||
+                editor.querySelector('[role="switch"]') ||
+                editor.querySelector("button:not([disabled]):not([data-flicker-editor-close])")
               target && target.focus()
             }
 

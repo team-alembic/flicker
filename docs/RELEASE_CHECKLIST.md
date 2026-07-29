@@ -48,10 +48,41 @@ pass is not acceptable, because it is indistinguishable from not having run it.
 
 ### Results
 
-_No manual AT pass has been recorded yet._ The automated half of Spec 007 has
-shipped and is enforced in CI; the manual matrix above has never been executed
-against this codebase. That gap is stated in `guides/accessibility.md`'s
-statement as a known limitation, and should stay stated until a run lands here.
+**No manual AT pass has been recorded yet.** The matrix above has never been
+executed against this codebase — no screen reader has been used.
+
+#### Accessibility-tree inspection, 2026-07-29 (not an AT pass)
+
+A partial machine check of the *data* a screen reader consumes — computed
+accessible names, roles, states and live-region content read out of the live
+accessibility tree while driving the script's steps in a browser. This is
+strictly stronger than axe (which checks rule violations, not what gets
+announced) and strictly weaker than an AT pass (it cannot tell you whether what
+is announced is *comprehensible*, whether announcements interrupt each other, or
+how any of it feels to navigate).
+
+Verified on `/faceted-search`:
+
+| Step | Observed |
+|---|---|
+| Facet-key context | `role=combobox`, `aria-expanded=true`, `aria-autocomplete=list`, `aria-controls` resolving to the listbox; announced "Typing a facet name, 1 matching facet"; option named `status:` |
+| Editor opens | `role=dialog`, `aria-modal=true`, accessible name "Status"; announced "Status editor, dialog"; focus inside the dialog; options named "Active", "Inactive", "On Hiatus" |
+| Invalid value | `aria-invalid=true`; `aria-describedby` resolving to "status:activ must be one of: active, inactive, on_hiatus"; correction offered as "Did you mean Active?" |
+| Committed pill | `role=listitem` inside a `role=list`; remove control named "Remove Status Active"; edit control named "Edit Status" |
+
+Two real defects found and fixed by this inspection:
+
+1. **Editor focus landed on the "Close" button**, so the first thing announced
+   on entering the dialog was how to leave it. Focus now prefers content —
+   selected option, then any option, slider, or switch — and explicitly skips
+   the dismiss control.
+2. **The facet pill row in `Flicker.search` was labelled "Selected items"**, the
+   label for multi-select *selection* chips. Filters are not selections, and a
+   screen reader user was being told the wrong thing about what the row does. Now
+   "Active filters", matching what `Flicker.select` already did.
+
+Neither was visible to axe, and neither would have been caught by reading the
+markup — both needed the computed tree.
 
 ## Publishing
 

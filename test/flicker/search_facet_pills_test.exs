@@ -56,6 +56,18 @@ if Code.ensure_loaded?(Ash) do
       end
     end
 
+    describe "the pill row is labelled as filters" do
+      test "not as 'Selected items', which is what a selection chip row is" do
+        # Found by reading the accessibility tree: a screen reader user hearing
+        # "Selected items" for a row of *filters* is told the wrong thing about
+        # what they do.
+        session = visit_search() |> type("status:active ")
+
+        assert_has(session, "[role='list'][aria-label='Active filters']")
+        refute_has(session, "[role='list'][aria-label='Selected items']")
+      end
+    end
+
     describe "pill re-edit (Spec 019)" do
       test "a facet with an editor exposes a control to reopen it" do
         session = visit_search() |> type("status:active ")
