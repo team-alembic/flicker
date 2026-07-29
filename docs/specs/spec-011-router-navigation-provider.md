@@ -1,5 +1,5 @@
 ---
-status: draft
+status: shipped
 date: 2026-07-22
 depends_on: [spec-008, adr-001, adr-006]
 ---

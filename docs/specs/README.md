@@ -17,7 +17,7 @@ Update the status here **and** in the spec's frontmatter when it changes.
 | [008](./spec-008-command-palette.md) | `Flicker.palette`: ⌘K fullscreen site-search overlay, grouped results, navigate-on-select | shipped |
 | [009](./spec-009-cinder-interop.md) | Cinder interop: `Flicker.search` drives a Cinder collection (recipe → adapter → upstream) | shipped |
 | [010](./spec-010-windowed-search.md) | Windowed search: opt-in infinite scroll in the listbox, `:offset` provider opt, capped windows | shipped |
-| [011](./spec-011-router-navigation-provider.md) | Router navigation provider: palette navigates the host's Phoenix routes with one config flag | draft |
+| [011](./spec-011-router-navigation-provider.md) | Router navigation provider: palette navigates the host's Phoenix routes with one config flag | shipped |
 | [012](./spec-012-facet-pills.md) | Facet pills: committed facets render as removable styled pills, tokenised faceted input | shipped |
 | [013](./spec-013-selected-item-rendering.md) | Configurable selected-item rendering: `:selected` slot + avatar stacking with +N overflow | shipped |
 | [014](./spec-014-copyable-example-code.md) | Copyable example code blocks in the playground, component-library style | shipped |
