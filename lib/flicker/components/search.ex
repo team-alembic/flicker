@@ -482,16 +482,17 @@ defmodule Flicker.Components.Search do
       first_day_of_week: 1,
       presets: state.facet.presets || Flicker.Facet.Preset.builtin(),
       suggested: state.facet.suggested || [],
-      footer: facet_editor_footer(state),
+      footer: facet_editor_footer(state, message(assigns, :pick_an_end_date)),
       labels: %{
-        suggested: "Suggested",
-        previous_month: "Previous month",
-        next_month: "Next month",
-        from: "From",
-        to: "To",
-        values: "Values",
-        done: "Done"
+        suggested: message(assigns, :preset_group_suggested),
+        previous_month: message(assigns, :previous_month),
+        next_month: message(assigns, :next_month),
+        from: message(assigns, :range_from),
+        to: message(assigns, :range_to),
+        values: message(assigns, :facet_values),
+        done: message(assigns, :facet_editor_done)
       },
+      draft_prompt: message(assigns, :pick_an_end_date),
       theme: assigns.theme,
       select_theme: assigns.theme,
       messages: assigns[:messages],
@@ -511,14 +512,15 @@ defmodule Flicker.Components.Search do
 
   # A draft says so in words rather than leaving the control looking inert; a
   # complete value shows itself.
-  defp facet_editor_footer(%{editor: editor, facet: facet, value: value, draft_start: draft_start}) do
+  defp facet_editor_footer(state, prompt) do
+    %{editor: editor, facet: facet, value: value, draft_start: draft_start} = state
     draft = if draft_start, do: %Flicker.Facet.Range{from: draft_start}, else: value
 
     cond do
       # Same loaded-module caveat as `Flicker.FacetEditor.modal?/1`.
       Code.ensure_loaded?(editor) and function_exported?(editor, :draft_label, 3) and
-          editor.draft_label(draft, facet, []) ->
-        editor.draft_label(draft, facet, [])
+          editor.draft_label(draft, facet, prompt: prompt) ->
+        editor.draft_label(draft, facet, prompt: prompt)
 
       is_nil(value) ->
         ""
@@ -1033,7 +1035,7 @@ defmodule Flicker.Components.Search do
         :dispatch_pending,
         Dispatch.pending?(assigns.dispatch, assigns.text, assigns.dispatched_text)
       )
-      |> assign(:labels_close, "Close")
+      |> assign(:labels_close, message(assigns, :close_facet_editor))
       |> then(&assign(&1, :invalid_report, invalid_report(%{assigns: &1})))
       |> then(&assign(&1, :dispatch_withheld, &1.on_invalid == :require and &1.invalid_report != nil))
 

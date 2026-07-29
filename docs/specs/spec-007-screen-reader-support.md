@@ -145,6 +145,13 @@ automatable half:
 - Editor open is announced through `Flicker.Messages`
   (`:facet_editor_opened`), keeping the messages module the auditable
   announcement inventory.
+- The criterion *"a grep for user-facing literals in templates finds none"* is
+  now **a test**, not a grep nobody runs
+  (`test/flicker/no_hardcoded_text_test.exs`). It caught nine hardcoded strings
+  the Spec 019 editors had introduced — "Suggested", "Previous month", "Close",
+  "Done", "pick an end date" and the rest — all now routed through
+  `Flicker.Messages`. It also asserts that every key a component asks for is
+  actually implemented, so the inventory cannot drift from its callers.
 
 **This spec still does not move to `shipped`, and cannot be moved by any amount
 of further coding.** The one outstanding item remains the manual AT matrix:

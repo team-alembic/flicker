@@ -47,6 +47,12 @@ defmodule Flicker.Messages.English do
       when a facet editor's pop-out opens (Spec 019), naming the facet and the
       fact that it is a dialog, since entering a modal sub-context must be
       audible and not merely visible.
+    * `:close_facet_editor`, `:preset_group_suggested`, `:previous_month`,
+      `:next_month`, `:range_from`, `:range_to`, `:facet_values`,
+      `:facet_editor_done`, `:pick_an_end_date` — every visible string inside a
+      Spec 019 facet editor. Routed through here rather than hardcoded so the
+      key list stays the complete, auditable inventory of user-facing text
+      (ADR-009, and Spec 007's "a grep for literals in templates finds none").
     * `:active_filters` — `aria-label` for the committed-facet pill row in
       `Flicker.select/1` (Spec 015), naming it as filters rather than as the
       selection chips beside it.
@@ -163,6 +169,15 @@ defmodule Flicker.Messages.English do
   def message(:edit_facet, %{label: label}), do: "Edit #{label}"
   def message(:active_filters, _bindings), do: "Active filters"
   def message(:facet_editor_opened, %{label: label}), do: "#{label} editor, dialog"
+  def message(:close_facet_editor, _bindings), do: "Close"
+  def message(:preset_group_suggested, _bindings), do: "Suggested"
+  def message(:previous_month, _bindings), do: "Previous month"
+  def message(:next_month, _bindings), do: "Next month"
+  def message(:range_from, _bindings), do: "From"
+  def message(:range_to, _bindings), do: "To"
+  def message(:facet_values, _bindings), do: "Values"
+  def message(:facet_editor_done, _bindings), do: "Done"
+  def message(:pick_an_end_date, _bindings), do: "pick an end date"
 
   def message(:results_count, %{count: 0}), do: "No results available"
   def message(:results_count, %{count: 1}), do: "1 result available"
