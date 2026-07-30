@@ -30,6 +30,7 @@ Update the status here **and** in the spec's frontmatter when it changes.
 | [021](./spec-021-facet-value-counts.md) | Facet value counts: optional provider callback, actor-scoped drill-down counts beside each value | shipped |
 | [022](./spec-022-recently-used-values.md) | Recently-used facet values: host-provided storage, frecency ranking, `Recent` group | shipped |
 | [023](./spec-023-inline-value-correction.md) | Inline value correction + invalid-value policy (`:drop`/`:require`), swap/clamp fixes | shipped |
+| [024](./spec-024-facet-trigger-character.md) | Trigger character for facet entry: `@`/`#`/`:` opens the facet-key menu, then its editor | ready |
 
 Build order is 004 → 001 (005 starts alongside) → 002 → 003; the playground
 gains a page as each spec ships (see [DESIGN.md](../DESIGN.md#sequencing)).
