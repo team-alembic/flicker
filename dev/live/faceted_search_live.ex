@@ -73,6 +73,26 @@ defmodule Dev.Live.FacetedSearch do
         on_change={:artist_query_changed}
       />
       """)
+      |> assign(:trigger_code, ~S"""
+      # With `facet_trigger`, plain words are just free text — facets only
+      # appear when you ask for them. Scope each trigger to its own facets
+      # (Slack-style) by passing a map instead of a string.
+      <Flicker.search
+        id="artist-search-trigger"
+        resource={MyApp.Music.Artist}
+        facet_trigger="@"
+        facets={[:status, :tier, :monthly_listeners]}
+        on_change={:artist_query_changed}
+      />
+
+      <Flicker.search
+        id="artist-search-scoped-trigger"
+        resource={MyApp.Music.Artist}
+        facet_trigger={%{"@" => [:status, :tier], "#" => [:monthly_listeners]}}
+        facets={[:status, :tier, :monthly_listeners]}
+        on_change={:artist_query_changed}
+      />
+      """)
       |> assign(:spanish_code, ~S"""
       # Localise every string by passing a Flicker.Messages module — no
       # library change. See Dev.SpanishMessages for the implementation.
@@ -108,6 +128,37 @@ defmodule Dev.Live.FacetedSearch do
             ]}
             on_change={:artist_query_changed}
           />
+        </.code_example>
+      </.section>
+
+      <.section label="Trigger character (Spec 024)">
+        <p class="mb-3 text-sm text-gray-500">
+          Compare with the bar above: there, typing <code>st</code> offers
+          <code>status:</code> unprompted. Here a bare word is just free text and
+          the facet menu waits for <code>@</code>. The trigger never reaches the
+          query — <code>@stat</code> completes to <code>status:</code>. The second
+          bar scopes each trigger to its own facets: <code>@</code> for status and
+          tier, <code>#</code> for listeners.
+        </p>
+        <.code_example id="faceted-search-trigger-code" code={@trigger_code}>
+          <div class="space-y-4">
+            <Flicker.search
+              id="artist-search-trigger"
+              resource={Dev.Music.Artist}
+              actor={@actor}
+              facet_trigger="@"
+              facets={[:status, :tier, :monthly_listeners]}
+              on_change={:artist_query_changed}
+            />
+            <Flicker.search
+              id="artist-search-scoped-trigger"
+              resource={Dev.Music.Artist}
+              actor={@actor}
+              facet_trigger={%{"@" => [:status, :tier], "#" => [:monthly_listeners]}}
+              facets={[:status, :tier, :monthly_listeners]}
+              on_change={:artist_query_changed}
+            />
+          </div>
         </.code_example>
       </.section>
 

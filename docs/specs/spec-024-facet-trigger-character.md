@@ -1,5 +1,5 @@
 ---
-status: ready
+status: shipped
 date: 2026-07-30
 depends_on: [spec-003, spec-012, spec-015, spec-019, adr-011, adr-012, adr-013]
 ---
@@ -41,14 +41,19 @@ pill, or a URL.
   starts with a trigger grapheme. Every other token is `:text`.
 - Picking a key suggestion inserts the canonical token text (`status:`) and
   **discards the trigger**.
-- A new attr `open_editor_on_pick`. Defaults to `true` when `facet_trigger` is
-  set and `false` otherwise, so no existing usage changes behaviour. When true,
-  picking a key whose facet is `Flicker.FacetEditor.editable?/1` opens that
-  editor immediately instead of leaving the user in `{:value, facet, ""}` with an
-  inline picklist.
+- A new attr `open_editor_on_pick`, default `true`. Spec 019 *already* opens the
+  editor on a key pick unconditionally, so this attr is an opt-**out** rather
+  than the opt-in this spec originally described — defaulting it `false` without
+  a trigger would have been a regression, not a preserved default. When true,
+  picking a key whose facet is `Flicker.FacetEditor.modal?/1` opens that editor
+  immediately instead of leaving the user in `{:value, facet, ""}` with an inline
+  picklist.
 - A themed, localised affordance telling the user the trigger exists: theme part
-  `facet_trigger_hint`, message key `:facet_trigger_hint` with the trigger
-  bound.
+  `facet_trigger_hint`, message key `:facet_trigger_hint` with the triggers
+  bound. The placeholder also changes, from `try status:active` to
+  `try @status`, since the colon form is no longer the gesture that opens the
+  menu — and its example facet is drawn from that trigger's *own* scope, so a
+  `#` scoped to listeners never suggests `#status`.
 - `Flicker.Trigger` — a new pure module owning parsing/validation of the attr
   and the token test, so both components and the two editors share one
   definition.
@@ -85,19 +90,26 @@ into `query.text`, `query.facets`, or any token an editor produces.
 
 ```elixir
 defmodule Flicker.Trigger do
-  @type t :: %{String.t() => [atom()] | :all}
+  @type t :: %{String.t() => :all | [atom()]}
 
-  @spec parse(nil | String.t() | map() | keyword()) :: {:ok, t() | nil} | {:error, term()}
+  @doc "Normalise the attr, or `nil` for no trigger. Raises on anything unusable."
+  @spec parse!(nil | String.t() | map() | keyword()) :: t() | nil
 
-  @doc "The trigger the token starts with, and the facets it offers, or `nil`."
-  @spec match(t() | nil, [char()] | String.t()) :: {String.t(), [Flicker.Facet.t()]} | nil
+  @doc "The facets this grapheme offers, or `nil` if it isn't a trigger."
+  @spec scope(t() | nil, String.t(), [Flicker.Facet.t()]) :: [Flicker.Facet.t()] | nil
 
-  @doc "Graphemes a host has configured, in configuration order — for the hint."
+  @doc "Configured graphemes, sorted — for the hint."
   @spec graphemes(t() | nil) :: [String.t()]
 end
 ```
 
-`parse/1` rejects a multi-grapheme trigger, whitespace, and a grapheme that
+`scope/3` returns `nil` for an unconfigured grapheme, distinctly from `[]` for a
+configured trigger whose facets are all filtered out; callers branch on the
+difference. `graphemes/1` sorts rather than preserving configuration order, since
+a map has no configuration order to preserve and the hint must be stable across
+renders.
+
+`parse!/1` rejects a multi-grapheme trigger, whitespace, and a grapheme that
 `Flicker.CursorContext` would treat as a key character (a letter, digit, `_` or
 `?`) — `s` as a trigger would be unresolvable from a key's first letter. It
 raises at component-render time rather than degrading, because a mistyped
@@ -130,10 +142,11 @@ With `trigger` non-nil, for the token under the cursor:
    make typed-out or pasted queries stop working.
 3. Otherwise `:text`.
 
-The returned state deliberately does **not** carry the trigger. Callers that
-need it for insertion arithmetic use `Flicker.Trigger.match/2` on the token
-themselves, which keeps `CursorContext.t()` unchanged and every existing
-`case` over it exhaustive.
+The returned state deliberately does **not** carry the trigger, which keeps
+`CursorContext.t()` unchanged and every existing `case` over it exhaustive. A
+caller that needs the trigger's scope again — to build the suggestion list —
+gets it from `Flicker.FacetSuggest.scoped_facets/4`, which applies the same
+token-start test.
 
 ### Insertion, and where the trigger goes
 
@@ -154,8 +167,10 @@ free:
   text **including the trigger grapheme**, matching how ADR-012 already degrades
   an unknown facet key. Searching for the literal text `@handle` therefore just
   works.
-- Escape dismisses the menu for the current token and stays dismissed until the
-  caret leaves it, so the menu can be got rid of without deleting anything.
+- Escape closes the dropdown, as it already does for any Flicker listbox. Note
+  what this is *not*: the dismissal isn't sticky per-token, so typing another
+  character in a triggered token reopens the menu. Nothing here changes that
+  behaviour, and no test claims otherwise.
 
 ### The hint
 
@@ -183,12 +198,17 @@ module allowed to call `Localize.*`).
 ### Editor auto-open
 
 When `open_editor_on_pick` is true and the picked facet is editable, the pick
-handler commits the key token *and* opens the editor in one round trip. The
-editor is already a modal sub-context that commits atomically (ADR-011), so this
-is the flow the user is actually after: `@` → pick `created_at` → the calendar
-is focused, with no intermediate state where a half-typed `created_at:` sits in
-the input. Cancelling the editor leaves the key token in place, as it does today
-— it does not undo the pick, because the user did choose the facet.
+opens the editor without splicing the token first. The editor is already a modal
+sub-context that commits atomically (ADR-011), so this is the flow the user is
+actually after: `@` → pick `created_at` → the calendar is focused, with no
+intermediate state where a half-typed `created_at:` sits in the input.
+
+Cancelling restores the input buffer to exactly what the user typed — `@status`,
+trigger included — which is the pre-existing ADR-011 contract ("cancel discards
+the draft and restores the token exactly as it was") and not a trigger-specific
+rule. An earlier draft of this spec said cancel leaves the *canonical* key token
+behind; that would mean cancel silently rewrote the buffer, which is the one
+thing an atomic-commit editor must not do.
 
 For a non-modal editor (the switch, per ADR-011) "open" means rendering it
 inline in the dropdown; there is no pop-out.
@@ -224,13 +244,14 @@ with copyable code (Spec 014).
     but still recognised when typed out (criterion 7).
 11. `Flicker.Trigger.parse/1` rejects `""`, `"@@"`, `" "`, and `"s"` (a key
     character), and accepts `"@"`, `"#"`, `"/"`, `":"`.
-12. With `facet_trigger` set, `open_editor_on_pick` defaults true: picking
-    `created_at:` opens the calendar with focus inside the dialog. Without a
-    trigger it defaults false and picking is unchanged.
-13. Cancelling an auto-opened editor leaves the key token in the input and the
-    caret after the operator.
+12. `open_editor_on_pick` defaults true (matching shipped Spec 019 behaviour):
+    picking `status:` opens the editor dialog. Setting it `false` leaves the
+    canonical key token in the input and no dialog.
+13. Cancelling an auto-opened editor restores the typed text verbatim, trigger
+    included, and dispatches nothing.
 14. The hint renders the configured graphemes, comes from `Flicker.Messages`,
-    and is referenced by the input's `aria-describedby`.
+    and is referenced by the input's `aria-describedby`. The placeholder's
+    example facet is one the leading trigger actually reaches.
 15. The trigger flow announces via `:facet_key_context`, and the axe scan on the
     playground's trigger example is clean.
 16. Property: for arbitrary input, cursor and trigger config, `classify/4` never

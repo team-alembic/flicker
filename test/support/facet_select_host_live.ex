@@ -15,6 +15,7 @@ if Code.ensure_loaded?(Ash) do
     @impl true
     def mount(_params, session, socket) do
       actor = Map.get(session, "actor", %{label: nil})
+      facet_trigger = Map.get(session, "facet_trigger")
 
       FacetDomain.seed!()
 
@@ -22,6 +23,7 @@ if Code.ensure_loaded?(Ash) do
         socket
         |> assign(:actor, actor)
         |> assign(:selected_result, :none)
+        |> assign(:facet_trigger, facet_trigger)
 
       {:ok, socket}
     end
@@ -41,6 +43,7 @@ if Code.ensure_loaded?(Ash) do
         search={[:name]}
         option_label={:name}
         facets={[:status, :genre, :verified?]}
+        facet_trigger={@facet_trigger}
         on_select={:artist_selected}
       />
       <p :if={@selected_result != :none} id="selection">

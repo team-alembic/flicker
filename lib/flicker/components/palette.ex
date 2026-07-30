@@ -119,6 +119,7 @@ defmodule Flicker.Components.Palette do
           theme={@select_theme}
           messages={@messages}
           facets={@facets}
+          facet_trigger={@facet_trigger}
           paginate={@paginate}
           max_windows={@max_windows}
           option={@option}

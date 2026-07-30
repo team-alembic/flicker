@@ -94,8 +94,15 @@ defmodule Flicker.Messages.English do
     * `:facet_value_suggestions_count` — %{count: n} — the live-region
       announcement after facet-value suggestions (enum picklist or nested
       search) update.
+    * `:facet_trigger_hint` — %{triggers: ["@", "#"]} — the discoverability
+      affordance shown when `facet_trigger` is set (Spec 024). With a trigger
+      configured, a bare word no longer volunteers facet keys, so this is the
+      only thing telling the user the facets exist — it is both visible text and
+      the input's `aria-describedby`.
     * `:facet_search_placeholder` — placeholder text for `Flicker.search/1`'s
-      input.
+      input. Given `%{trigger: "@", example: "status"}` when a Spec 024 trigger
+      is configured, where `example` is a facet that trigger actually reaches —
+      the no-bindings clause teaches the `status:active` form instead.
     * `:palette_label` — `aria-label` for `Flicker.palette/1`'s dialog
       (`role="dialog"`).
     * `:close_palette` — visible text and `aria-label` for the palette's
@@ -204,6 +211,18 @@ defmodule Flicker.Messages.English do
   def message(:facet_value_suggestions_count, %{count: 1}), do: "1 matching value"
   def message(:facet_value_suggestions_count, %{count: count}), do: "#{count} matching values"
   def message(:selected_overflow, %{count: count}), do: "#{count} more selected"
+
+  def message(:facet_trigger_hint, %{triggers: [_ | _] = triggers}),
+    do: "Type #{Flicker.Facet.Format.join(triggers)} to filter"
+
+  def message(:facet_trigger_hint, _bindings), do: "Type a trigger character to filter"
+
+  # With a Spec 024 trigger configured, `status:active` is no longer the gesture
+  # that opens the facet menu, so the placeholder must not teach it as one.
+  def message(:facet_search_placeholder, %{trigger: trigger, example: example})
+      when is_binary(trigger) and is_binary(example),
+      do: "Filter... (try #{trigger}#{example})"
+
   def message(:facet_search_placeholder, _bindings), do: "Filter... (try status:active)"
   def message(:facet_free_value_hint, _bindings), do: "Type a value, then Space to add"
 

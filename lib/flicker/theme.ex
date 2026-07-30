@@ -93,6 +93,11 @@ defmodule Flicker.Theme do
       flight *and* previous results are still on screen (Spec 020). The
       previous set stays rendered rather than the list emptying and refilling;
       this part is what marks it as not-yet-current.
+    * `:facet_trigger_hint` — the discoverability affordance naming the
+      facet-entry trigger character ("Type @ to filter", Spec 024). Only
+      rendered when `facet_trigger` is set, and referenced by the input's
+      `aria-describedby` so the affordance is announced on focus rather than
+      only being visible.
     * `:dispatch_hint` — the "press Enter to search" affordance shown
       beside the input while `dispatch: :enter` holds undispatched text
       (Spec 020). Also the target of the input's `aria-describedby` in that
@@ -224,6 +229,7 @@ defmodule Flicker.Theme do
           facet_correction_accept: String.t(),
           dispatch_blocked: String.t(),
           results_stale: String.t(),
+          facet_trigger_hint: String.t(),
           dispatch_hint: String.t(),
           hint: String.t(),
           loading_more: String.t(),
@@ -308,6 +314,7 @@ defmodule Flicker.Theme do
             facet_correction_accept: "flicker-facet-correction-accept",
             dispatch_blocked: "flicker-dispatch-blocked",
             results_stale: "flicker-results-stale",
+            facet_trigger_hint: "flicker-facet-trigger-hint",
             dispatch_hint: "flicker-dispatch-hint",
             hint: "flicker-hint",
             loading_more: "flicker-loading-more",
@@ -409,6 +416,7 @@ defmodule Flicker.Theme do
       facet_correction_accept: "cursor-pointer font-medium text-indigo-600 underline hover:text-indigo-500",
       dispatch_blocked: "mt-1 text-xs font-medium text-red-700",
       results_stale: "opacity-60 transition-opacity",
+      facet_trigger_hint: "mt-1 text-xs text-gray-500",
       dispatch_hint: "mt-1 text-xs text-gray-500",
       hint: "px-3 py-2 text-xs text-gray-400",
       loading_more: "px-3 py-2 text-xs text-gray-400",
@@ -541,6 +549,7 @@ defmodule Flicker.Theme do
       facet_correction_accept: "link link-primary cursor-pointer font-medium",
       dispatch_blocked: "mt-1 text-xs font-medium text-error",
       results_stale: "opacity-60 transition-opacity",
+      facet_trigger_hint: "mt-1 text-xs text-base-content/60",
       dispatch_hint: "mt-1 text-xs text-base-content/60",
       hint: "px-3 py-2 text-xs text-base-content/50",
       loading_more: "px-3 py-2 text-xs text-base-content/50",

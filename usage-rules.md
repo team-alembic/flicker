@@ -62,6 +62,19 @@ implementation details.
   `Flicker.Providers.Static` does). `Flicker.search/1` emits
   `{on_change, %Flicker.Query{}, filter}` — no selection semantics, you
   feed `filter` to your own table/stream/list.
+- **`facet_trigger`** (on all three components, default `nil`) — a single
+  character that opens the facet menu: `facet_trigger="@"`, or
+  `%{"@" => [:worker], "#" => [:tag]}` to scope which facets each trigger
+  offers. Without it every bare word offers facet keys, which is right for a
+  dedicated filter bar and in the way for a search box that is mostly used
+  for free text. **The trigger is input sugar, never grammar**: it reaches no
+  token, pill, query or URL — `@stat` completes to `status:` — and a facet
+  typed out in full or restored from a URL is still recognised, so shared
+  search links keep working. Must not be a letter, digit, `_` or `?` (those
+  can start a facet key); `@`, `#`, `/`, `:` are all fine, and a bad one
+  raises at render time. Pairs with `open_editor_on_pick` (on
+  `Flicker.search/1`, default `true`), which opens the picked facet's editor
+  straight away instead of leaving you in value position.
 - **`paginate`** (on `Flicker.select/1` and `Flicker.palette/1`, default
   `false`) — windowed infinite scroll instead of "keep typing to narrow":
   reaching the tail of the listbox loads and appends the next window.

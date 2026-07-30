@@ -115,6 +115,9 @@ defmodule Flicker.Components.Select do
       |> assign_new(:activate_with_keyboard, fn -> nil end)
       |> assign_new(:facets, fn -> [] end)
       |> assign_new(:facet_context, fn -> :text end)
+      # Spec 024: normalised by `Flicker.select/1`; `nil` is today's always-on
+      # facet suggestions.
+      |> assign_new(:facet_trigger, fn -> nil end)
       |> assign_new(:cursor, fn -> nil end)
       |> assign_new(:navigate_on_select, fn -> false end)
       |> assign_new(:paginate, fn -> false end)
@@ -589,7 +592,12 @@ defmodule Flicker.Components.Select do
   # this component sets the query text itself).
   defp run_search(socket, _trimmed_text) do
     context =
-      FacetSuggest.classify(socket.assigns.query, socket.assigns.facets, socket.assigns.cursor)
+      FacetSuggest.classify(
+        socket.assigns.query,
+        socket.assigns.facets,
+        socket.assigns.cursor,
+        socket.assigns.facet_trigger
+      )
 
     socket = assign(socket, facet_context: context)
     run_faceted_search(socket, context)
@@ -602,7 +610,17 @@ defmodule Flicker.Components.Select do
   # former out) falls back to an ordinary record search rather than an
   # empty listbox — free text still has to work while facets are configured.
   defp run_faceted_search(socket, {:key, prefix}) do
-    case FacetSuggest.key_suggestions(prefix, socket.assigns.facets) do
+    # Spec 024: the keys on offer are the current trigger's scope, so `@` can
+    # mean people and `#` can mean tags. The whole registry without a trigger.
+    scoped =
+      FacetSuggest.scoped_facets(
+        socket.assigns.query,
+        socket.assigns.facets,
+        socket.assigns.cursor,
+        socket.assigns.facet_trigger
+      )
+
+    case FacetSuggest.key_suggestions(prefix, scoped) do
       [] ->
         run_faceted_search(socket, :text)
 
@@ -1087,6 +1105,29 @@ defmodule Flicker.Components.Select do
 
   defp message(assigns, key, bindings \\ %{}), do: Messages.get(assigns[:messages], key, bindings)
 
+  # Spec 024. Nothing to announce without a trigger, or with no facets to reach.
+  defp trigger_hint(%{facet_trigger: nil}), do: nil
+  defp trigger_hint(%{facets: []}), do: nil
+
+  defp trigger_hint(assigns) do
+    case Flicker.Trigger.graphemes(assigns.facet_trigger) do
+      [] -> nil
+      triggers -> message(assigns, :facet_trigger_hint, %{triggers: triggers})
+    end
+  end
+
+  defp describedby(input_id, dispatch_pending, trigger_hint) do
+    [
+      dispatch_pending && "#{input_id}-dispatch-hint",
+      trigger_hint && "#{input_id}-trigger-hint"
+    ]
+    |> Enum.filter(& &1)
+    |> case do
+      [] -> nil
+      ids -> Enum.join(ids, " ")
+    end
+  end
+
   # The single live-region announcement (Spec 007), derived from exactly the
   # assigns that drive the visual render — never a parallel "last announced"
   # assign that could drift from what's on screen. `run_search/2`'s
@@ -1255,7 +1296,7 @@ defmodule Flicker.Components.Select do
       placeholder={@placeholder || message(assigns, :search_placeholder)}
       disabled={!@connected?}
       aria-keyshortcuts={@aria_keyshortcuts}
-      aria-describedby={@dispatch_pending && "#{@input_id}-dispatch-hint"}
+      aria-describedby={describedby(@input_id, @dispatch_pending, @trigger_hint)}
       phx-keyup="query"
       phx-debounce={Dispatch.debounce_attr(@dispatch, @debounce)}
       phx-focus="focus"
@@ -1271,6 +1312,7 @@ defmodule Flicker.Components.Select do
       |> assign(:input_id, input_id_for(assigns.id))
       |> assign(:listbox_id, listbox_id_for(assigns.id))
       |> assign(:below_min_chars, below_min_chars?(assigns))
+      |> assign(:trigger_hint, trigger_hint(assigns))
       |> assign(
         :dispatch_pending,
         Dispatch.pending?(assigns.dispatch, assigns.query, assigns.dispatched_query)
@@ -1537,6 +1579,12 @@ defmodule Flicker.Components.Select do
       silently stopped searching is a broken search box. --%>
       <p :if={@dispatch_pending} id={"#{@input_id}-dispatch-hint"} class={@theme.dispatch_hint}>
         {message(assigns, :press_enter_to_search)}
+      </p>
+      <%!-- Spec 024: with a trigger configured, a bare word no longer
+      volunteers facet keys, so this hint is the only thing telling anyone the
+      facets are there. Both visible text and an `aria-describedby` target. --%>
+      <p :if={@trigger_hint} id={"#{@input_id}-trigger-hint"} class={@theme.facet_trigger_hint}>
+        {@trigger_hint}
       </p>
       <div id={"#{@id}-announcer"} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
         {@announcement}

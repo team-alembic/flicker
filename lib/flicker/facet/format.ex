@@ -42,6 +42,26 @@ defmodule Flicker.Facet.Format do
   def localized?, do: @localize?
 
   @doc """
+  Joins `parts` into a localised conjunction list — "A", "A and B",
+  "A, B, and C".
+
+  Public because it isn't only facet values that need conjoining: Spec 024's
+  trigger hint lists the configured trigger characters, and
+  `Flicker.Messages.English` must not call `Localize.*` itself — this module is
+  the only one allowed to (ADR-013).
+
+  ## Examples
+
+      iex> Flicker.Facet.Format.join(["@", "#"])
+      "@ and #"
+
+      iex> Flicker.Facet.Format.join(["@"])
+      "@"
+  """
+  @spec join([String.t()], keyword()) :: String.t()
+  def join(parts, opts \\ []) when is_list(parts), do: join_list(parts, opts)
+
+  @doc """
   A facet value's display string.
 
   Dispatches on the shape of the value rather than the facet's type, so a

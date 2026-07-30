@@ -62,6 +62,10 @@ defmodule Flicker.Components.Search do
       |> assign_new(:suggestions_loading, fn -> false end)
       |> assign_new(:dispatch, fn -> :debounce end)
       |> assign_new(:on_invalid, fn -> :drop end)
+      # Spec 024: already normalised by `Flicker.search/1` (a bad trigger raises
+      # there, at render time, rather than silently disabling every facet).
+      |> assign_new(:facet_trigger, fn -> nil end)
+      |> assign_new(:open_editor_on_pick, fn -> true end)
       |> assign_new(:count_source, fn -> nil end)
       |> assign_new(:recent_values, fn -> nil end)
       # Spec 019: the open editor's whole state, or nil. One assign, one place
@@ -320,15 +324,25 @@ defmodule Flicker.Components.Search do
 
   defp refresh_context(socket) do
     facets = socket.assigns.facets
-    context = FacetSuggest.classify(socket.assigns.text, facets, socket.assigns.cursor)
+
+    context =
+      FacetSuggest.classify(
+        socket.assigns.text,
+        facets,
+        socket.assigns.cursor,
+        socket.assigns.facet_trigger
+      )
 
     socket
     |> assign(:context, context)
     |> load_suggestions(context)
   end
 
+  # Spec 024: the keys on offer are the *current trigger's* scope, so `@` can
+  # mean people and `#` can mean tags. Without a trigger this is the whole
+  # registry, unchanged.
   defp load_suggestions(socket, {:key, prefix}) do
-    suggestions = FacetSuggest.key_suggestions(prefix, socket.assigns.facets)
+    suggestions = FacetSuggest.key_suggestions(prefix, scoped_facets(socket))
 
     socket
     |> cancel_async(:related_search)
@@ -375,6 +389,15 @@ defmodule Flicker.Components.Search do
 
   defp load_suggestions(socket, :text) do
     socket |> cancel_async(:related_search) |> assign(suggestions: [], suggestions_loading: false)
+  end
+
+  defp scoped_facets(socket) do
+    FacetSuggest.scoped_facets(
+      socket.assigns.text,
+      socket.assigns.facets,
+      socket.assigns.cursor,
+      socket.assigns.facet_trigger
+    )
   end
 
   # For this component the host notification *is* the dispatch — it owns no
@@ -553,7 +576,8 @@ defmodule Flicker.Components.Search do
   # A key suggestion looks like `status:` — nothing after the operator. Only
   # those open an editor, and only for a facet whose editor wants a pop-out.
   defp editor_for_key_insert(socket, insert) do
-    with true <- String.ends_with?(insert, ":"),
+    with true <- socket.assigns.open_editor_on_pick,
+         true <- String.ends_with?(insert, ":"),
          key_text = String.trim_trailing(insert, ":"),
          {:ok, key} <- existing_atom(key_text),
          facet when not is_nil(facet) <- Enum.find(socket.assigns.facets, &(&1.key == key)),
@@ -716,10 +740,14 @@ defmodule Flicker.Components.Search do
   # Both hints can be live at once, and `aria-describedby` takes a list — so
   # the error and the press-Enter affordance are both announced rather than one
   # silently winning.
-  defp describedby(input_id, invalid_report, dispatch_pending) do
+  defp describedby(input_id, invalid_report, dispatch_pending, trigger_hint) do
     [
       invalid_report && "#{input_id}-facet-error",
-      dispatch_pending && "#{input_id}-dispatch-hint"
+      dispatch_pending && "#{input_id}-dispatch-hint",
+      # Spec 024: with a trigger configured, this hint is the *only* thing
+      # telling anyone the facets exist — a screen reader user must hear it on
+      # focus, not merely have it rendered somewhere on the page.
+      trigger_hint && "#{input_id}-trigger-hint"
     ]
     |> Enum.filter(& &1)
     |> case do
@@ -899,6 +927,40 @@ defmodule Flicker.Components.Search do
   defp facet_label(%{label: nil, key: key}), do: to_string(key)
   defp facet_label(%{label: label}), do: label
 
+  # Spec 024. With no trigger, an empty input's dropdown lists every facet key,
+  # which is its own discovery mechanism. A trigger removes that list, so the
+  # affordance has to be replaced deliberately or the feature is invisible.
+  # Nothing to announce when there are no facets to reach in the first place.
+  defp trigger_hint(%{facet_trigger: nil}), do: nil
+  defp trigger_hint(%{facets: []}), do: nil
+
+  defp trigger_hint(assigns) do
+    case Flicker.Trigger.graphemes(assigns.facet_trigger) do
+      [] -> nil
+      triggers -> message(assigns, :facet_trigger_hint, %{triggers: triggers})
+    end
+  end
+
+  defp placeholder(%{facet_trigger: nil} = assigns), do: message(assigns, :facet_search_placeholder)
+
+  # The example has to be a facet that trigger actually reaches. Pairing the
+  # first grapheme with a hardcoded facet name produces `#status` for a `#`
+  # scoped to something else — a placeholder teaching a gesture that matches
+  # nothing.
+  defp placeholder(assigns) do
+    trigger = assigns.facet_trigger
+
+    with [grapheme | _rest] <- Flicker.Trigger.graphemes(trigger),
+         [facet | _rest] <- Flicker.Trigger.scope(trigger, grapheme, assigns.facets) do
+      message(assigns, :facet_search_placeholder, %{
+        trigger: grapheme,
+        example: to_string(facet.key)
+      })
+    else
+      _no_reachable_facet -> message(assigns, :facet_search_placeholder)
+    end
+  end
+
   # A committed facet as a pill: `%{index, field, value}` where `field` is
   # the facet's display name and `value` its human label (enum `value_labels`
   # when present, otherwise humanised), with a non-`:eq` operator prefixed so
@@ -1036,6 +1098,8 @@ defmodule Flicker.Components.Search do
         Dispatch.pending?(assigns.dispatch, assigns.text, assigns.dispatched_text)
       )
       |> assign(:labels_close, message(assigns, :close_facet_editor))
+      |> assign(:trigger_hint, trigger_hint(assigns))
+      |> assign(:placeholder, placeholder(assigns))
       |> then(&assign(&1, :invalid_report, invalid_report(%{assigns: &1})))
       |> then(&assign(&1, :dispatch_withheld, &1.on_invalid == :require and &1.invalid_report != nil))
 
@@ -1121,10 +1185,10 @@ defmodule Flicker.Components.Search do
           autocomplete="off"
           class={@theme.multi_input}
           value={@text}
-          placeholder={message(assigns, :facet_search_placeholder)}
+          placeholder={@placeholder}
           disabled={!@connected?}
           aria-invalid={@invalid_report && "true"}
-          aria-describedby={describedby(@input_id, @invalid_report, @dispatch_pending)}
+          aria-describedby={describedby(@input_id, @invalid_report, @dispatch_pending, @trigger_hint)}
           phx-keyup="query"
           phx-debounce={Dispatch.debounce_attr(@dispatch, @debounce)}
           phx-focus="focus"
@@ -1220,6 +1284,14 @@ defmodule Flicker.Components.Search do
       while it shows. --%>
       <p :if={@dispatch_pending} id={"#{@input_id}-dispatch-hint"} class={@theme.dispatch_hint}>
         {message(assigns, :press_enter_to_search)}
+      </p>
+      <%!-- Spec 024: the trigger's discoverability affordance. Always rendered
+      while a trigger is configured (not only when the input is empty) — it is
+      the input's `aria-describedby` target, and a description that appears and
+      disappears as the user types is a description a screen reader user can't
+      rely on hearing. --%>
+      <p :if={@trigger_hint} id={"#{@input_id}-trigger-hint"} class={@theme.facet_trigger_hint}>
+        {@trigger_hint}
       </p>
       <div id={"#{@id}-announcer"} aria-live="polite" class="flicker-sr-only" style={@sr_only_style}>
         {@announcement}

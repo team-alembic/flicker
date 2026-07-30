@@ -18,6 +18,8 @@ if Code.ensure_loaded?(Ash) do
       dispatch = Map.get(session, "dispatch", :debounce)
       on_invalid = Map.get(session, "on_invalid", :drop)
       count_facets = Map.get(session, "count_facets", false)
+      facet_trigger = Map.get(session, "facet_trigger")
+      open_editor_on_pick = Map.get(session, "open_editor_on_pick", true)
 
       recent_values =
         if Map.get(session, "recent_values", false) do
@@ -32,6 +34,8 @@ if Code.ensure_loaded?(Ash) do
         |> assign(:dispatch, dispatch)
         |> assign(:on_invalid, on_invalid)
         |> assign(:count_facets, count_facets)
+        |> assign(:facet_trigger, facet_trigger)
+        |> assign(:open_editor_on_pick, open_editor_on_pick)
         |> assign(:recent_values, recent_values)
         |> assign(:last_query, nil)
         |> assign(:last_filter, nil)
@@ -62,6 +66,8 @@ if Code.ensure_loaded?(Ash) do
         dispatch={@dispatch}
         on_invalid={@on_invalid}
         recent_values={@recent_values}
+        facet_trigger={@facet_trigger}
+        open_editor_on_pick={@open_editor_on_pick}
       />
       <p :if={@last_query} id="last-text">{@last_query.text}</p>
       <p :if={@last_query} id="last-facets">{inspect(@last_query.facets)}</p>

@@ -43,9 +43,19 @@ defmodule Flicker.CursorContext do
       allow) and the cursor sits at or past that operator — this token is
       headed for free text once `Flicker.Query.parse/2` sees it, and there
       is no facet to drive value suggestions from.
+
+  ## Trigger character
+
+  Passing a `Flicker.Trigger` as the optional fourth argument (Spec 024) gates
+  `{:key, _}` behind an explicit gesture: only a token opening with a trigger
+  grapheme (`@stat`) reports a key prefix, and it reports it *without* the
+  trigger, so the completion is the ordinary canonical token. Every other bare
+  word is `:text`. `{:value, _, _}` is untouched — a facet typed out in full is
+  still recognised, since gating recognition would break pasted and
+  URL-restored queries.
   """
 
-  alias Flicker.Facet
+  alias Flicker.{Facet, Trigger}
 
   @typedoc "The text of the token from its start up to the cursor."
   @type prefix :: String.t()
@@ -91,16 +101,80 @@ defmodule Flicker.CursorContext do
 
       iex> Flicker.CursorContext.classify("", 0, [])
       {:key, ""}
+
+  With a `Flicker.Trigger` (Spec 024), `{:key, _}` fires only for a token that
+  opens with a trigger grapheme — the trigger itself is dropped from the
+  reported prefix, and the facets considered are that trigger's own scope:
+
+      iex> facets = [%Flicker.Facet{key: :status}]
+      ...> Flicker.CursorContext.classify("@stat", 5, facets, %{"@" => :all})
+      {:key, "stat"}
+
+      iex> Flicker.CursorContext.classify("stat", 4, [%Flicker.Facet{key: :status}], %{"@" => :all})
+      :text
+
+  ...but a facet typed out in full is still *recognised*, against the whole
+  registry — a pasted or URL-restored query must not stop working because a
+  trigger is configured:
+
+      iex> facets = [%Flicker.Facet{key: :status}]
+      ...> Flicker.CursorContext.classify("status:acti", 11, facets, %{"@" => :all})
+      {:value, %Flicker.Facet{key: :status}, "acti"}
   """
-  @spec classify(String.t(), integer(), [Facet.t()]) :: t()
-  def classify(input, cursor, facets) when is_binary(input) and is_integer(cursor) and is_list(facets) do
+  @spec classify(String.t(), integer(), [Facet.t()], Trigger.t() | nil) :: t()
+  def classify(input, cursor, facets, trigger \\ nil)
+      when is_binary(input) and is_integer(cursor) and is_list(facets) do
     codepoints = String.to_charlist(input)
     clamped_cursor = cursor |> max(0) |> min(length(codepoints))
     facet_index = Map.new(facets, &{&1.key, &1})
 
     {token_chars, token_start} = current_token(codepoints, clamped_cursor)
-    classify_token(token_chars, clamped_cursor - token_start, facet_index)
+
+    classify_with_trigger(
+      token_chars,
+      clamped_cursor - token_start,
+      facets,
+      facet_index,
+      trigger
+    )
   end
+
+  # Spec 024. Three outcomes, in order:
+  #
+  #   1. The token opens with a configured trigger — drop it and classify the
+  #      remainder against that trigger's facet scope. A bare `@` is
+  #      `{:key, ""}`: the full menu.
+  #   2. It doesn't, but it still resolves to a known facet with a legal
+  #      operator — `{:value, ...}` as ever. A trigger gates discovery, not
+  #      recognition, so typed-out and pasted queries are unaffected.
+  #   3. Otherwise `:text`. This is the gate: a bare word no longer volunteers
+  #      facet-key suggestions.
+  @spec classify_with_trigger(
+          [char()],
+          non_neg_integer(),
+          [Facet.t()],
+          %{atom() => Facet.t()},
+          Trigger.t() | nil
+        ) ::
+          t()
+  defp classify_with_trigger(token_chars, rel_cursor, _facets, facet_index, nil) do
+    classify_token(token_chars, rel_cursor, facet_index)
+  end
+
+  defp classify_with_trigger(token_chars, rel_cursor, facets, facet_index, trigger) do
+    # `rel_cursor >= 1` because a cursor sitting *before* the trigger grapheme
+    # hasn't entered facet mode — the user is about to type ahead of it.
+    with [first | rest] <- token_chars,
+         true <- rel_cursor >= 1,
+         scoped when is_list(scoped) <- Trigger.scope(trigger, <<first::utf8>>, facets) do
+      classify_token(rest, rel_cursor - 1, Map.new(scoped, &{&1.key, &1}))
+    else
+      _not_triggered -> gate_key(classify_token(token_chars, rel_cursor, facet_index))
+    end
+  end
+
+  defp gate_key({:key, _prefix}), do: :text
+  defp gate_key(context), do: context
 
   @doc """
   The start offset (codepoint index) of the token containing `cursor`,

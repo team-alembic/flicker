@@ -200,6 +200,22 @@ state is correct.
 | 5 | Type an unrecognised `key:value` pair | Degrades to free-text context; no crash, no stuck facet-context announcement |
 | 6 | Type a relationship facet's value prefix (e.g. `genre:In`) | "Typing a value for genre"; nested search runs; "Loading..." while in flight, then a count |
 
+### Trigger character (`facet_trigger`, Spec 024)
+
+With a trigger configured, a bare word no longer lists facet keys — so the hint
+is the *only* thing telling a screen reader user the facets exist. That makes
+step 1 the one that matters most here.
+
+| # | Step | Expected announcement |
+|---|---|---|
+| 1 | Tab to a `facet_trigger="@"` input | The input's name, then its description: "Type @ to filter" |
+| 2 | Type a bare word (e.g. `stat`) | "Typing free text" — no facet-key context, no suggestion count |
+| 3 | Type `@` | "Typing a facet name"; "N matching facets"; the listbox is expanded |
+| 4 | Continue to `@stat` | The narrowed count; each option's name is the canonical token (`status:`), with no `@` |
+| 5 | Pick a key suggestion | As Spec 019 step 1 below — the editor's dialog is announced; the input holds `status:`, never `@status:` |
+| 6 | Type an email address (`casey@example.com`) | Stays "Typing free text" throughout; no facet context mid-word |
+| 7 | With a scoped trigger (`%{"@" => [...], "#" => [...]}`), type each | Only that trigger's facets are offered and counted |
+
 ### Facet editors (`Flicker.FacetEditor.*`, Spec 019)
 
 The pop-out is a modal sub-context, so the transitions in and out of it are

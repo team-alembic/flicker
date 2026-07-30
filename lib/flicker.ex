@@ -308,6 +308,17 @@ defmodule Flicker do
         "provider; see the moduledoc for what's in and out of scope for facets-in-select in v1."
   )
 
+  attr(:facet_trigger, :any,
+    default: nil,
+    doc: """
+    A trigger character that opens the facet menu ([Spec 024](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-024-facet-trigger-character.md)) —
+    `"@"`, or a map scoping which facets each trigger offers. Matters more here
+    than in `Flicker.search/1`: this component's primary job is finding a
+    *record*, so having every typed word volunteer facet keys competes with the
+    thing the user came for. See `Flicker.search/1` for the full semantics.
+    """
+  )
+
   attr(:paginate, :boolean,
     default: false,
     doc: "Windowed infinite scroll instead of \"keep typing to narrow\" (Spec 010). See moduledoc."
@@ -337,6 +348,7 @@ defmodule Flicker do
       assigns
       |> assign(:provider, provider)
       |> assign(:resolved_facets, FacetSuggest.resolve_facets(assigns))
+      |> assign(:facet_trigger, Flicker.Trigger.parse!(assigns[:facet_trigger]))
       |> assign(
         :limit,
         assigns[:limit] || Application.get_env(:flicker, :default_limit, @default_limit)
@@ -370,6 +382,7 @@ defmodule Flicker do
       messages={@messages}
       activate_with_keyboard={@activate_with_keyboard}
       facets={@resolved_facets}
+      facet_trigger={@facet_trigger}
       paginate={@paginate}
       max_windows={@max_windows}
       option={@option}
@@ -486,6 +499,35 @@ defmodule Flicker do
     """
   )
 
+  attr(:facet_trigger, :any,
+    default: nil,
+    doc: """
+    A trigger character that opens the facet menu ([Spec 024](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-024-facet-trigger-character.md)) —
+    `"@"`, or `%{"@" => [:worker], "#" => [:tag]}` to scope which facets each
+    trigger offers.
+
+    Without it (the default) every bare word offers facet-key suggestions, which
+    is right for a dedicated filter bar and in the way for a search box that is
+    mostly used for free text. With it, plain words search records and only a
+    token opening with the trigger lists facets.
+
+    The trigger is input sugar and never grammar: it reaches no token, pill,
+    query or URL — `@stat` completes to `status:`. A facet typed out in full or
+    restored from a URL is still recognised, so sharing a search link keeps
+    working.
+    """
+  )
+
+  attr(:open_editor_on_pick, :boolean,
+    default: true,
+    doc: """
+    Whether choosing a facet key opens that facet's editor
+    ([Spec 019](https://github.com/team-alembic/flicker/blob/main/docs/specs/spec-019-facet-editors.md))
+    immediately, rather than leaving the user in value position with an inline
+    picklist. Set `false` to keep the pop-out behind an explicit second gesture.
+    """
+  )
+
   attr(:dispatch, :atom,
     default: :debounce,
     values: [:debounce, :immediate, :enter],
@@ -511,6 +553,7 @@ defmodule Flicker do
       assigns
       |> assign(:resolved_facets, FacetSuggest.resolve_facets(assigns))
       |> assign(:count_source, count_source(assigns))
+      |> assign(:facet_trigger, Flicker.Trigger.parse!(assigns[:facet_trigger]))
       |> assign(
         :limit,
         assigns[:limit] || Application.get_env(:flicker, :default_limit, @default_limit)
@@ -529,6 +572,8 @@ defmodule Flicker do
       on_invalid={@on_invalid}
       count_source={@count_source}
       recent_values={@recent_values}
+      facet_trigger={@facet_trigger}
+      open_editor_on_pick={@open_editor_on_pick}
       facets={@resolved_facets}
       actor={@actor}
       tenant={@tenant}
@@ -708,6 +753,14 @@ defmodule Flicker do
     doc: "Faceted key/value autocomplete over the search input (Spec 003) — see `Flicker.select/1`."
   )
 
+  attr(:facet_trigger, :any,
+    default: nil,
+    doc:
+      "A trigger character that opens the facet menu (Spec 024) — see `Flicker.select/1`. " <>
+        "A palette is the surface this matters most on: it is a *global* search box, so leaving " <>
+        "facet suggestions always-on means every query the user types competes with them."
+  )
+
   attr(:paginate, :boolean,
     default: false,
     doc:
@@ -731,6 +784,7 @@ defmodule Flicker do
       assigns
       |> assign(:provider, provider)
       |> assign(:resolved_facets, FacetSuggest.resolve_facets(assigns))
+      |> assign(:facet_trigger, Flicker.Trigger.parse!(assigns[:facet_trigger]))
       |> assign(
         :limit,
         assigns[:limit] || Application.get_env(:flicker, :default_limit, @default_limit)
@@ -760,6 +814,7 @@ defmodule Flicker do
       messages={@messages}
       activate_with_keyboard={@activate_with_keyboard}
       facets={@resolved_facets}
+      facet_trigger={@facet_trigger}
       paginate={@paginate}
       max_windows={@max_windows}
       option={@option}

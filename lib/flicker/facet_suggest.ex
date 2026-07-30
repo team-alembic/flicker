@@ -19,7 +19,7 @@ defmodule Flicker.FacetSuggest do
   by checking `result.meta[:flicker_facet]`.
   """
 
-  alias Flicker.{CursorContext, Facet, Result}
+  alias Flicker.{CursorContext, Facet, Result, Trigger}
 
   @typedoc "A facet suggestion — a `Flicker.Result` tagged for token insertion."
   @type suggestion :: Result.t()
@@ -42,14 +42,69 @@ defmodule Flicker.FacetSuggest do
   `Flicker.CursorContext` itself has always supported arbitrary cursor
   positions and is exercised at every position by its own unit/property
   tests; this function is what threads a real one into it.
+
+  `trigger` is a `Flicker.Trigger` (Spec 024) or `nil` — with one configured,
+  facet-key suggestions only fire for a token opening with a trigger grapheme.
   """
-  @spec classify(String.t(), [Facet.t()], non_neg_integer() | nil) :: CursorContext.t()
-  def classify(text, facets, cursor \\ nil)
+  @spec classify(String.t(), [Facet.t()], non_neg_integer() | nil, Trigger.t() | nil) ::
+          CursorContext.t()
+  def classify(text, facets, cursor \\ nil, trigger \\ nil)
 
-  def classify(text, facets, nil), do: CursorContext.classify(text, String.length(text), facets)
+  def classify(text, facets, nil, trigger) do
+    CursorContext.classify(text, String.length(text), facets, trigger)
+  end
 
-  def classify(text, facets, cursor) when is_integer(cursor) do
-    CursorContext.classify(text, CursorContext.from_utf16_offset(text, cursor), facets)
+  def classify(text, facets, cursor, trigger) when is_integer(cursor) do
+    CursorContext.classify(text, CursorContext.from_utf16_offset(text, cursor), facets, trigger)
+  end
+
+  @doc """
+  The facets in play for the token under `cursor` — the whole registry, or just
+  the scope of the trigger that token opens with (Spec 024).
+
+  `Flicker.CursorContext.classify/4` applies this scoping internally to decide
+  *what* the cursor is typing; a caller needs it again to build the suggestion
+  list itself, and getting it from here rather than from the returned state
+  keeps `Flicker.CursorContext.t/0` unchanged and every existing `case` over it
+  exhaustive.
+
+  Falls back to the whole registry when no trigger is configured, or when the
+  current token doesn't open with one — in the latter case the caller is in
+  `{:value, _, _}` or `:text`, neither of which lists keys.
+
+  ## Examples
+
+      iex> facets = [Flicker.Facet.new(key: :worker), Flicker.Facet.new(key: :tag)]
+      ...>
+      ...> Flicker.FacetSuggest.scoped_facets("@wor", facets, nil, %{"@" => [:worker]})
+      ...> |> Enum.map(& &1.key)
+      [:worker]
+
+      iex> facets = [Flicker.Facet.new(key: :worker), Flicker.Facet.new(key: :tag)]
+      ...>
+      ...> Flicker.FacetSuggest.scoped_facets("wor", facets, nil, %{"@" => [:worker]})
+      ...> |> Enum.map(& &1.key)
+      [:worker, :tag]
+  """
+  @spec scoped_facets(String.t(), [Facet.t()], non_neg_integer() | nil, Trigger.t() | nil) :: [
+          Facet.t()
+        ]
+  def scoped_facets(text, facets, cursor, trigger)
+
+  def scoped_facets(_text, facets, _cursor, nil), do: facets
+
+  def scoped_facets(text, facets, cursor, trigger) do
+    codepoint_cursor =
+      if is_integer(cursor),
+        do: CursorContext.from_utf16_offset(text, cursor),
+        else: String.length(text)
+
+    {start, _stop} = CursorContext.token_bounds(text, codepoint_cursor)
+
+    case String.at(text, start) do
+      nil -> facets
+      grapheme -> Trigger.scope(trigger, grapheme, facets) || facets
+    end
   end
 
   @doc """
@@ -226,6 +281,13 @@ defmodule Flicker.FacetSuggest do
 
       iex> Flicker.FacetSuggest.replace_current_token("foo bar stat", "status:")
       "foo bar status:"
+
+  A Spec 024 trigger grapheme is part of the token, so it disappears as a
+  consequence of replacing the token — there is no stripping step, and no way
+  for `@` to end up in the query:
+
+      iex> Flicker.FacetSuggest.replace_current_token("@stat", "status:")
+      "status:"
 
       iex> Flicker.FacetSuggest.replace_current_token(~s(worker:"Casey N), "worker:123 ")
       "worker:123 "
