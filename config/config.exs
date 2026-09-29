@@ -1,5 +1,8 @@
 import Config
 
+# Dev and test resources only. Keeps the string-length counting from before Ash 3.33.
+config :ash, default_string_length_count: :mixed
+
 # The seeded `Dev.Music` domain (Spec 004's test harness, Spec 005's
 # playground) is only compiled when `ash` is present (`dev/` is added to
 # `elixirc_paths(:test)` conditionally — see mix.exs); this config entry is

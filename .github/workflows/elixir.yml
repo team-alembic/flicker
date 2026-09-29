@@ -21,7 +21,7 @@ jobs:
     name: latest (mix check)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - id: beam
         uses: erlef/setup-beam@v1
@@ -30,21 +30,21 @@ jobs:
           version-type: strict
 
       - name: Cache deps
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: deps
           key: deps-latest-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
           restore-keys: deps-latest-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
 
       - name: Cache _build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: _build
           key: build-latest-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
           restore-keys: build-latest-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
 
       - name: Cache dialyzer PLT
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: priv/plts
           key: plt-latest-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
@@ -59,7 +59,7 @@ jobs:
     name: oldest (floor Elixir/OTP)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - id: beam
         uses: erlef/setup-beam@v1
@@ -68,14 +68,14 @@ jobs:
           otp-version: "26.2"
 
       - name: Cache deps
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: deps
           key: deps-oldest-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
           restore-keys: deps-oldest-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
 
       - name: Cache _build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: _build
           key: build-oldest-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
@@ -98,7 +98,7 @@ jobs:
     env:
       FLICKER_NO_ASH: "true"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - id: beam
         uses: erlef/setup-beam@v1
@@ -107,14 +107,14 @@ jobs:
           version-type: strict
 
       - name: Cache deps
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: deps
           key: deps-no-ash-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
           restore-keys: deps-no-ash-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
 
       - name: Cache _build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: _build
           key: build-no-ash-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
@@ -134,7 +134,7 @@ jobs:
     name: browser (axe-core + keyboard)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - id: beam
         uses: erlef/setup-beam@v1
@@ -143,7 +143,7 @@ jobs:
           version-type: strict
 
       - name: Cache deps
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: deps
           key: deps-latest-${{ runner.os }}-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
@@ -174,7 +174,7 @@ jobs:
     env:
       MIX_ENV: dev
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
           version-file: .tool-versions
@@ -190,7 +190,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

@@ -79,7 +79,7 @@ defmodule Flicker.FacetFormatTest do
       # Elixir's silently fell back. This pins that the CLDR path is really
       # exercised rather than quietly degrading.
       if Format.localized?() do
-        assert Format.value_label(@length, 9_000) == "2 hours and 30 minutes"
+        assert Format.value_label(@length, 9_000) == "2 hours, 30 minutes"
         assert Format.value_label(@price, 1_234_567) == "1,234,567"
 
         # CLDR collapses the shared month, which plain concatenation cannot.
