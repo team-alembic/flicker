@@ -13,7 +13,7 @@ defmodule Flicker.MixProject do
       # (`_build/#{Mix.env()}/phoenix-colocated/flicker/index.js`) to be
       # written at all — otherwise only the per-hook fragment files land in
       # `_build`, and nothing ever exports the `hooks` map a `LiveSocket`
-      # needs. Real host apps normally get this for free from their own
+      # needs. Real host apps normally get this setting from their own
       # Phoenix 1.8 boilerplate; flicker needs it itself for the dev
       # playground's `.Nav`/`.Palette`/`.FlickerSearchNav` hooks to mount
       # at all (Spec 005/007 — this was previously silently broken: the
@@ -33,7 +33,9 @@ defmodule Flicker.MixProject do
       docs: &docs/0,
       dialyzer: [
         # `:phoenix_test` — `Flicker.Test.search_select/3` calls it directly.
-        plt_add_apps: [:mix, :ex_unit, :phoenix_test],
+        # `:igniter_js` — `mix flicker.install` calls its parser; it's
+        # `runtime: false`, so the app tree doesn't pull it into the PLT.
+        plt_add_apps: [:mix, :ex_unit, :phoenix_test, :igniter_js],
         plt_core_path: "priv/plts",
         plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
       ],
@@ -108,7 +110,18 @@ defmodule Flicker.MixProject do
     if System.get_env("FLICKER_NO_LOCALIZE") do
       []
     else
-      [{:localize, "~> 0.50", optional: true}]
+      [{:localize, "~> 1.2", optional: true}] ++ json_polyfill_deps()
+    end
+  end
+
+  # `localize` needs OTP 27's `:json` module. The oldest CI leg runs the
+  # OTP 26 floor (ADR-008), so the suite gets the polyfill there. A host on
+  # OTP 26 adds it itself, as `localize`'s startup error tells it to.
+  defp json_polyfill_deps do
+    if String.to_integer(System.otp_release()) < 27 do
+      [{:json_polyfill, "~> 0.2", only: [:dev, :test]}]
+    else
+      []
     end
   end
 
