@@ -129,6 +129,8 @@ defmodule Flicker.QueryRichTypesTest do
   end
 
   describe "to_filter/2 with the new operators" do
+    @describetag :ash
+
     test "a closed range becomes a bounded and-pair" do
       assert "created:2026-06-01..2026-06-30" |> parse() |> Query.to_filter(@facets) ==
                %{"created" => %{"and" => [%{"gte" => ~D[2026-06-01]}, %{"lte" => ~D[2026-06-30]}]}}
