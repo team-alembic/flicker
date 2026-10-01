@@ -30,7 +30,6 @@ defmodule Flicker.Query do
   """
 
   alias Flicker.Facet
-  alias Flicker.Facet.Range
   alias Flicker.Query.Invalid
 
   @typedoc "A parsed facet filter: `{key, operator, cast value}`."
@@ -282,6 +281,8 @@ defmodule Flicker.Query do
   defp do_scan_quoted(<<c::utf8, rest::binary>>, acc), do: do_scan_quoted(rest, [<<c::utf8>> | acc])
 
   if Code.ensure_loaded?(Ash) do
+    alias Flicker.Facet.Range
+
     @doc """
     Builds an Ash `filter_input`-shaped map from `query.facets`: distinct
     facet keys AND together, repeated instances of the same facet key OR
