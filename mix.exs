@@ -108,7 +108,7 @@ defmodule Flicker.MixProject do
     if System.get_env("FLICKER_NO_LOCALIZE") do
       []
     else
-      [{:localize, "~> 0.50", optional: true}]
+      [{:localize, "~> 1.3", optional: true}]
     end
   end
 
