@@ -10,6 +10,8 @@
     {:deps_audit, "mix deps.audit"},
     {:ex_unit, "mix test"},
     {:dialyzer, "mix dialyzer"},
-    {:ex_doc, "mix docs"}
+    {:ex_doc, "mix docs"},
+    # `usage_rules` is a `:dev`-only dep, so its task is missing under CI's `MIX_ENV=test`.
+    {:usage_rules, env: %{"MIX_ENV" => "dev"}}
   ]
 ]

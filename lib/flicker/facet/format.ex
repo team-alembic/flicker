@@ -76,7 +76,7 @@ defmodule Flicker.Facet.Format do
 
       iex> facet = Flicker.Facet.new(key: :length, type: :duration)
       ...> label = Flicker.Facet.Format.value_label(facet, 9000)
-      ...> label in ["2h30m", "2 hours and 30 minutes"]
+      ...> label in ["2h30m", "2 hours, 30 minutes"]
       true
 
       iex> facet =
@@ -91,7 +91,7 @@ defmodule Flicker.Facet.Format do
       "A and B"
 
   The duration example above admits two answers on purpose: `2h30m` is the
-  fallback, `2 hours and 30 minutes` is CLDR's. Which one you get depends on
+  fallback, `2 hours, 30 minutes` is CLDR's. Which one you get depends on
   whether the optional `localize` dependency is present, and a doctest can't
   branch on that.
   """
