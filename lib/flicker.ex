@@ -253,6 +253,30 @@ defmodule Flicker do
     doc: "Input placeholder. Defaults to the `:search_placeholder` message."
   )
 
+  attr(:aria_labelledby, :string,
+    default: nil,
+    doc: """
+    The id of a host element that names the combobox input, such as the
+    form field's own `<label>`. When set, Flicker renders no visually-hidden
+    label of its own, so the name is not read twice, and the listbox is
+    labelled by the same element.
+    """
+  )
+
+  attr(:aria_describedby, :string,
+    default: nil,
+    doc: """
+    Space-separated ids of host elements that describe the combobox input,
+    such as the form field's help text and error. Appended after Flicker's
+    own hint ids on the input's `aria-describedby`.
+    """
+  )
+
+  attr(:aria_invalid, :boolean,
+    default: false,
+    doc: "Renders `aria-invalid=\"true\"` on the combobox input when `true`."
+  )
+
   attr(:debounce, :integer,
     default: nil,
     doc: "Input debounce (ms). Defaults to `config :flicker, :default_debounce` (150)."
@@ -376,6 +400,9 @@ defmodule Flicker do
       min_chars={@min_chars}
       placeholder={@placeholder}
       debounce={@debounce}
+      aria_labelledby={@aria_labelledby}
+      aria_describedby={@aria_describedby}
+      aria_invalid={@aria_invalid}
       dispatch={@dispatch}
       loading_delay={@loading_delay}
       theme={@theme}

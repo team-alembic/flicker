@@ -137,6 +137,9 @@ defmodule Flicker.Components.Select do
       |> assign_new(:limit, fn -> @default_limit end)
       |> assign_new(:min_chars, fn -> @default_min_chars end)
       |> assign_new(:placeholder, fn -> nil end)
+      |> assign_new(:aria_describedby, fn -> nil end)
+      |> assign_new(:aria_invalid, fn -> false end)
+      |> assign_new(:aria_labelledby, fn -> nil end)
       |> assign_new(:dispatch, fn -> @default_dispatch end)
       |> assign_new(:loading_delay, fn -> @default_loading_delay end)
       # What is asking for the current search, for `Flicker.Dispatch` to judge
@@ -1116,10 +1119,12 @@ defmodule Flicker.Components.Select do
     end
   end
 
-  defp describedby(input_id, dispatch_pending, trigger_hint) do
+  # The host's ids go last so Flicker's live hints are announced first.
+  defp describedby(input_id, dispatch_pending, trigger_hint, host_describedby) do
     [
       dispatch_pending && "#{input_id}-dispatch-hint",
-      trigger_hint && "#{input_id}-trigger-hint"
+      trigger_hint && "#{input_id}-trigger-hint",
+      host_describedby
     ]
     |> Enum.filter(& &1)
     |> case do
@@ -1278,7 +1283,13 @@ defmodule Flicker.Components.Select do
   # two. Called as `{combobox_input(assign(assigns, :input_class, ...))}`.
   defp combobox_input(assigns) do
     ~H"""
-    <label id={"#{@input_id}-label"} for={@input_id} class="flicker-sr-only" style={@sr_only_style}>
+    <label
+      :if={!@aria_labelledby}
+      id={"#{@input_id}-label"}
+      for={@input_id}
+      class="flicker-sr-only"
+      style={@sr_only_style}
+    >
       {message(assigns, :search_placeholder)}
     </label>
     <input
@@ -1296,7 +1307,9 @@ defmodule Flicker.Components.Select do
       placeholder={@placeholder || message(assigns, :search_placeholder)}
       disabled={!@connected?}
       aria-keyshortcuts={@aria_keyshortcuts}
-      aria-describedby={describedby(@input_id, @dispatch_pending, @trigger_hint)}
+      aria-describedby={describedby(@input_id, @dispatch_pending, @trigger_hint, @aria_describedby)}
+      aria-labelledby={@aria_labelledby}
+      aria-invalid={@aria_invalid && "true"}
       phx-keyup="query"
       phx-debounce={Dispatch.debounce_attr(@dispatch, @debounce)}
       phx-focus="focus"
@@ -1593,7 +1606,7 @@ defmodule Flicker.Components.Select do
         :if={@open}
         id={@listbox_id}
         role="listbox"
-        aria-labelledby={"#{@input_id}-label"}
+        aria-labelledby={@aria_labelledby || "#{@input_id}-label"}
         aria-busy={@aria_busy}
         class={[@theme.listbox, @results_stale && @theme.results_stale]}
       >
@@ -1983,15 +1996,36 @@ defmodule Flicker.Components.Select do
             this.cursorInput = input
             this.onKeyupCursor = () => input.setAttribute("phx-value-cursor", String(input.selectionStart))
             this.onClickOrSelectCursor = () => this.pushEventTo(this.el, "cursor", { cursor: input.selectionStart })
+            // Text that arrives with no key held (context-menu paste, drag
+            // and drop, browser autofill) gets no keyup, so `phx-keyup`
+            // never pushes "query" for it. Typing and Ctrl/Cmd+V hold a key
+            // down across the `input` event and still go through `phx-keyup`
+            // and its debounce, so they are not pushed twice.
+            this.keysDown = 0
+            this.onKeydownTrack = () => { this.keysDown += 1 }
+            this.onKeyupTrack = () => { this.keysDown = Math.max(0, this.keysDown - 1) }
+            this.onBlurTrack = () => { this.keysDown = 0 }
+            this.onKeylessInput = () => {
+              if (this.keysDown > 0) return
+              this.pushEventTo(this.el, "query", { value: input.value, cursor: String(input.selectionStart) })
+            }
             input.addEventListener("keyup", this.onKeyupCursor)
             input.addEventListener("click", this.onClickOrSelectCursor)
             input.addEventListener("select", this.onClickOrSelectCursor)
+            input.addEventListener("keydown", this.onKeydownTrack)
+            input.addEventListener("keyup", this.onKeyupTrack)
+            input.addEventListener("blur", this.onBlurTrack)
+            input.addEventListener("input", this.onKeylessInput)
           },
           detachCursorReporting() {
             if (!this.cursorInput) return
             this.cursorInput.removeEventListener("keyup", this.onKeyupCursor)
             this.cursorInput.removeEventListener("click", this.onClickOrSelectCursor)
             this.cursorInput.removeEventListener("select", this.onClickOrSelectCursor)
+            this.cursorInput.removeEventListener("keydown", this.onKeydownTrack)
+            this.cursorInput.removeEventListener("keyup", this.onKeyupTrack)
+            this.cursorInput.removeEventListener("blur", this.onBlurTrack)
+            this.cursorInput.removeEventListener("input", this.onKeylessInput)
             this.cursorInput = null
           },
           registerChord(chord) {
