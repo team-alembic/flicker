@@ -1,4 +1,4 @@
-if Code.ensure_loaded?(Ash) do
+if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Wallaby) do
   defmodule Flicker.Browser.AxeTest do
     @moduledoc """
     Automated `axe-core` scans against every dev-playground route (Spec

@@ -221,18 +221,28 @@ defmodule Flicker.MixProject do
       # markup indefinitely (which has already cost us two phantom
       # regressions). `:dev` only — the same endpoint is booted in `:test` by
       # Spec 007's browser suite, which must not recompile mid-request.
-      {:phoenix_live_reload, "~> 1.5", only: :dev},
+      {:phoenix_live_reload, "~> 1.5", only: :dev}
+    ] ++ browser_deps()
+  end
 
-      # Browser-driven tests (Spec 007): axe-core accessibility scans and
-      # client-side keyboard behaviour ExUnit/PhoenixTest can't reach (real
-      # arrow-key/aria-activedescendant/focus-trap DOM behaviour). `a11y_audit`
-      # vendors axe-core itself — no npm — and drives it through a Wallaby
-      # session. `:test`-only, tagged `@moduletag :browser` and excluded from
-      # the default `mix test` run (see `.github/workflows/elixir.yml`'s
-      # `browser` job and `test/support/browser_case.ex`).
-      {:a11y_audit, "~> 0.4", only: :test, runtime: false},
-      {:wallaby, "~> 0.30", only: :test, runtime: false}
-    ]
+  # `FLICKER_NO_BROWSER` drops these from the oldest CI leg: Wallaby's HTTP client chain needs a newer OTP than flicker's floor, and that leg never runs the browser suite. The browser modules compile only when Wallaby is loaded.
+  #
+  # Browser-driven tests (Spec 007): axe-core accessibility scans and
+  # client-side keyboard behaviour ExUnit/PhoenixTest can't reach (real
+  # arrow-key/aria-activedescendant/focus-trap DOM behaviour). `a11y_audit`
+  # vendors axe-core itself — no npm — and drives it through a Wallaby
+  # session. `:test`-only, tagged `@moduletag :browser` and excluded from
+  # the default `mix test` run (see `.github/workflows/elixir.yml`'s
+  # `browser` job and `test/support/browser_case.ex`).
+  defp browser_deps do
+    if System.get_env("FLICKER_NO_BROWSER") do
+      []
+    else
+      [
+        {:a11y_audit, "~> 0.4", only: :test, runtime: false},
+        {:wallaby, "~> 0.30", only: :test, runtime: false}
+      ]
+    end
   end
 
   defp aliases do

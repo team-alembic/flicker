@@ -58,6 +58,9 @@ jobs:
   oldest:
     name: oldest (floor Elixir/OTP)
     runs-on: ubuntu-latest
+    # Wallaby's HTTP client chain (hackney -> quic) needs OTP 27, and the browser suite runs in its own job.
+    env:
+      FLICKER_NO_BROWSER: "true"
     steps:
       - uses: actions/checkout@v7
 
