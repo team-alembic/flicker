@@ -1,4 +1,4 @@
-if Code.ensure_loaded?(Ash) do
+if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Wallaby) do
   defmodule Flicker.Browser.KeyboardTest do
     @moduledoc """
     Browser-driven coverage (Spec 007) of the client-side keyboard

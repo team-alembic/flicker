@@ -1,4 +1,4 @@
-if Code.ensure_loaded?(Ash) do
+if Code.ensure_loaded?(Ash) and Code.ensure_loaded?(Wallaby) do
   defmodule Flicker.Test.BrowserCase do
     @moduledoc """
     Shared case template for Spec 007's browser-driven suite: axe-core scans
