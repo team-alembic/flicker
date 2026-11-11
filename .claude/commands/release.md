@@ -13,8 +13,10 @@ Steps:
    conventional-commit history, writes `CHANGELOG.md`, commits, and tags.
 5. Show me the diff and the tag that was created. **Stop and wait for my
    confirmation** before pushing.
-6. On my go-ahead: `git push && git push --tags`. The `release.yml` workflow
-   will publish to Hex when a GitHub Release is created for the tag.
+6. On my go-ahead: `git push && git push --tags`, then run the `release.yml`
+   workflow for the new tag: `gh workflow run release.yml -f tag=<tag>`.
+   CI runs this same release on every push to `main` and publishes to Hex
+   itself, so a manual release is only needed when that job is skipped.
 
 Never run destructive operations (`git reset --hard`, `git push --force`)
 without explicit permission.

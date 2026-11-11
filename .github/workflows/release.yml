@@ -1,22 +1,50 @@
 name: Release to Hex
 
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to publish, e.g. v0.1.0
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, e.g. v0.1.0
+        required: true
+        type: string
 
 jobs:
   publish:
     name: mix hex.publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       MIX_ENV: dev
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Check tag matches mix.exs version
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="$(grep -oP '@version "\K[^"]+' mix.exs)"
+          if [[ "v${version}" != "${TAG}" ]]; then
+            echo "::error::Tag ${TAG} does not match mix.exs version ${version}"
+            exit 1
+          fi
+
       - uses: erlef/setup-beam@v1
         with:
           version-file: .tool-versions
           version-type: strict
+
       - run: mix deps.get
+
       - run: mix hex.publish --yes
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}

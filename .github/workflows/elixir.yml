@@ -192,6 +192,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -206,24 +208,57 @@ jobs:
           if [[ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]]; then
             echo "A newer main commit exists; skipping this stale release."
           elif [[ -z "$(git tag --list 'v*')" ]]; then
-            echo "No release baseline tag exists; run the initial release manually."
+            echo "mode=initial" >> "$GITHUB_OUTPUT"
           else
-            echo "eligible=true" >> "$GITHUB_OUTPUT"
+            echo "mode=bump" >> "$GITHUB_OUTPUT"
           fi
 
-      - if: ${{ steps.release-check.outputs.eligible == 'true' }}
+      - name: Configure git identity
+        if: ${{ steps.release-check.outputs.mode != '' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # `git_ops.release --initial` refuses to run while CHANGELOG.md exists,
+      # so the first release tags the version already in mix.exs directly.
+      - name: Tag initial release
+        if: ${{ steps.release-check.outputs.mode == 'initial' }}
+        shell: bash
+        run: |
+          version="$(grep -oP '@version "\K[^"]+' mix.exs)"
+          git tag -a "v${version}" -m "v${version}"
+          git push origin "v${version}"
+
+      - if: ${{ steps.release-check.outputs.mode == 'bump' }}
         uses: erlef/setup-beam@v1
         with:
           version-file: .tool-versions
           version-type: strict
 
-      - if: ${{ steps.release-check.outputs.eligible == 'true' }}
+      - if: ${{ steps.release-check.outputs.mode == 'bump' }}
         run: mix deps.get
 
       - name: git-ops release
-        if: ${{ steps.release-check.outputs.eligible == 'true' }}
+        if: ${{ steps.release-check.outputs.mode == 'bump' }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           mix git_ops.release --yes
           git push --follow-tags
+
+      - id: tag
+        name: Find the tag this run created
+        if: ${{ steps.release-check.outputs.mode != '' }}
+        shell: bash
+        run: |
+          tag="$(git tag --points-at HEAD --list 'v*' | head -n 1)"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  # Tags pushed with `GITHUB_TOKEN` start no new workflow runs, so the
+  # release job hands its tag to the publish workflow directly.
+  publish:
+    name: Publish to Hex
+    needs: release
+    if: ${{ needs.release.outputs.tag != '' }}
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+    secrets: inherit
